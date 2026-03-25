@@ -1,0 +1,9 @@
+/* src/global.css */
+@import "tailwindcss";
+
+/* คุณยังสามารถเพิ่ม Custom CSS พื้นฐานของคุณได้ที่นี่ (ถ้ามี) */
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased;
+  }
+}
