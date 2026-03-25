@@ -1,9 +1,10 @@
 // src/layouts/Layout.jsx
-import { Outlet, Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { logout } from '../store/slices/authSlice';
+import { Children } from 'react';
 
-const Layout = () => {
+const Layout = ({ children }) => {
   const { isAuthenticated, user } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -53,7 +54,7 @@ const Layout = () => {
 
       {/* Main Content (Outlet คือจุดที่ Page ต่างๆ จะมาแสดงผล) */}
       <main className="grow container mx-auto px-4 py-8 max-w-7xl">
-        <Outlet />
+        {children}
       </main>
 
       {/* Footer */}

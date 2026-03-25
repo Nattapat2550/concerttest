@@ -36,10 +36,9 @@ function App() {
   }, []);
 
   return (
-    <Suspense fallback={<div className="p-10 text-center">กำลังโหลด...</div>}>
-      <Routes>
-        <Route element={<Layout />}> 
-          
+    <Layout>
+      <Suspense fallback={<div className="p-10 text-center">กำลังโหลด...</div>}>
+        <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -56,10 +55,9 @@ function App() {
           <Route path="/admin" element={<ProtectedRoute roles={['admin']}><AdminPage /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
-          
-        </Route>
-      </Routes>
-    </Suspense>
+        </Routes>
+      </Suspense>
+    </Layout>
   );
 }
 
