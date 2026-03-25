@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import api from '../../services/api'; // ✅ แก้ไข Path ให้อ้างอิง api.js ได้ถูกต้อง
+import api from '../../services/api'; 
 
 const initialState = {
   isAuthenticated: false,
@@ -9,11 +9,12 @@ const initialState = {
   error: null
 };
 
+// ✅ ลบ /api ออกจาก Path ทุกตัว เพราะ api.js ใส่ baseURL='/api' ไว้แล้ว
 export const checkAuthStatus = createAsyncThunk(
   'auth/checkStatus',
   async (_, { rejectWithValue }) => {
     try {
-      const res = await api.get('/api/auth/status');
+      const res = await api.get('/auth/status'); 
       return res.data; 
     } catch (err) {
       return rejectWithValue(err.response?.data?.error || 'Session expired');
@@ -25,7 +26,7 @@ export const login = createAsyncThunk(
   'auth/login',
   async ({ email, password, remember }, { rejectWithValue }) => {
     try {
-      const res = await api.post('/api/auth/login', { email, password, remember });
+      const res = await api.post('/auth/login', { email, password, remember });
       return res.data; 
     } catch (err) {
       return rejectWithValue(err.response?.data?.error || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง');
@@ -37,7 +38,8 @@ export const logout = createAsyncThunk(
   'auth/logout',
   async (_, { rejectWithValue }) => {
     try {
-      await api.post('/api/auth/logout');
+      await api.post('/auth/logout'); // ✅ จะได้ไม่เป็น /api/api/auth/logout
+      localStorage.removeItem('token'); // เคลียร์ Token ทิ้งด้วย
       return {};
     } catch (err) {
       return rejectWithValue('Logout failed');
@@ -52,7 +54,6 @@ const authSlice = createSlice({
     clearAuthError(state) {
       state.error = null;
     },
-    // ✅ 1. เพิ่ม Reducers สำหรับรองรับ action ที่เรียกจาก LoginPage
     loginStart(state) {
       state.status = 'loading';
       state.error = null;
@@ -110,6 +111,5 @@ const authSlice = createSlice({
   }
 });
 
-// ✅ 2. เพิ่ม Export ออกไปให้ LoginPage.jsx ใช้งานได้
 export const { clearAuthError, loginStart, loginSuccess, loginFailure } = authSlice.actions;
 export default authSlice.reducer;

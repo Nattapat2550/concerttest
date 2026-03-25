@@ -13,7 +13,7 @@ const LoginPage = () => {
   
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const loading = useSelector((state) => state.auth.status === 'loading');
+  const loading = useSelector((state) => state.auth.status === 'loading'); // ✅ ดึงสถานะ loading ให้ถูกต้อง
 
   // 📌 1. ระบบล็อกอินด้วยรหัสผ่านปกติ
   const handleSubmit = async (e) => {
@@ -22,9 +22,7 @@ const LoginPage = () => {
     dispatch(loginStart());
 
     try {
-      // API จะรวมกับ BaseURL กลายเป็น /api/auth/login
       const response = await api.post('/auth/login', { email, password });
-      
       const { token, user } = response.data.data || response.data;
       
       localStorage.setItem('token', token);
@@ -32,8 +30,8 @@ const LoginPage = () => {
       navigate('/'); 
     } catch (error) {
       dispatch(loginFailure());
-      const serverError = error.response?.data?.error?.message || error.response?.data?.message;
-      setErrorMsg(serverError || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+      const serverError = error.response?.data?.error?.message || error.response?.data?.error || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง';
+      setErrorMsg(serverError);
     }
   };
 
@@ -43,10 +41,8 @@ const LoginPage = () => {
       dispatch(loginStart());
       setErrorMsg('');
 
-      // ถอดรหัส Token ที่ได้จาก Google
       const decoded = jwtDecode(credentialResponse.credential);
       
-      // จัดโครงสร้างส่งให้ Rust
       const payload = {
         email: decoded.email,
         oauthId: decoded.sub,
@@ -54,7 +50,9 @@ const LoginPage = () => {
         pictureUrl: decoded.picture
       };
 
-      const response = await api.post('/auth/oauth/google', payload);
+      // 🚨 จุดสำคัญ: เช็กว่า Router ในไฟล์ Go ของคุณเป็น /auth/google หรือ /auth/oauth/google (ส่วนใหญ่จะตั้งเป็น /auth/google ครับ)
+      const response = await api.post('/auth/google', payload);
+      
       const { token, user } = response.data.data || response.data;
 
       localStorage.setItem('token', token);
@@ -62,7 +60,8 @@ const LoginPage = () => {
       navigate('/');
     } catch (error) {
       dispatch(loginFailure());
-      setErrorMsg('เกิดข้อผิดพลาดในการเชื่อมต่อระบบ Google เข้ากับเซิร์ฟเวอร์');
+      console.error("Google Login Error:", error.response || error);
+      setErrorMsg('เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์ กรุณาลองใหม่อีกครั้ง');
     }
   };
 
@@ -118,10 +117,13 @@ const LoginPage = () => {
           </div>
           
           <div className="flex justify-center">
+            {/* ✅ ปิด useOneTap ออกไปก่อน เพื่อแก้ปัญหา Error FedCM Blocked จากหน้าเว็บ */}
             <GoogleLogin 
               onSuccess={handleGoogleSuccess}
               onError={() => setErrorMsg('การล็อกอินผ่าน Google ถูกยกเลิกหรือไม่สำเร็จ')}
-              useOneTap
+              useOneTap={false} 
+              shape="rectangular"
+              context="signin"
             />
           </div>
         </div>
