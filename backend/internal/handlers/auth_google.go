@@ -133,7 +133,6 @@ func (h *Handler) AuthGoogleMobileCallback(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// 🌟 [เพิ่มใหม่] โครงสร้างที่ Frontend ส่งมาหลัง Decode JWT เรียบร้อยแล้ว
 type oauthGoogleReq struct {
 	Email      string `json:"email"`
 	OAuthID    string `json:"oauthId"`
@@ -141,7 +140,7 @@ type oauthGoogleReq struct {
 	PictureURL string `json:"pictureUrl"`
 }
 
-// 🌟 [เพิ่มใหม่] POST /api/auth/oauth/google รับจาก Frontend (React)
+// POST /api/auth/oauth/google รับจาก Frontend (React)
 func (h *Handler) AuthOAuthGoogle(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -193,12 +192,16 @@ func (h *Handler) setOAuthUser(ctx context.Context, info *googleUserInfo) (userD
 	pic := strings.TrimSpace(info.Picture)
 	name := strings.TrimSpace(info.Name)
 
+	// 🌟 ปล่อย Payload ครอบคลุมทุกรูปแบบ เพื่อการันตีว่า Rust จะต้องหาข้อมูลเจอแน่ๆ!
 	payload := map[string]any{
-		"provider":   "google",
-		"oauthId":    subject,
-		"email":      email,
-		"pictureUrl": pic,
-		"name":       name,
+		"provider":    "google",
+		"oauthId":     subject,
+		"oauth_id":    subject,
+		"email":       email,
+		"pictureUrl":  pic,
+		"picture_url": pic,
+		"name":        name,
+		"username":    name,
 	}
 
 	var user userDTO
