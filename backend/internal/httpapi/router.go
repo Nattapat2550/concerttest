@@ -31,6 +31,7 @@ func NewRouter(cfg config.Config) http.Handler {
 
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	
+	// ✅ ป้องกัน 404 เมื่อคนพิมพ์โดเมนหลักของ Backend
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
 		if cfg.FrontendURL != "" {
 			http.Redirect(w, req, cfg.FrontendURL, http.StatusFound)
@@ -38,12 +39,18 @@ func NewRouter(cfg config.Config) http.Handler {
 		}
 		w.Write([]byte("Backend API is running"))
 	})
+	
+	// ✅ จัดการ favicon.ico เหมือน projectgo
+	r.Get("/favicon.ico", func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
 
 	p := pureapi.NewClient(cfg.PureAPIBaseURL, cfg.PureAPIKey, cfg.PureAPIInternalURL)
 	h := handlers.New(cfg, p)
 
 	// ---- Auth ----
 	r.Route("/api/auth", func(ar chi.Router) {
+		// ✅ นำ Rate Limit มาใช้เฉพาะ /api/auth
 		ar.Use(rateLimit(100, 15*time.Minute, func(req *http.Request) (string, error) {
 			return GetClientIP(req), nil
 		}))
@@ -59,17 +66,22 @@ func NewRouter(cfg config.Config) http.Handler {
 
 		ar.Get("/google", h.AuthGoogleStart)
 		ar.Get("/google/callback", h.AuthGoogleCallback)
-		ar.Post("/google-mobile", h.AuthGoogleMobileCallback)
 		
-		// 🌟 [รับข้อมูลจาก React]
-		ar.Post("/oauth/google", h.AuthOAuthGoogle)
+		// ✅ Google Mobile ใช้งาน Route แบบ POST ตาม projectgo
+		ar.Post("/google-mobile", h.AuthGoogleMobileCallback)
+
+		// 🌟 [รับข้อมูลจาก React] ของเดิมจาก concerttest เก็บเอาไว้กัน React Error
 	})
 
+	// ---- Public ----
 	r.Get("/api/homepage", h.HomepageGet)
+	r.With(h.RequireAdmin).Put("/api/homepage", h.HomepageUpdate)
 	r.Get("/api/carousel", h.CarouselList)
+	
 	r.Get("/api/download/windows", h.DownloadWindows)
 	r.Get("/api/download/android", h.DownloadAndroid)
 
+	// ---- User ----
 	r.Route("/api/users", func(ur chi.Router) {
 		ur.Use(h.RequireAuth)
 		ur.Get("/me", h.UsersMeGet)
@@ -78,15 +90,19 @@ func NewRouter(cfg config.Config) http.Handler {
 		ur.Delete("/me", h.UsersMeDelete)
 	})
 
+	// ---- Admin ----
 	r.Route("/api/admin", func(ad chi.Router) {
 		ad.Use(h.RequireAdmin)
+
 		ad.Get("/users", h.AdminUsersList)
 		ad.Put("/users/{id}", h.AdminUsersUpdateByID)
 		ad.Post("/users/update", h.AdminUsersUpdate)
+
 		ad.Get("/carousel", h.AdminCarouselList)
 		ad.Post("/carousel", h.AdminCarouselCreate)
 		ad.Put("/carousel/{id}", h.AdminCarouselUpdate)
 		ad.Delete("/carousel/{id}", h.AdminCarouselDelete)
+
 		ad.Put("/homepage", h.HomepageUpdate)
 	})
 

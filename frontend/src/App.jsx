@@ -1,19 +1,26 @@
 import React, { Suspense, lazy, useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
+
+// ใช้ Path ให้ตรงกับที่มีอยู่ใน concerttest (layouts)
 import Layout from './layouts/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 
-// การ Import หน้าต่างๆ (เหมือนเดิม)
-const HomePage = lazy(() => import('./pages/HomePage'));
+// ✅ ทำ Landing เป็น lazy-load (หรือจะตั้งแบบปกติก็ได้หากตั้งใจลด load)
+const LandingPage = lazy(() => import('./pages/LandingPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const CheckCodePage = lazy(() => import('./pages/CheckCodePage'));
+const CompleteProfilePage = lazy(() => import('./pages/CompleteProfilePage'));
+const HomePage = lazy(() => import('./pages/HomePage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
+const AdminPage = lazy(() => import('./pages/AdminPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
-const AdminPage = lazy(() => import('./pages/AdminPage'));
+const DownloadPage = lazy(() => import('./pages/DownloadPage'));
 
 function App() {
-  // 📌 1. useEffect เดิมสำหรับดักจับ Token Google OAuth
+  // 📌 1. useEffect สำหรับดักจับ Token เวลา Login ผ่าน Google
   useEffect(() => {
     const hash = window.location.hash;
     if (hash && hash.includes('token=')) {
@@ -22,18 +29,23 @@ function App() {
       const role = params.get('role');
 
       if (token) {
+        // เซฟ Token ลง LocalStorage
         localStorage.setItem('token', token);
         if (role) localStorage.setItem('role', role);
+
+        // เคลียร์ URL เพื่อซ่อน Token ไม่ให้รกหน้าจอ
         window.history.replaceState(null, '', window.location.pathname);
-        window.location.href = '/'; 
+
+        // ✅ โหลดหน้าใหม่ไปที่ /home เหมือน projectgo
+        window.location.href = '/home'; 
       }
     }
   }, []);
 
-  // 📌 2. [เพิ่มใหม่] useEffect สำหรับ "ปลุก Backend" ไม่ให้หลับ
+  // 📌 2. useEffect สำหรับ "ปลุก Backend" ไม่ให้หลับ (คงไว้ตามเดิมของ concerttest)
   useEffect(() => {
     const wakeUpBackends = () => {
-      // 1. ปลุก Go Backend (เปลี่ยน URL ให้ตรงกับของจริงถ้ามีการเปลี่ยนแปลง)
+      // 1. ปลุก Go Backend
       fetch('https://gtyconcerttestbe.onrender.com/')
         .then(() => console.log('🟢 Go Backend is awake!'))
         .catch(() => console.log('🔴 Go Backend is sleeping/error'));
@@ -47,7 +59,7 @@ function App() {
     // สั่งปลุกทันที 1 ครั้งเมื่อมีคนเปิดหน้าเว็บ
     wakeUpBackends();
 
-    // ตั้งเวลาให้ยิงไปปลุกซ้ำทุกๆ 14 นาที (14 นาที * 60 วินาที * 1000 มิลลิวินาที = 840,000 ms)
+    // ตั้งเวลาให้ยิงไปปลุกซ้ำทุกๆ 14 นาที
     const intervalId = setInterval(wakeUpBackends, 840000);
 
     // ทำความสะอาดเมื่อปิดหน้าเว็บ
@@ -55,23 +67,60 @@ function App() {
   }, []);
 
   return (
-    <Suspense fallback={<div className="p-10 text-center text-xl font-bold">กำลังโหลด...</div>}>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<HomePage />} />
-          <Route path="login" element={<LoginPage />} />
-          <Route path="register" element={<RegisterPage />} />
-          <Route path="reset-password" element={<ResetPasswordPage />} />
-          <Route path="about" element={<AboutPage />} />
-          <Route path="contact" element={<ContactPage />} />
-          
-          <Route element={<ProtectedRoute />}>
-             <Route path="admin" element={<AdminPage />} />
-          </Route>
-        </Route>
-        <Route path="*" element={<div className="p-10 text-center text-2xl font-bold">404 ไม่พบหน้านี้</div>} />
-      </Routes>
-    </Suspense>
+    <Layout>
+      <Suspense fallback={<div className="p-10 text-center text-xl font-bold" aria-busy="true">กำลังโหลด...</div>}>
+        <Routes>
+          {/* ✅ Public routes (อัปเดตและเพิ่มหน้าที่ขาดให้ตรงตาม projectgo) */}
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/check" element={<CheckCodePage />} />
+          <Route path="/form" element={<CompleteProfilePage />} />
+          <Route path="/reset" element={<ResetPasswordPage />} />
+          <Route path="/about" element={<AboutPage />} />
+          <Route path="/contact" element={<ContactPage />} />
+
+          {/* ✅ Protected routes – ต้องล็อกอินก่อน */}
+          <Route
+            path="/home"
+            element={
+              <ProtectedRoute>
+                <HomePage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <SettingsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/download"
+            element={
+              <ProtectedRoute>
+                <DownloadPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ✅ เฉพาะ role admin */}
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute roles={['admin']}>
+                <AdminPage />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ✅ route ไม่เจอ → กลับหน้าแรกอัตโนมัติ */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+    </Layout>
   );
 }
 
