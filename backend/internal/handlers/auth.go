@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"crypto/rand"
-	"fmt"
 	"encoding/hex"
 	"net/http"
 	"regexp"
@@ -71,7 +70,6 @@ func (h *Handler) AuthRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// ✅ แปลงพิมพ์เล็กเสมอเพื่อกันปัญหาเคสไม่ตรงตอน Login
 	email := strings.TrimSpace(strings.ToLower(req.Email))
 	if email == "" || !emailRe.MatchString(email) {
 		h.writeError(w, http.StatusBadRequest, "Invalid email")
@@ -213,7 +211,7 @@ func (h *Handler) AuthCompleteProfile(w http.ResponseWriter, r *http.Request) {
 
 // ------ LOGIN ------
 func (h *Handler) AuthLogin(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context() // ✅ ห้ามลบตัวแปรนี้
+	ctx := r.Context() 
 
 	var req loginReq
 	if err := ReadJSON(r, &req); err != nil {
@@ -221,7 +219,7 @@ func (h *Handler) AuthLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	email := strings.TrimSpace(strings.ToLower(req.Email)) // ✅ ห้ามลบตัวแปรนี้
+	email := strings.TrimSpace(strings.ToLower(req.Email)) 
 	if email == "" || req.Password == "" {
 		h.writeError(w, http.StatusBadRequest, "Missing fields")
 		return
@@ -229,17 +227,16 @@ func (h *Handler) AuthLogin(w http.ResponseWriter, r *http.Request) {
 
 	var user userDTO
 	if err := h.Pure.Post(ctx, "/api/internal/find-user", map[string]any{"email": email}, &user); err != nil {
-		fmt.Println("Login DB Error (find user):", err) // ✅ แสดง Log 
+		// 🌟 หากหา User ไม่เจอ จะไม่แจ้งเตือน Log ให้รกตาอีกแล้ว ตอบ 401 ตามปกติ
 		h.writeError(w, http.StatusUnauthorized, "Invalid credentials")
 		return
 	}
+	
 	if user.PasswordHash == nil || *user.PasswordHash == "" {
-		fmt.Println("Login Error: Password hash is nil") // ✅ แสดง Log 
 		h.writeError(w, http.StatusUnauthorized, "Invalid credentials")
 		return
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(req.Password)); err != nil {
-		fmt.Println("Login Error: Bcrypt mismatch") // ✅ แสดง Log 
 		h.writeError(w, http.StatusUnauthorized, "Invalid credentials")
 		return
 	}

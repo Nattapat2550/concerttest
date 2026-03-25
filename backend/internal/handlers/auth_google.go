@@ -9,7 +9,6 @@ import (
 )
 
 // GET /api/auth/google
-// GET /api/auth/google
 func (h *Handler) AuthGoogleStart(w http.ResponseWriter, r *http.Request) {
 	u, ok := h.Google.AuthURL("state")
 	if !ok {
@@ -30,16 +29,16 @@ func (h *Handler) AuthGoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	info, err := h.Google.ExchangeWeb(ctx, code) // returns *googleUserInfo
+	info, err := h.Google.ExchangeWeb(ctx, code) 
 	if err != nil || info == nil {
-		fmt.Println("Google ExchangeWeb Error:", err) // ✅ แสดง Log 
+		fmt.Println("Google ExchangeWeb Error:", err)
 		http.Redirect(w, r, front+"/login?error=oauth_failed", http.StatusFound)
 		return
 	}
 
 	user, err := h.setOAuthUser(ctx, info)
 	if err != nil {
-		fmt.Println("Database setOAuthUser Error:", err) // ✅ แสดง Log 
+		fmt.Println("Database setOAuthUser Error:", err)
 		http.Redirect(w, r, front+"/login?error=oauth_failed", http.StatusFound)
 		return
 	}
@@ -72,7 +71,7 @@ func (h *Handler) AuthGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, front+"/home#"+frag, http.StatusFound)
 }
 
-// GET /api/auth/google-mobile  (เอาไว้ให้เผื่อเรียกดู URL)
+// GET /api/auth/google-mobile
 func (h *Handler) AuthGoogleMobileStart(w http.ResponseWriter, r *http.Request) {
 	u, ok := h.Google.AuthURL("state")
 	if !ok {
@@ -87,7 +86,6 @@ type googleMobileReq struct {
 }
 
 // POST /api/auth/google-mobile 
-// (เปลี่ยนเป็น POST และรับ authCode จาก Body ให้ตรงกับโปรเจคอื่น)
 func (h *Handler) AuthGoogleMobileCallback(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -122,7 +120,6 @@ func (h *Handler) AuthGoogleMobileCallback(w http.ResponseWriter, r *http.Reques
 
 	h.setAuthCookie(w, token, true)
 	
-	// คืนค่า User Data ครบชุดเหมือนโปรเจค Node
 	WriteJSON(w, http.StatusOK, map[string]any{
 		"token": token,
 		"role":  user.Role,
@@ -136,14 +133,66 @@ func (h *Handler) AuthGoogleMobileCallback(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// ใช้ info.Name เพื่อส่งเข้าไปประกอบด้วย (ตรงกับที่แก้ใน Node.js)
+// 🌟 [เพิ่มใหม่] โครงสร้างที่ Frontend ส่งมาหลัง Decode JWT เรียบร้อยแล้ว
+type oauthGoogleReq struct {
+	Email      string `json:"email"`
+	OAuthID    string `json:"oauthId"`
+	Username   string `json:"username"`
+	PictureURL string `json:"pictureUrl"`
+}
+
+// 🌟 [เพิ่มใหม่] POST /api/auth/oauth/google รับจาก Frontend (React)
+func (h *Handler) AuthOAuthGoogle(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req oauthGoogleReq
+	if err := ReadJSON(r, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	info := &googleUserInfo{
+		ID:      req.OAuthID,
+		Email:   req.Email,
+		Name:    req.Username,
+		Picture: req.PictureURL,
+	}
+
+	user, err := h.setOAuthUser(ctx, info)
+	if err != nil {
+		fmt.Println("AuthOAuthGoogle DB Error:", err)
+		h.writeError(w, http.StatusUnauthorized, "Failed to set OAuth user")
+		return
+	}
+
+	token, err := h.signToken(user.ID, user.Role)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "Token error")
+		return
+	}
+
+	h.setAuthCookie(w, token, true)
+
+	WriteJSON(w, http.StatusOK, map[string]any{
+		"ok":    true,
+		"role":  user.Role,
+		"token": token,
+		"user": map[string]any{
+			"id":                  user.ID,
+			"email":               user.Email,
+			"username":            user.Username,
+			"role":                user.Role,
+			"profile_picture_url": user.ProfilePictureURL,
+		},
+	})
+}
+
 func (h *Handler) setOAuthUser(ctx context.Context, info *googleUserInfo) (userDTO, error) {
 	email := strings.ToLower(strings.TrimSpace(info.Email))
 	subject := strings.TrimSpace(info.ID) 
 	pic := strings.TrimSpace(info.Picture)
 	name := strings.TrimSpace(info.Name)
 
-	// ✅ แก้ Key ให้ตรงกับที่ Rust SetOAuthUserBody (camelCase) คาดหวัง
 	payload := map[string]any{
 		"provider":   "google",
 		"oauthId":    subject,
