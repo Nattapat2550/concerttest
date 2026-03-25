@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 // ✅ 1. เพิ่ม Outlet เข้ามาใน import
 import { Link, NavLink, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { logout } from '../slices/authSlice';
-import api from '../api';
+import { logout } from '../store/slices/authSlice'; 
+import api from '../services/api';
 
 // ✅ 2. เอา { children } ออก
 const Layout = () => {
