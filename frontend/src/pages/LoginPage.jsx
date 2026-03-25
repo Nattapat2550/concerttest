@@ -1,10 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import { GoogleLogin } from '@react-oauth/google';
-import { jwtDecode } from 'jwt-decode';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
-import { loginStart, loginSuccess, loginFailure } from '../store/slices/authSlice';
+import { loginStart, loginSuccess, loginFailure, checkAuthStatus } from '../store/slices/authSlice';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -13,9 +11,26 @@ const LoginPage = () => {
   
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const loading = useSelector((state) => state.auth.status === 'loading'); // ✅ ดึงสถานะ loading ให้ถูกต้อง
+  const location = useLocation();
+  const loading = useSelector((state) => state.auth.status === 'loading');
 
-  // 📌 1. ระบบล็อกอินด้วยรหัสผ่านปกติ
+  // 📌 1. ดักจับ Error หรือ Token จาก URL (กรณี Backend Redirect กลับมา)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const token = params.get('token');
+    const errorParam = params.get('error');
+
+    if (errorParam === 'oauth_failed') {
+      setErrorMsg('การเข้าสู่ระบบด้วย Google ล้มเหลว กรุณาลองใหม่อีกครั้ง');
+    } else if (token) {
+      // ถ้ามี Token แนบมากับ URL ให้บันทึกและตรวจสอบสถานะ
+      localStorage.setItem('token', token);
+      dispatch(checkAuthStatus());
+      navigate('/');
+    }
+  }, [location, dispatch, navigate]);
+
+  // 📌 2. ระบบล็อกอินด้วยรหัสผ่านปกติ
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
@@ -35,34 +50,13 @@ const LoginPage = () => {
     }
   };
 
-  // 📌 2. ระบบล็อกอินด้วย Google
-  const handleGoogleSuccess = async (credentialResponse) => {
-    try {
-      dispatch(loginStart());
-      setErrorMsg('');
-
-      const decoded = jwtDecode(credentialResponse.credential);
-      
-      const payload = {
-        email: decoded.email,
-        oauthId: decoded.sub,
-        username: decoded.name,
-        pictureUrl: decoded.picture
-      };
-
-      // 🚨 จุดสำคัญ: เช็กว่า Router ในไฟล์ Go ของคุณเป็น /auth/google หรือ /auth/oauth/google (ส่วนใหญ่จะตั้งเป็น /auth/google ครับ)
-      const response = await api.post('/auth/google', payload);
-      
-      const { token, user } = response.data.data || response.data;
-
-      localStorage.setItem('token', token);
-      dispatch(loginSuccess(user));
-      navigate('/');
-    } catch (error) {
-      dispatch(loginFailure());
-      console.error("Google Login Error:", error.response || error);
-      setErrorMsg('เกิดข้อผิดพลาดในการเชื่อมต่อกับเซิร์ฟเวอร์ กรุณาลองใหม่อีกครั้ง');
-    }
+  // 📌 3. ระบบล็อกอินด้วย Google (แบบ ProjectGo)
+  const handleGoogleLogin = () => {
+    dispatch(loginStart());
+    // เช็กว่า baseURL ของคุณลงท้ายด้วย /api อยู่แล้วหรือไม่
+    // ถ้าใช่ ให้ต่อด้วย /auth/google ได้เลย
+    const baseURL = api.defaults.baseURL || 'https://gtyconcerttestbe.onrender.com/api';
+    window.location.href = `${baseURL}/auth/google`;
   };
 
   return (
@@ -116,20 +110,18 @@ const LoginPage = () => {
             <div className="w-full h-px bg-gray-300"></div>
           </div>
           
-          <div className="flex justify-center">
-            {/* ✅ ปิด useOneTap ออกไปก่อน เพื่อแก้ปัญหา Error FedCM Blocked จากหน้าเว็บ */}
-            <GoogleLogin 
-              onSuccess={handleGoogleSuccess}
-              onError={() => setErrorMsg('การล็อกอินผ่าน Google ถูกยกเลิกหรือไม่สำเร็จ')}
-              useOneTap={false} 
-              shape="rectangular"
-              context="signin"
-            />
-          </div>
+          <button 
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-3 py-3 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 transition text-gray-700 font-medium"
+          >
+            <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-5 h-5" />
+            เข้าสู่ระบบด้วย Google
+          </button>
         </div>
         
         <p className="mt-6 text-center text-sm text-gray-600">
-          ยังไม่มีบัญชีใช่หรือไม่? <a href="/register" className="text-blue-600 hover:underline font-medium">สมัครสมาชิก</a>
+          ยังไม่มีบัญชีใช่หรือไม่? <Link to="/register" className="text-blue-600 hover:underline font-medium">สมัครสมาชิก</Link>
         </p>
       </div>
     </div>
