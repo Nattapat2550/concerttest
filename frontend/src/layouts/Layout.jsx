@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from 'react';
-// ✅ 1. เพิ่ม Outlet เข้ามาใน import
-import { Link, NavLink, useLocation, useNavigate, Outlet } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { logout } from '../store/slices/authSlice'; 
-import api from '../services/api';
+import { logout } from '../slices/authSlice';
+import api from '../api';
 
-// ✅ 2. เอา { children } ออก
-const Layout = () => {
+const Layout = ({ children }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
@@ -17,6 +15,7 @@ const Layout = () => {
   const [dark, setDark] = useState(false);
   const [me, setMe] = useState(null);
 
+  // โหลดข้อมูล user สำหรับแสดงชื่อ + avatar (เฉพาะตอน login)
   useEffect(() => {
     let cancelled = false;
     const loadMe = async () => {
@@ -25,7 +24,6 @@ const Layout = () => {
         return;
       }
       try {
-        // แก้ไข Path ให้ตรงกับ BaseURL (ถ้า api.js เซ็ต /api ไว้แล้ว ไม่ต้องใส่ซ้ำ)
         const res = await api.get('/api/users/me');
         if (!cancelled) setMe(res.data);
       } catch {
@@ -38,6 +36,7 @@ const Layout = () => {
     };
   }, [isAuthenticated]);
 
+  // theme toggle
   useEffect(() => {
     const saved = localStorage.getItem('theme') === 'dark';
     setDark(saved);
@@ -61,8 +60,13 @@ const Layout = () => {
     }
   };
 
-  const showDownloadLink = true; 
-  const userDisplayName = me?.username || me?.email || 'User';
+  const atPublicLanding =
+    location.pathname === '/' && !isAuthenticated;
+
+  const showDownloadLink = true; // ให้เหมือนของเก่า มี Download ตลอด
+
+  const userDisplayName =
+    me?.username || me?.email || 'User';
 
   return (
     <div>
@@ -74,13 +78,16 @@ const Layout = () => {
           </Link>
         </div>
 
+
         <div className="links">
+          {/* ลิงก์เมนูหลักเหมือนเวอร์ชันเก่า */}
           <NavLink to="/about">About</NavLink>
           <NavLink to="/contact">Contact</NavLink>
           {showDownloadLink && (
             <NavLink to="/download">Download</NavLink>
           )}
 
+          {/* ปุ่มสลับธีม */}
           <button
             id="themeToggle"
             type="button"
@@ -89,6 +96,7 @@ const Layout = () => {
             🌓
           </button>
 
+          {/* ถ้า login แล้ว -> แสดง user menu แบบ home.html เดิม */}
           {isAuthenticated && (
             <div
               className={
@@ -100,7 +108,7 @@ const Layout = () => {
                 alt="avatar"
                 onClick={() => setDropdownOpen((o) => !o)}
               />
-              <span onClick={() => setDropdownOpen((o) => !o)} style={{ cursor: 'pointer' }}>
+              <span onClick={() => setDropdownOpen((o) => !o)}>
                 {userDisplayName}
               </span>
               <div className="dropdown">
@@ -118,13 +126,14 @@ const Layout = () => {
               </div>
             </div>
           )}
+
+          {/* ถ้ายังไม่ login: ไม่แสดง user-menu (เหมือน index.html เดิม) */}
         </div>
       </nav>
 
-      {/* Main content */}
+      {/* Main content + container เหมือนหน้าเก่า */}
       <main className="container">
-        {/* ✅ 3. เปลี่ยนจาก {children} เป็น <Outlet /> */}
-        <Outlet />
+        {children}
       </main>
     </div>
   );

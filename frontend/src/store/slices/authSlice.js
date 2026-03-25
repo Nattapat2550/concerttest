@@ -14,7 +14,7 @@ export const checkAuthStatus = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       const res = await api.get('/api/auth/status');
-      return res.data; 
+      return res.data; // { authenticated: true, id: 1, role: 'user' }
     } catch (err) {
       return rejectWithValue(err.response?.data?.error || 'Session expired');
     }
@@ -26,8 +26,9 @@ export const login = createAsyncThunk(
   async ({ email, password, remember }, { rejectWithValue }) => {
     try {
       const res = await api.post('/api/auth/login', { email, password, remember });
-      return res.data; 
+      return res.data; // { ok: true, user: { id: 1, role: 'admin' }, token: '...' }
     } catch (err) {
+      // ดักจับ Error 401 และแสดงข้อความจาก Backend
       return rejectWithValue(err.response?.data?.error || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง');
     }
   }
@@ -38,8 +39,6 @@ export const logout = createAsyncThunk(
   async (_, { rejectWithValue }) => {
     try {
       await api.post('/api/auth/logout');
-      localStorage.removeItem('token');
-      localStorage.removeItem('role');
       return {};
     } catch (err) {
       return rejectWithValue('Logout failed');
@@ -57,6 +56,7 @@ const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      // ✅ เพิ่ม state.pending เพื่อให้แสดงหน้าโหลดระหว่างเช็ค
       .addCase(checkAuthStatus.pending, (state) => {
         state.status = 'loading';
       })
@@ -67,6 +67,7 @@ const authSlice = createSlice({
         state.role = authenticated ? role : null;
         state.userId = authenticated ? id : null;
       })
+      // ✅ เพิ่ม state.rejected เพื่อให้ถ้า Server พัง (401/500) ถือว่าไม่ได้ล็อกอินทันที หน้าเว็บจะได้ไม่ค้าง
       .addCase(checkAuthStatus.rejected, (state) => {
         state.status = 'failed';
         state.isAuthenticated = false;
@@ -78,15 +79,11 @@ const authSlice = createSlice({
         state.error = null;
       })
       .addCase(login.fulfilled, (state, action) => {
-        // อิงตาม Backend ว่าส่งข้อมูลมาแบบไหน (action.payload.data หรือ action.payload.user)
-        const user = action.payload.data?.user || action.payload.user;
-        const ok = action.payload.data?.ok !== undefined ? action.payload.data.ok : action.payload.ok;
-        
-        if (ok !== false && user) {
+        if (action.payload.ok && action.payload.user) {
           state.status = 'succeeded';
           state.isAuthenticated = true;
-          state.role = user.role;
-          state.userId = user.id;
+          state.role = action.payload.user.role;
+          state.userId = action.payload.user.id;
         }
       })
       .addCase(login.rejected, (state, action) => {
@@ -97,7 +94,6 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         state.role = null;
         state.userId = null;
-        state.status = 'idle';
       });
   }
 });

@@ -1,38 +1,84 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import api from '../services/api';
 
 const ResetPasswordPage = () => {
-  const [email, setEmail] = useState('');
-  const [message, setMessage] = useState('');
+  const [search] = useSearchParams();
+  const token = search.get('token');
 
-  const handleSubmit = (e) => {
+  const [email, setEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [msg, setMsg] = useState(null);
+
+  const requestReset = async (e) => {
     e.preventDefault();
-    // จำลองการส่ง API ขอรีเซ็ตรหัสผ่าน
-    setMessage(`ลิงก์รีเซ็ตรหัสผ่านได้ถูกส่งไปยัง ${email} แล้ว`);
+    setMsg(null);
+    try {
+      await api.post('/api/auth/forgot-password', {
+        email: email.trim()
+      });
+      setMsg('If that email exists, a reset link was sent.');
+    } catch (err) {
+      setMsg(err.response?.data?.error || 'Request failed');
+    }
   };
 
-  return (
-    <div className="flex items-center justify-center min-h-[60vh]">
-      <div className="bg-white p-8 rounded-xl shadow-lg max-w-md w-full border border-gray-100">
-        <h2 className="text-2xl font-bold text-center text-gray-800 mb-2">ลืมรหัสผ่าน?</h2>
-        <p className="text-center text-gray-600 mb-6 text-sm">กรอกอีเมลของคุณเพื่อรับลิงก์รีเซ็ตรหัสผ่าน</p>
-        
-        {message && <div className="bg-green-100 text-green-700 p-3 mb-4 rounded text-sm text-center">{message}</div>}
+  const doReset = async (e) => {
+    e.preventDefault();
+    setMsg(null);
+    try {
+      await api.post('/api/auth/reset-password', {
+        token,
+        newPassword
+      });
+      setMsg('Password set. You can login now.');
+    } catch (err) {
+      setMsg(err.response?.data?.error || 'Reset failed');
+    }
+  };
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+  if (!token) {
+    return (
+      <section>
+        <h2>Forgot password</h2>
+        <form onSubmit={requestReset}>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">อีเมลของคุณ</label>
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" placeholder="example@email.com" />
+            <label>
+              Email
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value.trim())}
+              />
+            </label>
           </div>
-          <button type="submit" className="w-full py-3 bg-gray-800 hover:bg-gray-900 text-white rounded-lg font-semibold transition">
-            ส่งลิงก์รีเซ็ตรหัสผ่าน
-          </button>
+          <button type="submit">Send reset link</button>
         </form>
-        <div className="mt-6 text-center">
-          <Link to="/login" className="text-blue-600 hover:underline text-sm font-medium">กลับไปหน้าเข้าสู่ระบบ</Link>
+        {msg && <p style={{ color: 'red' }}>{msg}</p>}
+      </section>
+    );
+  }
+
+  return (
+    <section>
+      <h2>Reset password</h2>
+      <form onSubmit={doReset}>
+        <div>
+          <label>
+            New password
+            <input
+              type="password"
+              required
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+          </label>
         </div>
-      </div>
-    </div>
+        <button type="submit">Set new password</button>
+      </form>
+      {msg && <p style={{ color: 'red' }}>{msg}</p>}
+    </section>
   );
 };
 

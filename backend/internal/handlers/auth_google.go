@@ -9,6 +9,7 @@ import (
 )
 
 // GET /api/auth/google
+// GET /api/auth/google
 func (h *Handler) AuthGoogleStart(w http.ResponseWriter, r *http.Request) {
 	u, ok := h.Google.AuthURL("state")
 	if !ok {

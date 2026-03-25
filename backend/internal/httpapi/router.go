@@ -77,7 +77,6 @@ func NewRouter(cfg config.Config) http.Handler {
 	
 	r.Get("/api/download/windows", h.DownloadWindows)
 	r.Get("/api/download/android", h.DownloadAndroid)
-	
 	// ---- User ----
 	r.Route("/api/users", func(ur chi.Router) {
 		ur.Use(h.RequireAuth)
