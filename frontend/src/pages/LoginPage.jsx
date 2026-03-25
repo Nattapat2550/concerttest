@@ -1,7 +1,8 @@
-// src/pages/LoginPage.jsx
 import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
+import { jwtDecode } from 'jwt-decode';
 import api from '../services/api';
 import { loginStart, loginSuccess, loginFailure } from '../store/slices/authSlice';
 
@@ -14,24 +15,54 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const { loading } = useSelector((state) => state.auth);
 
+  // 📌 1. ระบบล็อกอินด้วยรหัสผ่านปกติ
   const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
     dispatch(loginStart());
 
     try {
-      // ปรับ URL ตาม Backend Go ของคุณ (เช่น /api/auth/login หรือ /login)
-      const response = await api.post('/api/login', { email, password });
+      // API จะรวมกับ BaseURL กลายเป็น /api/auth/login
+      const response = await api.post('/auth/login', { email, password });
       
-      // สมมติว่า Backend ส่ง token และข้อมูล user กลับมา
-      const { token, user } = response.data;
+      const { token, user } = response.data.data || response.data;
       
       localStorage.setItem('token', token);
       dispatch(loginSuccess(user));
-      navigate('/'); // ล็อกอินสำเร็จกลับไปหน้าแรก
+      navigate('/'); 
     } catch (error) {
       dispatch(loginFailure());
-      setErrorMsg(error.response?.data?.message || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+      const serverError = error.response?.data?.error?.message || error.response?.data?.message;
+      setErrorMsg(serverError || 'อีเมลหรือรหัสผ่านไม่ถูกต้อง');
+    }
+  };
+
+  // 📌 2. ระบบล็อกอินด้วย Google
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      dispatch(loginStart());
+      setErrorMsg('');
+
+      // ถอดรหัส Token ที่ได้จาก Google
+      const decoded = jwtDecode(credentialResponse.credential);
+      
+      // จัดโครงสร้างส่งให้ Rust
+      const payload = {
+        email: decoded.email,
+        oauthId: decoded.sub,
+        username: decoded.name,
+        pictureUrl: decoded.picture
+      };
+
+      const response = await api.post('/auth/oauth/google', payload);
+      const { token, user } = response.data.data || response.data;
+
+      localStorage.setItem('token', token);
+      dispatch(loginSuccess(user));
+      navigate('/');
+    } catch (error) {
+      dispatch(loginFailure());
+      setErrorMsg('เกิดข้อผิดพลาดในการเชื่อมต่อระบบ Google เข้ากับเซิร์ฟเวอร์');
     }
   };
 
@@ -52,7 +83,7 @@ const LoginPage = () => {
             <input
               type="email"
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               placeholder="your@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -63,7 +94,7 @@ const LoginPage = () => {
             <input
               type="password"
               required
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -79,6 +110,21 @@ const LoginPage = () => {
             {loading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
           </button>
         </form>
+
+        <div className="mt-6">
+          <div className="relative flex items-center justify-center mb-6">
+            <span className="absolute bg-white px-2 text-sm text-gray-500">หรือ</span>
+            <div className="w-full h-px bg-gray-300"></div>
+          </div>
+          
+          <div className="flex justify-center">
+            <GoogleLogin 
+              onSuccess={handleGoogleSuccess}
+              onError={() => setErrorMsg('การล็อกอินผ่าน Google ถูกยกเลิกหรือไม่สำเร็จ')}
+              useOneTap
+            />
+          </div>
+        </div>
         
         <p className="mt-6 text-center text-sm text-gray-600">
           ยังไม่มีบัญชีใช่หรือไม่? <a href="/register" className="text-blue-600 hover:underline font-medium">สมัครสมาชิก</a>
