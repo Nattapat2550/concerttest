@@ -27,9 +27,7 @@ const CompleteProfilePage = () => {
     setMsg(null);
     try {
       await api.post('/api/auth/complete-profile', {
-        email: email.trim(),
-        username: username.trim(),
-        password
+        email: email.trim(), username: username.trim(), password
       });
       await dispatch(checkAuthStatus());
       navigate('/home', { replace: true });
@@ -39,46 +37,26 @@ const CompleteProfilePage = () => {
   };
 
   return (
-    <section>
-      <h2>Complete Profile</h2>
-      <form onSubmit={handleSubmit}>
+    <div className="max-w-md w-full mx-auto mt-10 p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700">
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-white text-center mb-6">สมบูรณ์แบบโปรไฟล์</h2>
+      
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label>
-            Email
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value.trim())}
-            />
-          </label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">อีเมล</label>
+          <input type="email" required readOnly value={email} className="w-full px-4 py-2 bg-gray-200 dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-lg text-gray-500 dark:text-gray-400 cursor-not-allowed" />
         </div>
         <div>
-          <label>
-            Username
-            <input
-              type="text"
-              required
-              value={username}
-              onChange={(e) => setUsername(e.target.value.trim())}
-            />
-          </label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ชื่อผู้ใช้ (Username)</label>
+          <input type="text" required value={username} onChange={(e) => setUsername(e.target.value.trim())} className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-gray-900 dark:text-white" />
         </div>
         <div>
-          <label>
-            Password (min 8 chars)
-            <input
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">รหัสผ่าน (ขั้นต่ำ 8 ตัวอักษร)</label>
+          <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-gray-900 dark:text-white" />
         </div>
-        <button type="submit">Save</button>
+        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition-colors mt-4">บันทึกข้อมูล</button>
       </form>
-      {msg && <p style={{ color: 'red' }}>{msg}</p>}
-    </section>
+      {msg && <p className="mt-4 text-sm text-center text-red-600 dark:text-red-400">{msg}</p>}
+    </div>
   );
 };
 

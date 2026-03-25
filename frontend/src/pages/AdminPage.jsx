@@ -6,81 +6,62 @@ const AdminPage = () => {
   const [carousel, setCarousel] = useState([]);
   const [sectionName, setSectionName] = useState('welcome_header');
   const [sectionContent, setSectionContent] = useState('');
+  
   const [newIndex, setNewIndex] = useState('');
   const [newTitle, setNewTitle] = useState('');
   const [newSubtitle, setNewSubtitle] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newImage, setNewImage] = useState(null);
+  
   const [fileMap, setFileMap] = useState({});
   const [msg, setMsg] = useState(null);
 
   useEffect(() => {
     const load = async () => {
       try {
-        // ProtectedRoute ตรวจ admin แล้ว แต่โหลด users / carousel สำหรับตาราง
         const usersRes = await api.get('/api/admin/users');
         setUsers(usersRes.data || []);
 
         const carouselRes = await api.get('/api/admin/carousel');
         setCarousel(carouselRes.data || []);
       } catch (err) {
-        setMsg(
-          err.response?.data?.error ||
-            'Failed to load admin data'
-        );
+        showMsg(err.response?.data?.error || 'Failed to load admin data', 'error');
       }
     };
     load();
   }, []);
 
-  // ---- Homepage content ----
+  const showMsg = (text, type = 'success') => {
+    setMsg({ text, type });
+    setTimeout(() => setMsg(null), 5000);
+  };
+
   const handleHomeSubmit = async (e) => {
     e.preventDefault();
-    setMsg(null);
     try {
       const section = sectionName.trim();
-      await api.put('/api/homepage', {
-        section_name: section,
-        content: sectionContent
-      });
-      setMsg(`Section "${section}" saved.`);
+      await api.put('/api/homepage', { section_name: section, content: sectionContent });
+      showMsg(`Section "${section}" saved.`);
     } catch (err) {
-      setMsg(
-        err.response?.data?.error ||
-          'Failed to save homepage section'
-      );
+      showMsg(err.response?.data?.error || 'Failed to save homepage section', 'error');
     }
   };
 
-  // ---- Users table ----
   const handleUserFieldChange = (id, field, value) => {
-    setUsers((prev) =>
-      prev.map((u) =>
-        u.id === id ? { ...u, [field]: value } : u
-      )
-    );
+    setUsers((prev) => prev.map((u) => u.id === id ? { ...u, [field]: value } : u));
   };
 
   const handleUserSave = async (id) => {
-    setMsg(null);
     const u = users.find((x) => x.id === id);
     if (!u) return;
     try {
-      await api.put(`/api/admin/users/${id}`, {
-        username: u.username || '',
-        email: u.email,
-        role: u.role
-      });
-      setMsg('User saved.');
+      await api.put(`/api/admin/users/${id}`, { username: u.username || '', email: u.email, role: u.role });
+      showMsg('User saved.');
     } catch (err) {
-      setMsg(
-        err.response?.data?.error ||
-          'Failed to save user'
-      );
+      showMsg(err.response?.data?.error || 'Failed to save user', 'error');
     }
   };
 
-  // ---- Carousel admin ----
   const reloadCarousel = async () => {
     const res = await api.get('/api/admin/carousel');
     setCarousel(res.data || []);
@@ -89,10 +70,9 @@ const AdminPage = () => {
 
   const handleNewCarouselSubmit = async (e) => {
     e.preventDefault();
-    setMsg(null);
     try {
       if (!newImage) {
-        setMsg('Please choose an image');
+        showMsg('Please choose an image', 'error');
         return;
       }
       const fd = new FormData();
@@ -102,34 +82,18 @@ const AdminPage = () => {
       fd.append('description', newDescription);
       fd.append('image', newImage);
 
-      await api.post('/api/admin/carousel', fd, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      await api.post('/api/admin/carousel', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
 
-      setNewIndex('');
-      setNewTitle('');
-      setNewSubtitle('');
-      setNewDescription('');
-      setNewImage(null);
-
+      setNewIndex(''); setNewTitle(''); setNewSubtitle(''); setNewDescription(''); setNewImage(null);
       await reloadCarousel();
-      setMsg('Carousel item created.');
+      showMsg('Carousel item created.');
     } catch (err) {
-      setMsg(
-        err.response?.data?.error ||
-          'Failed to create carousel item'
-      );
+      showMsg(err.response?.data?.error || 'Failed to create carousel item', 'error');
     }
   };
 
   const handleCarouselFieldChange = (id, field, value) => {
-    setCarousel((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, [field]: value } : item
-      )
-    );
+    setCarousel((prev) => prev.map((item) => item.id === id ? { ...item, [field]: value } : item));
   };
 
   const handleCarouselFileChange = (id, file) => {
@@ -137,7 +101,6 @@ const AdminPage = () => {
   };
 
   const handleCarouselSave = async (id) => {
-    setMsg(null);
     const item = carousel.find((x) => x.id === id);
     if (!item) return;
     try {
@@ -147,361 +110,153 @@ const AdminPage = () => {
       fd.append('subtitle', item.subtitle || '');
       fd.append('description', item.description || '');
       const file = fileMap[id];
-      if (file) {
-        fd.append('image', file);
-      }
+      if (file) fd.append('image', file);
 
-      const res = await api.put(
-        `/api/admin/carousel/${id}`,
-        fd,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
-        }
-      );
-
-      setCarousel((prev) =>
-        prev.map((x) =>
-          x.id === id ? res.data : x
-        )
-      );
-      setMsg('Carousel item saved.');
+      const res = await api.put(`/api/admin/carousel/${id}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setCarousel((prev) => prev.map((x) => x.id === id ? res.data : x));
+      showMsg('Carousel item saved.');
     } catch (err) {
-      setMsg(
-        err.response?.data?.error ||
-          'Failed to save carousel item'
-      );
+      showMsg(err.response?.data?.error || 'Failed to save carousel item', 'error');
     }
   };
 
   const handleCarouselDelete = async (id) => {
-    if (
-      !window.confirm('Delete this carousel item?')
-    ) {
-      return;
-    }
-    setMsg(null);
+    if (!window.confirm('Delete this carousel item?')) return;
     try {
       await api.delete(`/api/admin/carousel/${id}`);
-      setCarousel((prev) =>
-        prev.filter((x) => x.id !== id)
-      );
-      setMsg('Carousel item deleted.');
+      setCarousel((prev) => prev.filter((x) => x.id !== id));
+      showMsg('Carousel item deleted.');
     } catch (err) {
-      setMsg(
-        err.response?.data?.error ||
-          'Failed to delete carousel item'
-      );
+      showMsg(err.response?.data?.error || 'Failed to delete carousel item', 'error');
     }
   };
 
+  // Shared Tailwind classes
+  const inputClass = "w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-1 focus:ring-blue-500 outline-none text-sm text-gray-900 dark:text-white";
+  const btnPrimary = "bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors text-sm";
+  const btnSuccess = "bg-green-600 hover:bg-green-700 text-white font-medium py-1 px-3 rounded text-xs transition-colors";
+  const btnDanger = "bg-red-600 hover:bg-red-700 text-white font-medium py-1 px-3 rounded text-xs transition-colors";
+  const thClass = "px-4 py-3 bg-gray-100 dark:bg-gray-700 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider border-b dark:border-gray-600";
+  const tdClass = "px-4 py-3 border-b border-gray-200 dark:border-gray-700 align-top";
+
   return (
-    <>
-      <h2>Admin Dashboard</h2>
+    <div className="max-w-7xl mx-auto mt-8 space-y-8">
+      
+      <div className="flex items-center justify-between">
+        <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h2>
+        {msg && (
+          <div className={`px-4 py-2 rounded shadow-md text-sm font-medium ${msg.type === 'error' ? 'bg-red-100 text-red-700 border-l-4 border-red-500' : 'bg-green-100 text-green-700 border-l-4 border-green-500'}`}>
+            {msg.text}
+          </div>
+        )}
+      </div>
 
       {/* SECTION: Homepage Content */}
-      <section>
-        <h3>Homepage Content</h3>
-        <form
-          id="homeForm"
-          onSubmit={handleHomeSubmit}
-        >
-          <label>Section name</label>
-          <input
-            type="text"
-            id="section"
-            placeholder="welcome_header"
-            required
-            value={sectionName}
-            onChange={(e) =>
-              setSectionName(e.target.value)
-            }
-          />
-
-          <label>Content</label>
-          <textarea
-            id="content"
-            rows={3}
-            value={sectionContent}
-            onChange={(e) =>
-              setSectionContent(e.target.value)
-            }
-          />
-
-          <button className="btn" type="submit">
-            Save section
-          </button>
+      <section className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+        <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4 border-b dark:border-gray-700 pb-2">Homepage Content</h3>
+        <form onSubmit={handleHomeSubmit} className="max-w-2xl space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Section name</label>
+            <input type="text" placeholder="welcome_header" required value={sectionName} onChange={(e) => setSectionName(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Content</label>
+            <textarea rows={3} value={sectionContent} onChange={(e) => setSectionContent(e.target.value)} className={inputClass} />
+          </div>
+          <button type="submit" className={btnPrimary}>Save section</button>
         </form>
       </section>
 
       {/* SECTION: Users */}
-      <section>
-        <h3>Users</h3>
-        <table id="usersTable">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Username</th>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td>{u.id}</td>
-                <td>
-                  <input
-                    value={u.username || ''}
-                    onChange={(e) =>
-                      handleUserFieldChange(
-                        u.id,
-                        'username',
-                        e.target.value
-                      )
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    value={u.email}
-                    onChange={(e) =>
-                      handleUserFieldChange(
-                        u.id,
-                        'email',
-                        e.target.value
-                      )
-                    }
-                  />
-                </td>
-                <td>
-                  <select
-                    value={u.role}
-                    onChange={(e) =>
-                      handleUserFieldChange(
-                        u.id,
-                        'role',
-                        e.target.value
-                      )
-                    }
-                  >
-                    <option value="user">
-                      user
-                    </option>
-                    <option value="admin">
-                      admin
-                    </option>
-                  </select>
-                </td>
-                <td>
-                  <button
-                    className="btn small"
-                    type="button"
-                    onClick={() =>
-                      handleUserSave(u.id)
-                    }
-                  >
-                    Save
-                  </button>
-                </td>
+      <section className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4 border-b dark:border-gray-700 pb-2">Users Management</h3>
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse">
+            <thead>
+              <tr>
+                <th className={thClass}>ID</th>
+                <th className={thClass}>Username</th>
+                <th className={thClass}>Email</th>
+                <th className={thClass}>Role</th>
+                <th className={thClass}>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-800">
+              {users.map((u) => (
+                <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-gray-750">
+                  <td className={`${tdClass} text-sm text-gray-500 dark:text-gray-400`}>{u.id}</td>
+                  <td className={tdClass}><input value={u.username || ''} onChange={(e) => handleUserFieldChange(u.id, 'username', e.target.value)} className={inputClass} /></td>
+                  <td className={tdClass}><input value={u.email} onChange={(e) => handleUserFieldChange(u.id, 'email', e.target.value)} className={inputClass} /></td>
+                  <td className={tdClass}>
+                    <select value={u.role} onChange={(e) => handleUserFieldChange(u.id, 'role', e.target.value)} className={inputClass}>
+                      <option value="user">user</option>
+                      <option value="admin">admin</option>
+                    </select>
+                  </td>
+                  <td className={tdClass}>
+                    <button type="button" onClick={() => handleUserSave(u.id)} className={btnSuccess}>Save</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
-      {/* SECTION: Carousel (รูปแบบ admin.html เดิม) */}
-      <section>
-        <h3>Carousel</h3>
-
-        {/* ฟอร์มเพิ่ม item ใหม่ */}
-        <form
-          id="carouselForm"
-          onSubmit={handleNewCarouselSubmit}
-        >
-          <label>Index</label>
-          <input
-            type="number"
-            value={newIndex}
-            onChange={(e) =>
-              setNewIndex(e.target.value)
-            }
-          />
-
-          <label>Title</label>
-          <input
-            type="text"
-            value={newTitle}
-            onChange={(e) =>
-              setNewTitle(e.target.value)
-            }
-          />
-
-          <label>Subtitle</label>
-          <input
-            type="text"
-            value={newSubtitle}
-            onChange={(e) =>
-              setNewSubtitle(e.target.value)
-            }
-          />
-
-          <label>Description</label>
-          <textarea
-            rows={3}
-            value={newDescription}
-            onChange={(e) =>
-              setNewDescription(e.target.value)
-            }
-          />
-
-          <label>Image</label>
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
-            onChange={(e) =>
-              setNewImage(
-                e.target.files?.[0] || null
-              )
-            }
-          />
-
-          <button className="btn" type="submit">
-            Add carousel item
-          </button>
+      {/* SECTION: Carousel */}
+      <section className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+        <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 mb-4 border-b dark:border-gray-700 pb-2">Carousel Management</h3>
+        
+        <form onSubmit={handleNewCarouselSubmit} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 items-end mb-8 p-4 bg-gray-50 dark:bg-gray-900/50 rounded-lg">
+          <div><label className="block text-xs font-medium text-gray-700 dark:text-gray-400 mb-1">Index</label><input type="number" value={newIndex} onChange={(e) => setNewIndex(e.target.value)} className={inputClass} /></div>
+          <div><label className="block text-xs font-medium text-gray-700 dark:text-gray-400 mb-1">Title</label><input type="text" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} className={inputClass} /></div>
+          <div><label className="block text-xs font-medium text-gray-700 dark:text-gray-400 mb-1">Subtitle</label><input type="text" value={newSubtitle} onChange={(e) => setNewSubtitle(e.target.value)} className={inputClass} /></div>
+          <div><label className="block text-xs font-medium text-gray-700 dark:text-gray-400 mb-1">Image</label><input type="file" accept="image/*" onChange={(e) => setNewImage(e.target.files?.[0] || null)} className={`${inputClass} p-1.5!`} /></div>
+          <button type="submit" className={`${btnPrimary} w-full`}>Add Item</button>
+          <div className="col-span-1 md:col-span-2 lg:col-span-5">
+            <label className="block text-xs font-medium text-gray-700 dark:text-gray-400 mb-1">Description</label>
+            <textarea rows={2} value={newDescription} onChange={(e) => setNewDescription(e.target.value)} className={inputClass} />
+          </div>
         </form>
 
-        <div style={{ height: '1rem' }} />
-
-        {/* ตารางแก้ไข items เดิม */}
-        <table id="carouselTable">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Index</th>
-              <th>Preview</th>
-              <th>Title</th>
-              <th>Subtitle</th>
-              <th>Description</th>
-              <th>New Image</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {carousel.map((item) => (
-              <tr key={item.id}>
-                <td>{item.id}</td>
-                <td>
-                  <input
-                    type="number"
-                    value={item.item_index ?? 0}
-                    onChange={(e) =>
-                      handleCarouselFieldChange(
-                        item.id,
-                        'item_index',
-                        Number(e.target.value)
-                      )
-                    }
-                  />
-                </td>
-                <td>
-                  {item.image_dataurl && (
-                    <img
-                      src={item.image_dataurl}
-                      alt={item.title || ''}
-                      style={{
-                        width: 80,
-                        height: 50,
-                        objectFit: 'cover'
-                      }}
-                    />
-                  )}
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    value={item.title || ''}
-                    onChange={(e) =>
-                      handleCarouselFieldChange(
-                        item.id,
-                        'title',
-                        e.target.value
-                      )
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    type="text"
-                    value={item.subtitle || ''}
-                    onChange={(e) =>
-                      handleCarouselFieldChange(
-                        item.id,
-                        'subtitle',
-                        e.target.value
-                      )
-                    }
-                  />
-                </td>
-                <td>
-                  <textarea
-                    rows={2}
-                    value={item.description || ''}
-                    onChange={(e) =>
-                      handleCarouselFieldChange(
-                        item.id,
-                        'description',
-                        e.target.value
-                      )
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
-                    onChange={(e) =>
-                      handleCarouselFileChange(
-                        item.id,
-                        e.target.files?.[0] || null
-                      )
-                    }
-                  />
-                </td>
-                <td>
-                  <button
-                    className="btn small"
-                    type="button"
-                    onClick={() =>
-                      handleCarouselSave(item.id)
-                    }
-                  >
-                    Save
-                  </button>
-                  <button
-                    className="btn small danger"
-                    type="button"
-                    onClick={() =>
-                      handleCarouselDelete(item.id)
-                    }
-                  >
-                    Delete
-                  </button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="min-w-full border-collapse">
+            <thead>
+              <tr>
+                <th className={thClass}>Idx</th>
+                <th className={thClass}>Preview</th>
+                <th className={thClass}>Title / Subtitle</th>
+                <th className={thClass}>Description</th>
+                <th className={thClass}>New Image</th>
+                <th className={thClass}>Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {carousel.map((item) => (
+                <tr key={item.id} className="hover:bg-gray-50 dark:hover:bg-gray-750">
+                  <td className={tdClass}><input type="number" value={item.item_index ?? 0} onChange={(e) => handleCarouselFieldChange(item.id, 'item_index', Number(e.target.value))} className={`${inputClass} w-16`} /></td>
+                  <td className={tdClass}>
+                    {item.image_dataurl && <img src={item.image_dataurl} alt="" className="w-20 h-12 object-cover rounded shadow-sm" />}
+                  </td>
+                  <td className={tdClass}>
+                    <input type="text" value={item.title || ''} placeholder="Title" onChange={(e) => handleCarouselFieldChange(item.id, 'title', e.target.value)} className={`${inputClass} mb-2`} />
+                    <input type="text" value={item.subtitle || ''} placeholder="Subtitle" onChange={(e) => handleCarouselFieldChange(item.id, 'subtitle', e.target.value)} className={inputClass} />
+                  </td>
+                  <td className={tdClass}><textarea rows={3} value={item.description || ''} onChange={(e) => handleCarouselFieldChange(item.id, 'description', e.target.value)} className={inputClass} /></td>
+                  <td className={tdClass}><input type="file" accept="image/*" onChange={(e) => handleCarouselFileChange(item.id, e.target.files?.[0] || null)} className={`${inputClass} p-1! text-xs`} /></td>
+                  <td className={tdClass}>
+                    <div className="flex flex-col gap-2">
+                      <button type="button" onClick={() => handleCarouselSave(item.id)} className={btnSuccess}>Save</button>
+                      <button type="button" onClick={() => handleCarouselDelete(item.id)} className={btnDanger}>Delete</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
-
-      {msg && (
-        <p id="msg" className="muted">
-          {msg}
-        </p>
-      )}
-    </>
+    </div>
   );
 };
 
