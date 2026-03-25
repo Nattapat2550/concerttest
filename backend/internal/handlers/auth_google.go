@@ -31,14 +31,14 @@ func (h *Handler) AuthGoogleCallback(w http.ResponseWriter, r *http.Request) {
 
 	info, err := h.Google.ExchangeWeb(ctx, code) // returns *googleUserInfo
 	if err != nil || info == nil {
-		fmt.Println("Google ExchangeWeb Error:", err) // ✅ แสดง Log เพื่อให้ง่ายต่อการตรวจสอบ
+		fmt.Println("Google ExchangeWeb Error:", err) // ✅ แสดง Log 
 		http.Redirect(w, r, front+"/login?error=oauth_failed", http.StatusFound)
 		return
 	}
 
 	user, err := h.setOAuthUser(ctx, info)
 	if err != nil {
-		fmt.Println("Database setOAuthUser Error:", err) // ✅ แสดง Log
+		fmt.Println("Database setOAuthUser Error:", err) // ✅ แสดง Log 
 		http.Redirect(w, r, front+"/login?error=oauth_failed", http.StatusFound)
 		return
 	}
@@ -86,7 +86,7 @@ type googleMobileReq struct {
 }
 
 // POST /api/auth/google-mobile 
-// ✅ (เปลี่ยนเป็น POST และรับ authCode จาก Body ให้ตรงกับโครงสร้างใหม่)
+// (เปลี่ยนเป็น POST และรับ authCode จาก Body ให้ตรงกับโปรเจคอื่น)
 func (h *Handler) AuthGoogleMobileCallback(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -121,7 +121,7 @@ func (h *Handler) AuthGoogleMobileCallback(w http.ResponseWriter, r *http.Reques
 
 	h.setAuthCookie(w, token, true)
 	
-	// ✅ คืนค่า User Data ครบชุด (รวม id, role, profile_picture_url)
+	// คืนค่า User Data ครบชุดเหมือนโปรเจค Node
 	WriteJSON(w, http.StatusOK, map[string]any{
 		"token": token,
 		"role":  user.Role,
@@ -135,14 +135,14 @@ func (h *Handler) AuthGoogleMobileCallback(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// ✅ ส่ง info.Name เข้าไปประกอบด้วยเพื่อบันทึกชื่อ
+// ใช้ info.Name เพื่อส่งเข้าไปประกอบด้วย (ตรงกับที่แก้ใน Node.js)
 func (h *Handler) setOAuthUser(ctx context.Context, info *googleUserInfo) (userDTO, error) {
 	email := strings.ToLower(strings.TrimSpace(info.Email))
 	subject := strings.TrimSpace(info.ID) 
 	pic := strings.TrimSpace(info.Picture)
 	name := strings.TrimSpace(info.Name)
 
-	// ✅ แก้ Key ให้ตรงกับที่ระบบของ Rust Backend คาดหวัง (camelCase)
+	// ✅ แก้ Key ให้ตรงกับที่ Rust SetOAuthUserBody (camelCase) คาดหวัง
 	payload := map[string]any{
 		"provider":   "google",
 		"oauthId":    subject,

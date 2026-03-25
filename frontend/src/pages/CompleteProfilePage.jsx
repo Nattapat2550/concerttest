@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import api from '../api';
+import api from '../services/api';
 import { useDispatch } from 'react-redux';
 import { checkAuthStatus } from '../store/slices/authSlice';
 

@@ -40,7 +40,6 @@ func NewRouter(cfg config.Config) http.Handler {
 		w.Write([]byte("Backend API is running"))
 	})
 	
-	// ✅ จัดการ favicon.ico เหมือน projectgo
 	r.Get("/favicon.ico", func(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
@@ -50,7 +49,7 @@ func NewRouter(cfg config.Config) http.Handler {
 
 	// ---- Auth ----
 	r.Route("/api/auth", func(ar chi.Router) {
-		// ✅ นำ Rate Limit มาใช้เฉพาะ /api/auth
+		// ✅ นำ Rate Limit มาใช้เฉพาะ /api/auth เหมือนใน Node.js
 		ar.Use(rateLimit(100, 15*time.Minute, func(req *http.Request) (string, error) {
 			return GetClientIP(req), nil
 		}))
@@ -67,10 +66,8 @@ func NewRouter(cfg config.Config) http.Handler {
 		ar.Get("/google", h.AuthGoogleStart)
 		ar.Get("/google/callback", h.AuthGoogleCallback)
 		
-		// ✅ Google Mobile ใช้งาน Route แบบ POST ตาม projectgo
+		// ✅ แก้ให้ Google Mobile ใช้งาน Route แบบ POST
 		ar.Post("/google-mobile", h.AuthGoogleMobileCallback)
-
-		// 🌟 [รับข้อมูลจาก React] ของเดิมจาก concerttest เก็บเอาไว้กัน React Error
 	})
 
 	// ---- Public ----
@@ -80,7 +77,7 @@ func NewRouter(cfg config.Config) http.Handler {
 	
 	r.Get("/api/download/windows", h.DownloadWindows)
 	r.Get("/api/download/android", h.DownloadAndroid)
-
+	
 	// ---- User ----
 	r.Route("/api/users", func(ur chi.Router) {
 		ur.Use(h.RequireAuth)
