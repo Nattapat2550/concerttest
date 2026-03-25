@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api';
 import { useDispatch } from 'react-redux';
-import { checkAuthStatus } from '../slices/authSlice';
+import { checkAuthStatus } from '../store/slices/authSlice';
 
 const CompleteProfilePage = () => {
   const navigate = useNavigate();
