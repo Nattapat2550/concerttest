@@ -1,8 +1,10 @@
 import { configureStore } from '@reduxjs/toolkit';
-import authReducer from './slices/authSlice'; // ดึง authSlice ที่คุณมีอยู่แล้วมาใช้
+import authReducer from './slices/authSlice'; // ตัวอย่าง reducer ของคุณ
 
-export const store = configureStore({
+const store = configureStore({
   reducer: {
     auth: authReducer,
   },
 });
+
+export default store;
