@@ -6,10 +6,11 @@ test.describe('Login Page', () => {
   });
 
   test('ล็อกอินสำเร็จพากลับไปหน้าแรก (/)', async ({ page }) => {
-    await page.route('**/api/auth/login', route => {
+    // 📌 จำลอง API ให้ตรงกับที่ LoginPage.jsx เรียกใช้งาน
+    await page.route('**/api/login', route => {
       route.fulfill({
         status: 200,
-        json: { ok: true, user: { id: 1, role: 'user' }, token: 'fake-token' }
+        json: { token: 'fake-token', user: { id: 1, name: 'Test User' } }
       });
     });
 
@@ -17,15 +18,16 @@ test.describe('Login Page', () => {
     await page.fill('input[type="password"]', 'Password123!');
     await page.click('button[type="submit"]');
 
-    // concerttest หน้าหลักคือ /
+    // ล็อกอินสำเร็จ ต้องกลับมาที่หน้าแรก
     await expect(page).toHaveURL('http://localhost:3000/');
   });
 
   test('ล็อกอินไม่สำเร็จแสดงข้อความ Error', async ({ page }) => {
-    await page.route('**/api/auth/login', route => {
+    // 📌 จำลอง API กรณีล้มเหลว
+    await page.route('**/api/login', route => {
       route.fulfill({
         status: 401,
-        json: { error: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' }
+        json: { message: 'อีเมลหรือรหัสผ่านไม่ถูกต้อง' }
       });
     });
 
@@ -33,6 +35,7 @@ test.describe('Login Page', () => {
     await page.fill('input[type="password"]', 'WrongPass!');
     await page.click('button[type="submit"]');
 
+    // ตรวจสอบข้อความแจ้งเตือนสีแดง
     const errorMsg = page.locator('text=อีเมลหรือรหัสผ่านไม่ถูกต้อง');
     await expect(errorMsg).toBeVisible();
   });

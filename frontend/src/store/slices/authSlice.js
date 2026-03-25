@@ -1,9 +1,13 @@
 // src/store/slices/authSlice.js
 import { createSlice } from '@reduxjs/toolkit';
 
+// 📌 ดึง token จาก LocalStorage ตอนที่เว็บโหลดครั้งแรก
+const token = localStorage.getItem('token');
+
 const initialState = {
   user: null,
-  isAuthenticated: false,
+  // 📌 ถ้ามี token อยู่ในเครื่อง ให้ถือว่า isAuthenticated เป็น true ตั้งแต่เริ่ม
+  isAuthenticated: !!token, 
   loading: false,
 };
 
