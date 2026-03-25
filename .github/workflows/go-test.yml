@@ -1,0 +1,59 @@
+name: Fullstack CI
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  # ----------------------------------------
+  # 1. Job สำหรับเทส Backend (Go) ของเดิม
+  # ----------------------------------------
+  backend-test:
+    name: Run Backend Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./backend
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21' 
+
+    - name: Install dependencies
+      run: go mod download
+
+    - name: Run Tests
+      run: go test ./internal/httpapi -v
+
+  # ----------------------------------------
+  # 2. Job สำหรับเทส Frontend (Playwright) ที่เพิ่มใหม่
+  # ----------------------------------------
+  frontend-test:
+    name: Run Frontend E2E Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps
+
+    - name: Run Playwright tests
+      run: npx playwright test
