@@ -13,7 +13,7 @@ const LoginPage = () => {
   
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { loading } = useSelector((state) => state.auth);
+  const loading = useSelector((state) => state.auth.status === 'loading');
 
   // 📌 1. ระบบล็อกอินด้วยรหัสผ่านปกติ
   const handleSubmit = async (e) => {
