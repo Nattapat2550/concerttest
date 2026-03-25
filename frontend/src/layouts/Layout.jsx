@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { logout } from '../slices/authSlice';
-import api from '../api';
+import { logout } from '../store/slices/authSlice';
+import api from '../services/api';
 
 const Layout = ({ children }) => {
   const dispatch = useDispatch();

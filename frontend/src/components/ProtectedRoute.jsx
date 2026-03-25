@@ -3,7 +3,7 @@ import React, { useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Navigate, useLocation } from 'react-router-dom';
 
-import { checkAuthStatus } from '../slices/authSlice';
+import { checkAuthStatus } from "../store/slices/authSlice";
 
 const ProtectedRoute = ({ children, roles }) => {
   const dispatch = useDispatch();
