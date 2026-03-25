@@ -1,68 +1,131 @@
-// src/layouts/Layout.jsx
-import { Link, useNavigate } from 'react-router-dom';
-import { useSelector, useDispatch } from 'react-redux';
-import { logout } from '../store/slices/authSlice';
-import { Children } from 'react';
+import React, { useEffect, useState } from 'react';
+// ✅ 1. เพิ่ม Outlet เข้ามาใน import
+import { Link, NavLink, useLocation, useNavigate, Outlet } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { logout } from '../slices/authSlice';
+import api from '../api';
 
-const Layout = ({ children }) => {
-  const { isAuthenticated, user } = useSelector((state) => state.auth);
+// ✅ 2. เอา { children } ออก
+const Layout = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
 
-  const handleLogout = () => {
-    dispatch(logout());
-    navigate('/login');
+  const { isAuthenticated, role } = useSelector((s) => s.auth);
+
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [dark, setDark] = useState(false);
+  const [me, setMe] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadMe = async () => {
+      if (!isAuthenticated) {
+        setMe(null);
+        return;
+      }
+      try {
+        // แก้ไข Path ให้ตรงกับ BaseURL (ถ้า api.js เซ็ต /api ไว้แล้ว ไม่ต้องใส่ซ้ำ)
+        const res = await api.get('/api/users/me');
+        if (!cancelled) setMe(res.data);
+      } catch {
+        if (!cancelled) setMe(null);
+      }
+    };
+    loadMe();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('theme') === 'dark';
+    setDark(saved);
+  }, []);
+
+  useEffect(() => {
+    document.body.classList.toggle('dark', dark);
+    localStorage.setItem('theme', dark ? 'dark' : 'light');
+  }, [dark]);
+
+  const handleThemeToggle = () => {
+    setDark((prev) => !prev);
   };
 
+  const handleLogout = async () => {
+    try {
+      await dispatch(logout()).unwrap();
+    } finally {
+      setDropdownOpen(false);
+      navigate('/');
+    }
+  };
+
+  const showDownloadLink = true; 
+  const userDisplayName = me?.username || me?.email || 'User';
+
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 text-gray-900">
-      {/* Navbar */}
-      <nav className="bg-white shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <Link to="/" className="text-2xl font-bold text-blue-600">
-                Concert
-              </Link>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Link to="/" className="text-gray-600 hover:text-blue-600 transition">หน้าแรก</Link>
-              <Link to="/about" className="text-gray-600 hover:text-blue-600 transition">เกี่ยวกับ</Link>
-              
-              {isAuthenticated ? (
-                <div className="flex items-center space-x-4">
-                  <span className="text-sm font-medium text-gray-700">สวัสดี, {user?.name || 'ผู้ใช้'}</span>
-                  <button 
-                    onClick={handleLogout}
-                    className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-md text-sm transition"
-                  >
-                    ออกจากระบบ
-                  </button>
-                </div>
-              ) : (
-                <Link 
-                  to="/login" 
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm transition"
+    <div>
+      {/* Top Nav */}
+      <nav className="nav">
+        <div className="brand">
+          <Link to="/" className="brand-text">
+            MySite
+          </Link>
+        </div>
+
+        <div className="links">
+          <NavLink to="/about">About</NavLink>
+          <NavLink to="/contact">Contact</NavLink>
+          {showDownloadLink && (
+            <NavLink to="/download">Download</NavLink>
+          )}
+
+          <button
+            id="themeToggle"
+            type="button"
+            onClick={handleThemeToggle}
+          >
+            🌓
+          </button>
+
+          {isAuthenticated && (
+            <div
+              className={
+                'user-menu' + (dropdownOpen ? ' open' : '')
+              }
+            >
+              <img
+                src={me?.profile_picture_url || '/images/user.png'}
+                alt="avatar"
+                onClick={() => setDropdownOpen((o) => !o)}
+              />
+              <span onClick={() => setDropdownOpen((o) => !o)} style={{ cursor: 'pointer' }}>
+                {userDisplayName}
+              </span>
+              <div className="dropdown">
+                <Link to="/settings">Settings</Link>
+                {role === 'admin' && (
+                  <Link to="/admin">Admin</Link>
+                )}
+                <button
+                  type="button"
+                  className="linklike"
+                  onClick={handleLogout}
                 >
-                  เข้าสู่ระบบ
-                </Link>
-              )}
+                  Logout
+                </button>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       </nav>
 
-      {/* Main Content (Outlet คือจุดที่ Page ต่างๆ จะมาแสดงผล) */}
-      <main className="grow container mx-auto px-4 py-8 max-w-7xl">
-        {children}
+      {/* Main content */}
+      <main className="container">
+        {/* ✅ 3. เปลี่ยนจาก {children} เป็น <Outlet /> */}
+        <Outlet />
       </main>
-
-      {/* Footer */}
-      <footer className="bg-gray-800 text-white py-6 mt-auto">
-        <div className="max-w-7xl mx-auto px-4 text-center">
-          <p className="text-sm text-gray-400">© 2026 Concert Project. All rights reserved.</p>
-        </div>
-      </footer>
     </div>
   );
 };
