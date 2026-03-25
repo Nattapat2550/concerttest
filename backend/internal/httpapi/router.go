@@ -31,17 +31,12 @@ func NewRouter(cfg config.Config) http.Handler {
 
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	
-	// ✅ ป้องกัน 404 เมื่อคนพิมพ์โดเมนหลักของ Backend
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
 		if cfg.FrontendURL != "" {
 			http.Redirect(w, req, cfg.FrontendURL, http.StatusFound)
 			return
 		}
 		w.Write([]byte("Backend API is running"))
-	})
-	
-	r.Get("/favicon.ico", func(w http.ResponseWriter, req *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
 	})
 
 	p := pureapi.NewClient(cfg.PureAPIBaseURL, cfg.PureAPIKey, cfg.PureAPIInternalURL)
@@ -64,22 +59,17 @@ func NewRouter(cfg config.Config) http.Handler {
 
 		ar.Get("/google", h.AuthGoogleStart)
 		ar.Get("/google/callback", h.AuthGoogleCallback)
-		
 		ar.Post("/google-mobile", h.AuthGoogleMobileCallback)
-
-		// 🌟 [เพิ่มใหม่] รับข้อมูลที่ถอดรหัสจาก Google ฝั่ง Frontend (React)
+		
+		// 🌟 [รับข้อมูลจาก React]
 		ar.Post("/oauth/google", h.AuthOAuthGoogle)
 	})
 
-	// ---- Public ----
 	r.Get("/api/homepage", h.HomepageGet)
-	r.With(h.RequireAdmin).Put("/api/homepage", h.HomepageUpdate)
 	r.Get("/api/carousel", h.CarouselList)
-	
 	r.Get("/api/download/windows", h.DownloadWindows)
 	r.Get("/api/download/android", h.DownloadAndroid)
-	
-	// ---- User ----
+
 	r.Route("/api/users", func(ur chi.Router) {
 		ur.Use(h.RequireAuth)
 		ur.Get("/me", h.UsersMeGet)
@@ -88,19 +78,15 @@ func NewRouter(cfg config.Config) http.Handler {
 		ur.Delete("/me", h.UsersMeDelete)
 	})
 
-	// ---- Admin ----
 	r.Route("/api/admin", func(ad chi.Router) {
 		ad.Use(h.RequireAdmin)
-
 		ad.Get("/users", h.AdminUsersList)
 		ad.Put("/users/{id}", h.AdminUsersUpdateByID)
 		ad.Post("/users/update", h.AdminUsersUpdate)
-
 		ad.Get("/carousel", h.AdminCarouselList)
 		ad.Post("/carousel", h.AdminCarouselCreate)
 		ad.Put("/carousel/{id}", h.AdminCarouselUpdate)
 		ad.Delete("/carousel/{id}", h.AdminCarouselDelete)
-
 		ad.Put("/homepage", h.HomepageUpdate)
 	})
 

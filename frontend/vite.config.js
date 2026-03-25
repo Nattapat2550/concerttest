@@ -1,15 +1,15 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite' 
+import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss(), // 📌 2. ใส่ Tailwind เข้าไปใน Plugins
-  ],
+  plugins: [react(), tailwindcss()],
   server: {
     port: 3000,
     strictPort: true,
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin-allow-popups' // 🌟 เพิ่มบรรทัดนี้
+    }
   },
   preview: {
     port: 3000,
