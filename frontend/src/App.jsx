@@ -1,12 +1,12 @@
 import React, { Suspense, lazy, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
-
-// ✅ ใช้ Path 'layouts' ตามโครงสร้างจริงของ concerttest
 import Layout from './layouts/Layout'; 
 import ProtectedRoute from './components/ProtectedRoute';
 
-// 📌 Lazy load หน้าต่างๆ (ตรวจสอบว่าไฟล์เหล่านี้มีอยู่ใน src/pages/ แล้ว)
-const LandingPage = lazy(() => import('./pages/LandingPage'));
+// หน้าแรก (โหลดทันที)
+import LandingPage from './pages/LandingPage';
+
+// หน้าที่เหลือ (Lazy Load)
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const CheckCodePage = lazy(() => import('./pages/CheckCodePage'));
@@ -20,12 +20,14 @@ const ContactPage = lazy(() => import('./pages/ContactPage'));
 const DownloadPage = lazy(() => import('./pages/DownloadPage'));
 
 function App() {
+  // ดักจับ Token เวลา Login ผ่าน Google
   useEffect(() => {
     const hash = window.location.hash;
     if (hash && hash.includes('token=')) {
       const params = new URLSearchParams(hash.substring(1));
       const token = params.get('token');
       const role = params.get('role');
+
       if (token) {
         localStorage.setItem('token', token);
         if (role) localStorage.setItem('role', role);
@@ -36,9 +38,9 @@ function App() {
   }, []);
 
   return (
-    <Layout>
-      <Suspense fallback={<div className="p-10 text-center">กำลังโหลด...</div>}>
-        <Routes>
+    <Suspense fallback={<div className="p-10 text-center">กำลังโหลด...</div>}>
+      <Routes>
+        <Route element={<Layout />}>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -55,9 +57,9 @@ function App() {
           <Route path="/admin" element={<ProtectedRoute roles={['admin']}><AdminPage /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
-    </Layout>
+        </Route>
+      </Routes>
+    </Suspense>
   );
 }
 
