@@ -40,7 +40,7 @@ const SettingsPage = () => {
     const formData = new FormData();
     formData.append('avatar', file);
     try {
-      const res = await api.post('/api/users/avatar', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await api.post('/api/users/me/avatar', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       if (res.data.profile_picture_url) setAvatarUrl(res.data.profile_picture_url);
       setMsg({ text: 'อัปโหลดรูปประจำตัวสำเร็จ', type: 'success' });
     } catch (err) {

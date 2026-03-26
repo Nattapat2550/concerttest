@@ -126,7 +126,7 @@ const Layout = ({ children }) => {
                     className="flex items-center space-x-2 focus:outline-none"
                   >
                     <img
-                      src={me?.profile_picture_url || '/images/user.png'}
+                      src={me?.profile_picture_url || '../assets/user.png'}
                       alt="avatar"
                       className="w-8 h-8 rounded-full border border-gray-300 dark:border-gray-600 object-cover"
                     />
