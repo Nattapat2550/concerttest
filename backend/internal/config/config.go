@@ -3,7 +3,6 @@ package config
 import (
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -31,13 +30,11 @@ type Config struct {
 	FrontendURL string
 }
 
-// Load env similar to the old Node backend:
-// - tries backend/.env
-// - then tries repo root .env (../.env)
 func Load() Config {
-	// best-effort load
-	_ = godotenv.Load(filepath.Join(".", ".env"))
-	_ = godotenv.Load(filepath.Join("..", ".env"))
+	// โหลด .env หากมีอยู่ในเครื่อง
+	_ = godotenv.Load(".env")
+	_ = godotenv.Load("../.env")
+	_ = godotenv.Load("../../.env")
 
 	cfg := Config{
 		Port:          getOr("PORT", "5000"),
@@ -56,21 +53,20 @@ func Load() Config {
 
 		RefreshToken: os.Getenv("REFRESH_TOKEN"),
 		SenderEmail:  os.Getenv("SENDER_EMAIL"),
-		EmailDisable: strings.EqualFold(os.Getenv("EMAIL_DISABLE"), "true"),
+		
+		// ✅ บังคับเปิดระบบส่งอีเมลเสมอ (เพิกเฉยต่อค่า EMAIL_DISABLE=true ที่อาจติดมา)
+		EmailDisable: false,
 
 		FrontendURL: getOr("FRONTEND_URL", "http://localhost:3000"),
 	}
 
-	// basic required checks (fail fast to avoid silent misbehavior)
-	if cfg.PureAPIBaseURL == "" {
-		log.Println("WARN: PURE_API_BASE_URL is empty")
+	// แจ้งเตือนเรื่องการส่งอีเมลใน Log
+	if cfg.SenderEmail == "" || cfg.RefreshToken == "" || cfg.GoogleClientID == "" || cfg.GoogleClientSecret == "" {
+		log.Println("⚠️ WARN: Email system is ENABLED but missing credentials (SENDER_EMAIL, REFRESH_TOKEN, GOOGLE_CLIENT_ID, or GOOGLE_CLIENT_SECRET). Emails will FAIL to send.")
+	} else {
+		log.Println("✅ Email system is configured and ENABLED.")
 	}
-	if cfg.PureAPIKey == "" {
-		log.Println("WARN: PURE_API_KEY is empty")
-	}
-	if cfg.JWTSecret == "" {
-		log.Println("WARN: JWT_SECRET is empty")
-	}
+
 	return cfg
 }
 
