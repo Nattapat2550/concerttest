@@ -1,12 +1,12 @@
 /* src/global.css */
 @import "tailwindcss";
 
-/* เพิ่มบรรทัดนี้เพื่อให้ Tailwind v4 รองรับการสลับ Dark Mode ผ่าน Class .dark */
-@custom-variant dark (&:where(.dark, .dark *));
+/* 1. ใช้ @variant (แทน @custom-variant) เพื่อให้ Tailwind v4 สลับ Dark Mode ผ่าน Class .dark */
+@variant dark (&:where(.dark, .dark *));
 
-/* คุณยังสามารถเพิ่ม Custom CSS พื้นฐานของคุณได้ที่นี่ (ถ้ามี) */
 @layer base {
   body {
-    @apply bg-gray-50 text-gray-900 antialiased;
+    /* 2. เพิ่มการตั้งค่าสีพื้นหลังและตัวอักษรสำหรับทั้ง Light และ Dark mode (รวมถึงเพิ่ม transition ให้เปลี่ยนสีแบบนุ่มนวล) */
+    @apply bg-gray-50 text-gray-900 antialiased dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300;
   }
 }
