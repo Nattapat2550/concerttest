@@ -1,6 +1,9 @@
 /* src/global.css */
 @import "tailwindcss";
 
+/* เพิ่มบรรทัดนี้เพื่อให้ Tailwind v4 รองรับการสลับ Dark Mode ผ่าน Class .dark */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* คุณยังสามารถเพิ่ม Custom CSS พื้นฐานของคุณได้ที่นี่ (ถ้ามี) */
 @layer base {
   body {
