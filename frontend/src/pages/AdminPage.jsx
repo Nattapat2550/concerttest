@@ -20,6 +20,9 @@ export default function AdminPage() {
   const seatConfigRef = useRef({}); 
   const svgContainerRef = useRef(null);
 
+  // Marquee Selection States (สำหรับลากคลุมที่นั่ง)
+  const [selectionBox, setSelectionBox] = useState(null);
+
   useEffect(() => { fetchData(); }, [activeTab]);
 
   const fetchData = async () => {
@@ -46,7 +49,7 @@ export default function AdminPage() {
         const resN = await api.get('/api/admin/news');
         setNews(resN.data || []);
       }
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error("Error fetching admin data"); }
   };
 
   const handleUpdateUserStatus = async (userId, status) => {
@@ -74,7 +77,7 @@ export default function AdminPage() {
         alert("อัปโหลดสถานที่ (SVG) สำเร็จ!");
         e.target.reset();
         fetchData();
-      } catch (err) { alert("เกิดข้อผิดพลาด"); }
+      } catch (err) { alert("เกิดข้อผิดพลาดในการอัปโหลด"); }
     };
     reader.readAsText(file);
   };
@@ -86,7 +89,7 @@ export default function AdminPage() {
     }
   };
 
-  // --- เพิ่ม Headers ให้ครบถ้วน ป้องกันบัคส่ง Form Data ---
+  // --- เพิ่ม Headers รูปปกใน สร้าง/อัปเดต Concert ---
   const handleCreateConcert = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -155,37 +158,80 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (mapConcert && mapSvg && svgContainerRef.current) {
-      let isMouseDown = false;
       const seats = svgContainerRef.current.querySelectorAll('.seat');
-
+      
       seats.forEach(seat => {
         const seatId = seat.getAttribute('id');
         const config = seatConfigRef.current[seatId];
-        seat.style.fill = config ? config.color : '#334155'; // สีเทา
+        seat.style.fill = config ? config.color : '#334155'; 
         seat.style.cursor = 'crosshair';
         seat.style.transition = 'none';
+        
+        // เราใช้ onclick สำรองกรณีผู้ใช้คลิกทีละเก้าอี้
+        seat.onclick = (e) => {
+           e.stopPropagation(); // ไม่ให้ Trigger Marquee
+           const activeChannel = channels.find(c => c.id === activeChannelId);
+           if (!activeChannel) return;
+           
+           if (seatConfigRef.current[seatId]?.id === activeChannel.id) {
+             delete seatConfigRef.current[seatId];
+             seat.style.fill = '#334155'; 
+           } else {
+             seatConfigRef.current[seatId] = activeChannel;
+             seat.style.fill = activeChannel.color;
+           }
+        };
+      });
+    }
+  }, [mapConcert, mapSvg, activeChannelId, channels]);
 
-        const paintSeat = () => {
-          const activeChannel = channels.find(c => c.id === activeChannelId);
-          if (!activeChannel) return;
-          
-          if (seatConfigRef.current[seatId]?.id === activeChannel.id) {
-            delete seatConfigRef.current[seatId];
-            seat.style.fill = '#334155'; 
-          } else {
+  // ระบบลากคลุม (Marquee Selection)
+  const handleMapMouseDown = (e) => {
+    if (e.target.classList.contains('seat')) return; // ถ้ากดโดนเก้าอี้โดยตรง ปล่อยให้มันคลิกปกติ
+    const rect = e.currentTarget.getBoundingClientRect();
+    setSelectionBox({
+      startX: e.clientX,
+      startY: e.clientY,
+      currentX: e.clientX,
+      currentY: e.clientY,
+      containerRect: rect
+    });
+  };
+
+  const handleMapMouseMove = (e) => {
+    if (!selectionBox) return;
+    setSelectionBox(prev => ({ ...prev, currentX: e.clientX, currentY: e.clientY }));
+  };
+
+  const handleMapMouseUp = () => {
+    if (!selectionBox) return;
+    
+    const left = Math.min(selectionBox.startX, selectionBox.currentX);
+    const right = Math.max(selectionBox.startX, selectionBox.currentX);
+    const top = Math.min(selectionBox.startY, selectionBox.currentY);
+    const bottom = Math.max(selectionBox.startY, selectionBox.currentY);
+
+    // หากลากคลุมได้ระยะที่เหมาะสม (ไม่ใช่แค่คลิกพลาด)
+    if (right - left > 5 || bottom - top > 5) {
+      const activeChannel = channels.find(c => c.id === activeChannelId);
+      if (activeChannel && svgContainerRef.current) {
+        const seats = svgContainerRef.current.querySelectorAll('.seat');
+        seats.forEach(seat => {
+          const seatRect = seat.getBoundingClientRect();
+          const seatCenterX = seatRect.left + seatRect.width / 2;
+          const seatCenterY = seatRect.top + seatRect.height / 2;
+
+          // เช็คว่าจุดศูนย์กลางของเก้าอี้อยู่ในกล่องสี่เหลี่ยมที่ลากคลุมหรือไม่
+          if (seatCenterX >= left && seatCenterX <= right && seatCenterY >= top && seatCenterY <= bottom) {
+            const seatId = seat.getAttribute('id');
             seatConfigRef.current[seatId] = activeChannel;
             seat.style.fill = activeChannel.color;
           }
-        };
-
-        seat.onmousedown = (e) => { isMouseDown = true; paintSeat(); e.preventDefault(); };
-        seat.onmouseenter = () => { if (isMouseDown) paintSeat(); };
-      });
-
-      document.onmouseup = () => { isMouseDown = false; };
-      return () => { document.onmouseup = null; };
+        });
+      }
     }
-  }, [mapConcert, mapSvg, activeChannelId, channels]);
+    setSelectionBox(null);
+  };
 
   const handleSaveMap = async () => {
     if (!window.confirm("ยืนยันการตั้งค่าผัง? (ที่นั่งที่ไม่ได้ระบายสีจะไม่ถูกเปิดขาย)")) return;
@@ -202,6 +248,7 @@ export default function AdminPage() {
     } catch(e) { alert("เกิดข้อผิดพลาดในการบันทึก"); }
   };
 
+  // --- News ---
   const handleCreateNews = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -244,11 +291,12 @@ export default function AdminPage() {
           <h2 className="text-2xl font-bold">📍 จัดการผังเปิดขาย: {mapConcert.name}</h2>
           <div className="space-x-4">
             <button onClick={() => setMapConcert(null)} className="px-4 py-2 bg-gray-300 rounded font-bold">กลับ</button>
-            <button onClick={handleSaveMap} className="px-6 py-2 bg-green-600 text-white rounded font-bold">💾 บันทึกผังที่นั่ง</button>
+            <button onClick={handleSaveMap} className="px-6 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-700 shadow-lg">💾 บันทึกการตั้งค่า</button>
           </div>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-6">
+          {/* แถบเครื่องมือสร้าง Channel ด้านซ้าย */}
           <div className="w-full lg:w-1/4 bg-white p-4 shadow rounded border h-fit">
             <h3 className="text-lg font-bold mb-4 border-b pb-2">🎨 สร้างโซน/ราคา</h3>
             <div className="space-y-4 mb-6">
@@ -264,17 +312,43 @@ export default function AdminPage() {
                 </div>
               ))}
             </div>
-            <button onClick={() => setChannels([...channels, { id: Date.now(), name: 'โซนใหม่', price: 1000, color: '#3b82f6' }])} className="w-full py-2 bg-blue-100 text-blue-700 font-bold rounded">
+            <button onClick={() => setChannels([...channels, { id: Date.now(), name: 'โซนใหม่', price: 1000, color: '#3b82f6' }])} className="w-full py-2 bg-blue-100 text-blue-700 font-bold rounded hover:bg-blue-200 border border-blue-300 border-dashed">
               + เพิ่มสีโซน (Channel)
             </button>
-            <p className="text-sm text-gray-500 mt-6 bg-gray-100 p-3 rounded">💡 <b>วิธีใช้:</b> เลือกสีโซนด้านบน จากนั้นคลิกหรือลากผ่านเก้าอี้บนแผนที่เพื่อเปิดขาย (คลิกซ้ำเพื่อยกเลิก)</p>
+            <p className="text-sm text-gray-500 mt-6 bg-gray-100 p-3 rounded">
+              💡 <b>วิธีใช้:</b> คลิกเลือกสีโซน จากนั้น <b>"คลิกที่เก้าอี้"</b> หรือ <b>"คลิกค้างแล้วลากคลุมเก้าอี้หลายตัว"</b> บนแผนที่เพื่อเปิดขาย (คลิกซ้ำเพื่อยกเลิก)
+            </p>
           </div>
 
-          <div className="w-full lg:w-3/4 bg-[#0f172a] p-6 shadow rounded border overflow-auto h-[700px] flex justify-center items-start cursor-crosshair">
+          {/* พื้นที่แสดง SVG ด้านขวา พร้อมระบบลากคลุม */}
+          <div 
+            className="relative w-full lg:w-3/4 bg-gray-900 p-6 shadow rounded border overflow-auto h-[700px] flex justify-center items-start cursor-crosshair"
+            onMouseDown={handleMapMouseDown}
+            onMouseMove={handleMapMouseMove}
+            onMouseUp={handleMapMouseUp}
+            onMouseLeave={handleMapMouseUp}
+          >
             {mapSvg ? (
-              <div ref={svgContainerRef} className="w-full max-w-[1200px]" dangerouslySetInnerHTML={{ __html: mapSvg }} />
+              <div ref={svgContainerRef} className="w-full max-w-[1200px] pointer-events-auto" dangerouslySetInnerHTML={{ __html: mapSvg }} />
             ) : (
-              <p className="py-20 text-gray-400 font-bold text-xl">คอนเสิร์ตนี้ยังไม่มี SVG Map</p>
+              <p className="py-20 text-gray-400 font-bold text-xl">คอนเสิร์ตนี้ยังไม่มีการตั้งค่า Venue SVG</p>
+            )}
+
+            {/* กล่องแสดงพื้นที่ลากคลุม (Marquee Visualizer) */}
+            {selectionBox && (
+              <div 
+                style={{
+                  position: 'fixed',
+                  border: '2px dashed #3b82f6',
+                  backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                  left: Math.min(selectionBox.startX, selectionBox.currentX),
+                  top: Math.min(selectionBox.startY, selectionBox.currentY),
+                  width: Math.abs(selectionBox.startX - selectionBox.currentX),
+                  height: Math.abs(selectionBox.startY - selectionBox.currentY),
+                  pointerEvents: 'none',
+                  zIndex: 50
+                }}
+              />
             )}
           </div>
         </div>
@@ -286,6 +360,7 @@ export default function AdminPage() {
   return (
     <div className="max-w-7xl mx-auto p-6 mt-6 bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700 min-h-[70vh]">
       <h2 className="text-3xl font-bold mb-6 dark:text-white border-b dark:border-gray-700 pb-4">Admin Dashboard</h2>
+      
       <div className="flex flex-wrap gap-4 mb-8 border-b dark:border-gray-700 pb-4">
         <button onClick={() => setActiveTab('venues')} className={`px-4 py-2 rounded-lg font-bold ${activeTab === 'venues' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 dark:text-gray-300'}`}>1. จัดการสถานที่ (SVG Map)</button>
         <button onClick={() => setActiveTab('concerts')} className={`px-4 py-2 rounded-lg font-bold ${activeTab === 'concerts' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 dark:text-gray-300'}`}>2. จัดการคอนเสิร์ต/ผังที่นั่ง</button>
@@ -319,7 +394,6 @@ export default function AdminPage() {
         <div className="space-y-8">
           <form onSubmit={handleCreateConcert} className="bg-gray-50 dark:bg-gray-900 p-6 rounded border shadow-sm dark:border-gray-700">
             <h3 className="text-xl font-bold mb-4 dark:text-white">+ สร้างคอนเสิร์ต</h3>
-            {/* แก้ไข Input ให้ครบถ้วนป้องกันข้อมูลขาดหาย */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <input type="text" name="name" placeholder="ชื่อคอนเสิร์ต" required className="p-2 border rounded dark:bg-gray-800 dark:text-white" />
               <input type="text" name="venue" placeholder="สถานที่จัดงาน (ข้อความเผื่อไว้)" className="p-2 border rounded dark:bg-gray-800 dark:text-white" />
@@ -331,6 +405,7 @@ export default function AdminPage() {
               
               <input type="number" name="ticket_price" placeholder="ราคาตั๋วเริ่มต้น (บาท)" required className="p-2 border rounded dark:bg-gray-800 dark:text-white" />
               <input type="datetime-local" name="show_date" required className="p-2 border rounded dark:bg-gray-800 dark:text-white" />
+              <input type="file" name="image" accept="image/*" className="p-2 border rounded bg-white dark:bg-gray-800" title="รูปปกคอนเสิร์ต" />
             </div>
             <button type="submit" className="mt-4 bg-green-600 text-white font-bold py-2 px-6 rounded hover:bg-green-700">สร้างคอนเสิร์ต</button>
           </form>
@@ -423,6 +498,7 @@ export default function AdminPage() {
             <div className="flex flex-col gap-4">
               <input type="text" name="title" placeholder="หัวข้อข่าว" required className="p-2 border rounded dark:bg-gray-800 dark:text-white" />
               <textarea name="content" placeholder="รายละเอียดข่าวสาร" required rows="3" className="p-2 border rounded dark:bg-gray-800 dark:text-white"></textarea>
+              <input type="file" name="image" accept="image/*" className="p-2 border rounded bg-white dark:bg-gray-800" title="รูปภาพประกอบข่าว" />
               <button type="submit" className="bg-blue-600 text-white font-bold py-2 px-6 rounded w-fit">ประกาศข่าว</button>
             </div>
           </form>
@@ -459,6 +535,8 @@ export default function AdminPage() {
               </select>
               <input type="number" name="ticket_price" defaultValue={editingConcert.ticket_price} required className="p-2 border rounded dark:bg-gray-700 dark:text-white" />
               <input type="datetime-local" name="show_date" defaultValue={formatDateForInput(editingConcert.show_date)} required className="p-2 border rounded dark:bg-gray-700 dark:text-white" />
+              <p className="text-sm text-gray-500 -mb-2.5">อัปเดตรูปภาพปก (เว้นว่างไว้หากใช้รูปเดิม)</p>
+              <input type="file" name="image" accept="image/*" className="p-2 border rounded dark:bg-gray-700 dark:text-white" />
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button type="button" onClick={() => setEditingConcert(null)} className="px-4 py-2 bg-gray-300 rounded">ยกเลิก</button>
@@ -479,6 +557,8 @@ export default function AdminPage() {
                 <option value="true">เปิดใช้งาน</option>
                 <option value="false">ปิดใช้งาน</option>
               </select>
+              <p className="text-sm text-gray-500 -mb-2.5">อัปเดตรูปภาพประกอบ (เว้นว่างไว้หากใช้รูปเดิม)</p>
+              <input type="file" name="image" accept="image/*" className="p-2 border rounded dark:bg-gray-700 dark:text-white" />
             </div>
             <div className="mt-6 flex justify-end gap-3">
               <button type="button" onClick={() => setEditingNews(null)} className="px-4 py-2 bg-gray-300 rounded">ยกเลิก</button>
