@@ -34,7 +34,7 @@ CREATE TABLE seats (
 -- 4. ตารางการจอง (ผูกกับ user_id จากระบบ Auth)
 CREATE TABLE bookings (
     id SERIAL PRIMARY KEY,
-    user_id UUID NOT NULL, -- อ้างอิง UUID จากระบบ Backend Rust
+    user_id UUID VARCHAR(255) NOT NULL, -- อ้างอิง UUID จากระบบ Backend Rust
     concert_id INT REFERENCES concerts(id) ON DELETE CASCADE,
     seat_id INT REFERENCES seats(id) ON DELETE CASCADE,
     status VARCHAR(50) DEFAULT 'confirmed', -- confirmed, cancelled

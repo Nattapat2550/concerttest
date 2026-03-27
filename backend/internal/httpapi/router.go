@@ -95,7 +95,6 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 		cr.Get("/{id}/seats", h.GetConcertSeats)
 		
 		cr.With(h.RequireAuth).Post("/book", h.BookSeat)
-		// ✅ เพิ่ม Route ดึงประวัติการจองของ User
 		cr.With(h.RequireAuth).Get("/my-bookings", h.GetMyBookings)
 	})
 
@@ -104,7 +103,7 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 		ad.Use(h.RequireAdmin)
 
 		ad.Get("/users", h.AdminUsersList)
-		ad.Put("/users/{id}", h.AdminUsersUpdateByID)
+		ad.Put("/users/{id}", h.AdminUsersUpdateByID) // ✅ ใช้ PUT สำหรับอัปเดต Role/Status
 		ad.Post("/users/update", h.AdminUsersUpdate)
 
 		ad.Get("/carousel", h.AdminCarouselList)
@@ -114,9 +113,18 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 
 		ad.Put("/homepage", h.HomepageUpdate)
 		
-		// ✅ เพิ่ม Route สำหรับให้ Admin จัดการ Concert และ News
+		// ✅ Routes สำหรับการจัดการระบบคอนเสิร์ต (CRUD เต็มรูปแบบ)
+		ad.Get("/bookings", h.AdminGetAllBookings)
+		
+		ad.Get("/concerts", h.GetConcerts)
 		ad.Post("/concerts", h.AdminCreateConcert)
+		ad.Put("/concerts/{id}", h.AdminUpdateConcert)
+		ad.Delete("/concerts/{id}", h.AdminDeleteConcert)
+
+		ad.Get("/news", h.AdminGetNewsList)
 		ad.Post("/news", h.AdminCreateNews)
+		ad.Put("/news/{id}", h.AdminUpdateNews)
+		ad.Delete("/news/{id}", h.AdminDeleteNews)
 	})
 
 	return r
