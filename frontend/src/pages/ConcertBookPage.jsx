@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import InteractiveSeatMap from '../components/InteractiveSeatMap'; // Import Component ใหม่เข้ามา
 
 export default function ConcertBookPage() {
   const { id } = useParams();
@@ -12,18 +13,6 @@ export default function ConcertBookPage() {
   const [bookedSeats, setBookedSeats] = useState([]);
   const [selectedSeat, setSelectedSeat] = useState(null);
 
-  // Pan & Zoom States
-  const [scale, setScale] = useState(1);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-
-  const scaleRef = useRef(1); // เก็บค่า Scale ล่าสุดสำหรับแก้บัคลูกกลิ้งเมาส์
-  const svgContainerRef = useRef(null);
-  const mapWrapperRef = useRef(null);
-
-  useEffect(() => { scaleRef.current = scale; }, [scale]);
-
   useEffect(() => {
     const fetchDetails = async () => {
       try {
@@ -32,93 +21,12 @@ export default function ConcertBookPage() {
         setSvgContent(data.svg_content || '');
         setConfiguredSeats(data.configured_seats || []);
         setBookedSeats(data.booked_seats || []);
-      } catch (err) { alert("Error loading concert map"); }
+      } catch (err) { 
+        alert("Error loading concert map"); 
+      }
     };
     fetchDetails();
   }, [id]);
-
-  // ซ่อนที่นั่งที่ไม่ได้เปิดขาย และกำหนด Event ให้ที่นั่ง
-  useEffect(() => {
-    if (svgContent && svgContainerRef.current) {
-      const seats = svgContainerRef.current.querySelectorAll('.seat');
-      
-      const configMap = {};
-      configuredSeats.forEach(s => { configMap[s.seat_code] = s; });
-
-      seats.forEach(seat => {
-        const seatId = seat.getAttribute('id');
-        const config = configMap[seatId];
-
-        // ล้าง Event เก่าเพื่อป้องกันปัญหาคลิกซ้อน
-        seat.onmousedown = null;
-        seat.onclick = null;
-        seat.onmouseover = null;
-        seat.onmouseout = null;
-        seat.style.transition = 'transform 0.1s ease-in-out';
-
-        if (!config) {
-          // ถ้าแอดมินไม่ได้ระบายสี = ซ่อนที่นั่งตัวนี้ไปเลย
-          seat.style.opacity = '0';
-          seat.style.pointerEvents = 'none';
-          return;
-        }
-
-        const isBooked = bookedSeats.includes(seatId);
-        const isSelected = selectedSeat?.seat_code === seatId;
-
-        seat.style.opacity = '1';
-        seat.style.pointerEvents = 'auto';
-
-        if (isBooked) {
-          seat.style.fill = '#475569'; // สีเทา
-          seat.style.cursor = 'not-allowed';
-          seat.style.opacity = '0.3';
-        } else {
-          seat.style.fill = isSelected ? '#ffffff' : config.color; 
-          seat.style.stroke = isSelected ? '#ef4444' : 'none';
-          seat.style.strokeWidth = isSelected ? '3px' : '0';
-          seat.style.cursor = 'pointer';
-          
-          seat.onmouseover = () => { if(!isSelected) seat.style.transform = 'scale(1.4)'; };
-          seat.onmouseout = () => { if(!isSelected) seat.style.transform = 'scale(1)'; };
-          
-          // ใช้ onmousedown แทน onclick และสั่ง stopPropagation() 
-          // เพื่อป้องกันไม่ให้ไปรบกวนระบบคลิกลากของ Map Wrapper
-          seat.onmousedown = (e) => { 
-            e.stopPropagation(); 
-            setSelectedSeat(config); 
-          };
-        }
-      });
-    }
-  }, [svgContent, configuredSeats, bookedSeats, selectedSeat]);
-
-  // --- Pan & Zoom Logic ---
-  // ผูก Event ลูกกลิ้งเพียงครั้งเดียว โดยใช้ Ref อ้างอิงค่าปัจจุบัน
-  useEffect(() => {
-    const wrapper = mapWrapperRef.current;
-    const handleWheel = (e) => {
-      e.preventDefault();
-      const scaleAdjust = e.deltaY * -0.002;
-      const newScale = Math.min(Math.max(0.5, scaleRef.current + scaleAdjust), 8); 
-      setScale(newScale);
-    };
-
-    if (wrapper) {
-      wrapper.addEventListener('wheel', handleWheel, { passive: false });
-      return () => wrapper.removeEventListener('wheel', handleWheel);
-    }
-  }, []);
-
-  const handleMouseDown = (e) => {
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
-  };
-  const handleMouseMove = (e) => {
-    if (!isDragging) return;
-    setPosition({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
-  };
-  const handleMouseUp = () => setIsDragging(false);
 
   const handleBook = async () => {
     if (!selectedSeat) return;
@@ -132,6 +40,7 @@ export default function ConcertBookPage() {
       navigate('/my-bookings');
     } catch (err) {
       alert("❌ ที่นั่งนี้เพิ่งถูกจองตัดหน้าไป กรุณาเลือกที่นั่งอื่น");
+      // อัพเดตเฉพาะที่นั่งที่โดนจองใหม่ ไม่ต้องโหลดหน้าใหม่
       const { data } = await api.get(`/api/concerts/${id}`);
       setBookedSeats(data.booked_seats || []);
       setSelectedSeat(null);
@@ -147,41 +56,16 @@ export default function ConcertBookPage() {
           <h2 className="text-3xl font-black text-gray-900 dark:text-white">{concert.name}</h2>
           <p className="text-gray-500 font-bold mt-1">📍 สถานที่: {concert.venue_name || concert.venue}</p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={() => setScale(s => Math.max(0.5, s - 0.5))} className="bg-gray-200 px-3 py-1 rounded font-bold hover:bg-gray-300">-</button>
-          <button onClick={() => { setScale(1); setPosition({x:0,y:0}); }} className="bg-gray-200 px-3 py-1 rounded text-sm font-bold hover:bg-gray-300">RESET</button>
-          <button onClick={() => setScale(s => Math.min(8, s + 0.5))} className="bg-gray-200 px-3 py-1 rounded font-bold hover:bg-gray-300">+</button>
-        </div>
       </div>
 
-      <div 
-        ref={mapWrapperRef}
-        className={`bg-gray-50 dark:bg-[#0f172a] rounded-xl flex items-center justify-center border dark:border-gray-600 shadow-inner overflow-hidden relative h-[650px] ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
-      >
-        <div className="absolute top-4 left-4 bg-white/90 px-4 py-2 rounded-lg shadow pointer-events-none z-10 font-bold text-sm text-gray-700">
-          🔍 เลื่อนลูกกลิ้งเมาส์เพื่อซูมดูที่นั่ง / คลิกค้างเพื่อเลื่อนแผนที่
-        </div>
-
-        {configuredSeats.length === 0 ? (
-          <div className="flex flex-col items-center justify-center">
-            <span className="text-6xl mb-4">🚧</span>
-            <p className="text-gray-500 font-bold text-2xl text-center">แอดมินยังไม่ได้เปิดขายที่นั่ง<br/>สำหรับคอนเสิร์ตนี้</p>
-          </div>
-        ) : svgContent ? (
-          <div 
-            ref={svgContainerRef}
-            className="absolute origin-center transition-transform duration-75 w-full max-w-[1200px]"
-            style={{ transform: `translate(${position.x}px, ${position.y}px) scale(${scale})` }}
-            dangerouslySetInnerHTML={{ __html: svgContent }} 
-          />
-        ) : (
-          <p className="text-gray-400 font-bold text-xl">ไม่มีแผนผัง Interactive สำหรับคอนเสิร์ตนี้</p>
-        )}
-      </div>
+      {/* เรียกใช้งาน Component แผนที่ และส่ง Props เข้าไป */}
+      <InteractiveSeatMap 
+        svgContent={svgContent}
+        configuredSeats={configuredSeats}
+        bookedSeats={bookedSeats}
+        selectedSeat={selectedSeat}
+        onSeatSelect={setSelectedSeat}
+      />
 
       <div className="flex gap-4 justify-center mt-4 text-sm font-bold dark:text-gray-300">
          <span className="flex items-center gap-1"><div className="w-4 h-4 bg-gray-400 rounded-full"></div> ที่นั่งโซนต่างๆ</span>
@@ -189,10 +73,10 @@ export default function ConcertBookPage() {
          <span className="flex items-center gap-1"><div className="w-4 h-4 bg-gray-400 rounded-full opacity-30"></div> ถูกจองแล้ว</span>
       </div>
 
-      <div className="bg-blue-50 dark:bg-gray-900 p-6 rounded-xl flex flex-col sm:flex-row justify-between items-center border border-blue-200 dark:border-gray-700 mt-6 shadow-md">
+      <div className="bg-blue-50 dark:bg-gray-900 p-6 rounded-xl flex flex-col sm:flex-row justify-between items-center border border-blue-200 dark:border-gray-700 mt-6 shadow-md transition-all">
         <div className="text-center sm:text-left mb-4 sm:mb-0">
           <p className="text-gray-600 dark:text-gray-400 font-bold">ที่นั่งที่กำลังเลือก</p>
-          <h3 className="text-2xl font-black text-gray-900 dark:text-white">
+          <h3 className="text-2xl font-black text-gray-900 dark:text-white min-h-8">
              {selectedSeat ? (
                <>โซน {selectedSeat.zone_name} <span className="text-red-500 mx-2">|</span> {selectedSeat.seat_code}</>
              ) : (
@@ -201,7 +85,15 @@ export default function ConcertBookPage() {
           </h3>
           <p className="mt-1 dark:text-gray-300">ราคารวม: <span className="font-black text-green-600 dark:text-green-400 text-xl">฿{selectedSeat ? selectedSeat.price : '0'}</span></p>
         </div>
-        <button onClick={handleBook} disabled={!selectedSeat} className={`px-12 py-4 rounded-xl font-black text-white text-lg transition-transform ${selectedSeat ? 'bg-green-600 hover:bg-green-700 hover:scale-105 shadow-xl hover:shadow-green-500/50' : 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed'}`}>
+        <button 
+          onClick={handleBook} 
+          disabled={!selectedSeat} 
+          className={`px-12 py-4 rounded-xl font-black text-white text-lg transition-all duration-300 ${
+            selectedSeat 
+            ? 'bg-green-600 hover:bg-green-700 hover:scale-105 shadow-xl hover:shadow-green-500/50' 
+            : 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed opacity-70'
+          }`}
+        >
           ยืนยันการจอง 🎟️
         </button>
       </div>
