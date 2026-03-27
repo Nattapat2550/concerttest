@@ -4,16 +4,15 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 
 import Layout from './layouts/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
-
-// ✅ ทำ Landing เป็น static import เพื่อตัด critical request chain
 import LandingPage from './pages/LandingPage';
 
-// ✅ lazy-load หน้าที่ไม่ใช่หน้าแรก เพื่อลด JS ตอนเริ่มโหลด
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const CheckCodePage = lazy(() => import('./pages/CheckCodePage'));
 const CompleteProfilePage = lazy(() => import('./pages/CompleteProfilePage'));
-const HomePage = lazy(() => import('./pages/HomePage')); // หน้า Concert หลัก
+const HomePage = lazy(() => import('./pages/HomePage'));
+const ConcertBookPage = lazy(() => import('./pages/ConcertBookPage')); // หน้าจองที่นั่ง (เพิ่มใหม่)
+const MyBookingPage = lazy(() => import('./pages/MyBookingPage')); // หน้าประวัติการจอง (เพิ่มใหม่)
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
@@ -32,7 +31,6 @@ const App = () => {
       if (token) {
         localStorage.setItem('token', token);
         if (role) localStorage.setItem('role', role);
-
         window.history.replaceState(null, '', window.location.pathname);
         window.location.href = '/home';
       }
@@ -40,12 +38,9 @@ const App = () => {
   }, []);
 
   return (
-    <Suspense fallback={<div className="page-loading" aria-busy="true">กำลังโหลด...</div>}>
+    <Suspense fallback={<div className="flex justify-center items-center min-h-screen text-xl dark:text-white">กำลังโหลด...</div>}>
       <Routes>
-        {/* ✅ ใช้ Layout เป็น Route แบบ Nested เพื่อให้ <Outlet /> ทำงาน */}
         <Route element={<Layout />}>
-          
-          {/* Public routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -55,55 +50,18 @@ const App = () => {
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
 
-          {/* Protected routes – ต้องล็อกอินก่อน */}
-          <Route
-            path="/home"
-            element={
-              <ProtectedRoute>
-                <HomePage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <SettingsPage />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/download"
-            element={
-              <ProtectedRoute>
-                <DownloadPage />
-              </ProtectedRoute>
-            }
-          />
+          {/* Protected Routes */}
+          <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+          <Route path="/concerts" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+          <Route path="/concerts/:id/book" element={<ProtectedRoute><ConcertBookPage /></ProtectedRoute>} />
+          <Route path="/my-bookings" element={<ProtectedRoute><MyBookingPage /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+          <Route path="/download" element={<ProtectedRoute><DownloadPage /></ProtectedRoute>} />
 
-          {/* ✅ เพิ่ม Route สำหรับ Concerts เพื่อให้ตรงกับ Navbar */}
-          <Route
-            path="/concerts"
-            element={
-              <ProtectedRoute>
-                <HomePage /> {/* ใช้ HomePage เป็นหน้าแสดง Concert */}
-              </ProtectedRoute>
-            }
-          />
+          {/* Admin Route */}
+          <Route path="/admin" element={<ProtectedRoute roles={['admin']}><AdminPage /></ProtectedRoute>} />
 
-          {/* เฉพาะ role admin */}
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute roles={['admin']}>
-                <AdminPage />
-              </ProtectedRoute>
-            }
-          />
-
-          {/* route ไม่เจอ → กลับหน้าแรก */}
           <Route path="*" element={<Navigate to="/" replace />} />
-          
         </Route>
       </Routes>
     </Suspense>
