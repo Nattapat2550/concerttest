@@ -7,157 +7,165 @@ export default function ConcertBookPage() {
   const navigate = useNavigate();
   
   const [concert, setConcert] = useState(null);
-  const [masterSvg, setMasterSvg] = useState('');
-  
-  const [activeZone, setActiveZone] = useState(null);
-  const [zoneSvg, setZoneSvg] = useState('');
+  const [svgContent, setSvgContent] = useState('');
+  const [configuredSeats, setConfiguredSeats] = useState([]);
   const [bookedSeats, setBookedSeats] = useState([]);
-  const [selectedSeatCode, setSelectedSeatCode] = useState(null);
+  const [selectedSeat, setSelectedSeat] = useState(null);
 
-  const containerRef = useRef(null);
+  const [scale, setScale] = useState(1);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-  // 1. โหลดข้อมูลคอนเสิร์ตและผังรวม
+  const svgContainerRef = useRef(null);
+  const mapWrapperRef = useRef(null);
+
   useEffect(() => {
-    const fetchMaster = async () => {
+    const fetchDetails = async () => {
       try {
         const { data } = await api.get(`/api/concerts/${id}`);
         setConcert(data.concert);
-        setMasterSvg(data.master_svg);
+        setSvgContent(data.svg_content || '');
+        setConfiguredSeats(data.configured_seats || []);
+        setBookedSeats(data.booked_seats || []);
       } catch (err) { alert("Error loading concert map"); }
     };
-    fetchMaster();
+    fetchDetails();
   }, [id]);
 
-  // 2. ผูก Event Click ให้กับโซนต่างๆ ใน Master SVG
   useEffect(() => {
-    if (!activeZone && masterSvg && containerRef.current) {
-      const zones = containerRef.current.querySelectorAll('.zone-clickable');
-      zones.forEach(zone => {
-        zone.style.cursor = 'pointer';
-        zone.onclick = () => loadZone(zone.getAttribute('id'));
-      });
-    }
-  }, [masterSvg, activeZone]);
+    if (svgContent && svgContainerRef.current) {
+      const seats = svgContainerRef.current.querySelectorAll('.seat');
+      const configMap = {};
+      configuredSeats.forEach(s => { configMap[s.seat_code] = s; });
 
-  // 3. โหลดผังเก้าอี้ของโซนที่เลือก
-  const loadZone = async (zoneName) => {
-    try {
-      const { data } = await api.get(`/api/concerts/${id}/zones/${zoneName}`);
-      if (!data.sub_svg) return alert(`ขออภัย ยังไม่เปิดขายหรือยังไม่มีผังสำหรับโซน ${zoneName}`);
-      
-      setZoneSvg(data.sub_svg);
-      setBookedSeats(data.booked_seats || []);
-      setActiveZone(zoneName);
-      setSelectedSeatCode(null);
-    } catch (err) { alert("ไม่สามารถโหลดผังที่นั่งได้"); }
-  };
-
-  // 4. ผูก Event ให้กับเก้าอี้แต่ละตัวใน Sub SVG
-  useEffect(() => {
-    if (activeZone && zoneSvg && containerRef.current) {
-      const seats = containerRef.current.querySelectorAll('.seat');
       seats.forEach(seat => {
         const seatId = seat.getAttribute('id');
-        if (!seatId) return;
+        const config = configMap[seatId];
 
-        const isBooked = bookedSeats.includes(seatId);
-        const isSelected = selectedSeatCode === seatId;
-
-        seat.style.transition = 'all 0.15s ease-in-out';
+        seat.onclick = null;
         seat.onmouseover = null;
         seat.onmouseout = null;
+        seat.style.transition = 'transform 0.1s ease-in-out';
+
+        if (!config) {
+          seat.style.opacity = '0'; // ซ่อนที่นั่งที่ไม่ได้ระบายสี
+          seat.style.pointerEvents = 'none';
+          return;
+        }
+
+        const isBooked = bookedSeats.includes(seatId);
+        const isSelected = selectedSeat?.seat_code === seatId;
+
+        seat.style.opacity = '1';
+        seat.style.pointerEvents = 'auto';
 
         if (isBooked) {
-          seat.style.fill = '#9ca3af'; 
+          seat.style.fill = '#475569'; 
           seat.style.cursor = 'not-allowed';
           seat.style.opacity = '0.3';
-          seat.onclick = null;
         } else {
-          seat.style.fill = isSelected ? '#ef4444' : '#22c55e'; // แดง (กำลังเลือก), เขียว (ว่าง)
+          seat.style.fill = isSelected ? '#ffffff' : config.color; 
+          seat.style.stroke = isSelected ? '#ef4444' : 'none';
+          seat.style.strokeWidth = isSelected ? '3px' : '0';
           seat.style.cursor = 'pointer';
-          seat.style.opacity = '1';
           
-          seat.onmouseover = () => { if(!isSelected) seat.style.transform = 'scale(1.2)'; };
+          seat.onmouseover = () => { if(!isSelected) seat.style.transform = 'scale(1.4)'; };
           seat.onmouseout = () => { if(!isSelected) seat.style.transform = 'scale(1)'; };
-          seat.onclick = () => setSelectedSeatCode(seatId);
+          
+          seat.onclick = (e) => { 
+            e.stopPropagation(); 
+            setSelectedSeat(config); 
+          };
         }
       });
     }
-  }, [zoneSvg, bookedSeats, selectedSeatCode, activeZone]);
+  }, [svgContent, configuredSeats, bookedSeats, selectedSeat]);
+
+  const handleWheel = (e) => {
+    e.preventDefault();
+    const newScale = Math.min(Math.max(0.5, scale + (e.deltaY * -0.002)), 8);
+    setScale(newScale);
+  };
+
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+  };
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    setPosition({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+  };
+  const handleMouseUp = () => setIsDragging(false);
+
+  useEffect(() => {
+    const wrapper = mapWrapperRef.current;
+    if (wrapper) {
+      wrapper.addEventListener('wheel', handleWheel, { passive: false });
+      return () => wrapper.removeEventListener('wheel', handleWheel);
+    }
+  }, [scale]);
 
   const handleBook = async () => {
-    if (!selectedSeatCode) return;
+    if (!selectedSeat) return;
     try {
-      await api.post('/api/concerts/book', { 
-        concert_id: parseInt(id), 
-        seat_code: selectedSeatCode, 
-        price: concert.ticket_price 
-      });
+      await api.post('/api/concerts/book', { concert_id: parseInt(id), seat_code: selectedSeat.seat_code, price: selectedSeat.price });
       alert("🎉 จองที่นั่งสำเร็จ!");
       navigate('/my-bookings');
     } catch (err) {
-      alert("❌ ที่นั่งนี้เพิ่งถูกจองตัดหน้าไป กรุณาเลือกที่นั่งอื่น");
-      loadZone(activeZone); // รีเฟรชโซนทันที
+      alert("❌ ที่นั่งนี้เพิ่งถูกจองไป กรุณาเลือกที่นั่งอื่น");
+      const { data } = await api.get(`/api/concerts/${id}`);
+      setBookedSeats(data.booked_seats || []);
+      setSelectedSeat(null);
     }
   };
 
-  if (!concert) return <div className="text-center p-20 text-xl font-bold dark:text-white">กำลังโหลดข้อมูลคอนเสิร์ต...</div>;
+  if (!concert) return <div className="text-center p-20 text-xl font-bold dark:text-white">กำลังโหลด...</div>;
 
   return (
-    <div className="max-w-6xl mx-auto p-4 md:p-6 mt-6 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border dark:border-gray-700">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 border-b dark:border-gray-700 pb-4">
+    <div className="max-w-7xl mx-auto p-4 md:p-6 mt-6 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border dark:border-gray-700 select-none">
+      <div className="flex justify-between items-center mb-6 border-b dark:border-gray-700 pb-4">
         <div>
           <h2 className="text-3xl font-black text-gray-900 dark:text-white">{concert.name}</h2>
-          <p className="text-gray-500 dark:text-gray-400 font-bold mt-1">📍 สถานที่: {concert.venue_name || concert.venue}</p>
+          <p className="text-gray-500 font-bold">📍 {concert.venue_name}</p>
         </div>
-        {activeZone && (
-          <button onClick={() => setActiveZone(null)} className="mt-4 md:mt-0 px-5 py-2 bg-gray-800 dark:bg-gray-600 text-white rounded-lg font-bold shadow hover:bg-gray-700 transition">
-            ⬅️ กลับไปดูผังรวม
-          </button>
-        )}
+        <div className="flex gap-2">
+          <button onClick={() => setScale(s => Math.max(0.5, s - 0.5))} className="bg-gray-200 px-3 py-1 rounded font-bold">-</button>
+          <button onClick={() => { setScale(1); setPosition({x:0,y:0}); }} className="bg-gray-200 px-3 py-1 rounded font-bold text-sm">RESET</button>
+          <button onClick={() => setScale(s => Math.min(8, s + 0.5))} className="bg-gray-200 px-3 py-1 rounded font-bold">+</button>
+        </div>
       </div>
 
-      <div className="bg-gray-100 dark:bg-gray-900 rounded-xl p-4 flex flex-col items-center min-h-[500px] border dark:border-gray-700 shadow-inner overflow-hidden relative">
-        {!activeZone ? (
-          <div className="w-full h-full max-w-4xl flex flex-col items-center">
-            {masterSvg ? (
-              <>
-                <span className="bg-white dark:bg-gray-800 px-4 py-1 rounded-full text-sm font-bold shadow mb-4 text-blue-600 dark:text-blue-400">👆 คลิกเลือกโซนที่ต้องการจอง</span>
-                <div ref={containerRef} className="w-full interactive-master-svg" dangerouslySetInnerHTML={{ __html: masterSvg }} />
-              </>
-            ) : (
-              <p className="mt-20 text-gray-400 font-bold text-xl">ไม่มีแผนผัง Interactive Map สำหรับคอนเสิร์ตนี้</p>
-            )}
-          </div>
+      <div 
+        ref={mapWrapperRef}
+        className={`bg-[#0f172a] rounded-xl flex items-center justify-center shadow-inner overflow-hidden relative h-[650px] ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+        onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
+      >
+        <div className="absolute top-4 left-4 bg-white/90 px-4 py-2 rounded-lg shadow pointer-events-none z-10 font-bold text-sm">
+          🔍 เลื่อนลูกกลิ้งเมาส์เพื่อซูม / คลิกค้างเพื่อเลื่อนแผนที่
+        </div>
+
+        {svgContent ? (
+          <div ref={svgContainerRef} className="absolute origin-center transition-transform duration-75"
+            style={{ transform: `translate(${position.x}px, ${position.y}px) scale(${scale})` }}
+            dangerouslySetInnerHTML={{ __html: svgContent }} />
         ) : (
-          <div className="w-full flex flex-col items-center">
-            <h3 className="text-3xl font-black mb-4 text-white bg-blue-600 px-8 py-2 rounded-full shadow border-2 border-white tracking-widest">
-              ZONE {activeZone}
-            </h3>
-            <div className="flex gap-4 mb-4 text-sm font-bold bg-white dark:bg-gray-800 px-4 py-2 rounded-full shadow dark:text-white">
-              <span className="flex items-center gap-1"><div className="w-4 h-4 bg-green-500 rounded-full"></div> ว่าง</span>
-              <span className="flex items-center gap-1"><div className="w-4 h-4 bg-red-500 rounded-full"></div> กำลังเลือก</span>
-              <span className="flex items-center gap-1"><div className="w-4 h-4 bg-gray-400 rounded-full opacity-50"></div> จองแล้ว</span>
-            </div>
-            <div ref={containerRef} className="w-full max-w-4xl bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg border dark:border-gray-700 interactive-sub-svg" dangerouslySetInnerHTML={{ __html: zoneSvg }} />
-          </div>
+          <p className="text-gray-400 font-bold text-xl">ไม่มีแผนผังสำหรับคอนเสิร์ตนี้</p>
         )}
       </div>
 
-      {activeZone && (
-        <div className="bg-blue-50 dark:bg-gray-900 p-6 rounded-xl flex flex-col sm:flex-row justify-between items-center border border-blue-200 dark:border-gray-700 mt-6 shadow-md">
-          <div className="text-center sm:text-left mb-4 sm:mb-0">
-            <p className="text-gray-600 dark:text-gray-400 font-bold">ที่นั่งที่กำลังเลือก</p>
-            <h3 className="text-2xl font-black text-gray-900 dark:text-white">
-              โซน {activeZone} <span className="text-red-600 mx-2">|</span> {selectedSeatCode || <span className="text-gray-400 font-normal text-lg">ยังไม่ได้เลือก</span>}
-            </h3>
-            <p className="mt-1 dark:text-gray-300">ราคารวม: <span className="font-black text-green-600 dark:text-green-400 text-xl">฿{concert.ticket_price}</span></p>
-          </div>
-          <button onClick={handleBook} disabled={!selectedSeatCode} className={`px-12 py-4 rounded-xl font-black text-white text-lg transition-transform ${selectedSeatCode ? 'bg-green-600 hover:bg-green-700 hover:scale-105 shadow-xl' : 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed'}`}>
-            ยืนยันการจอง 🎟️
-          </button>
+      <div className="bg-blue-50 dark:bg-gray-900 p-6 rounded-xl flex justify-between items-center border border-blue-200 dark:border-gray-700 mt-6 shadow-md">
+        <div>
+          <p className="text-gray-600 dark:text-gray-400 font-bold">ที่นั่งที่กำลังเลือก</p>
+          <h3 className="text-2xl font-black text-gray-900 dark:text-white">
+             {selectedSeat ? (<>โซน {selectedSeat.zone_name} <span className="text-red-500 mx-2">|</span> {selectedSeat.seat_code}</>) : (<span className="text-gray-400 font-normal">ยังไม่ได้เลือกที่นั่งบนแผนที่</span>)}
+          </h3>
+          <p className="mt-1 dark:text-gray-300">ราคารวม: <span className="font-black text-green-600 text-xl">฿{selectedSeat ? selectedSeat.price : '0'}</span></p>
         </div>
-      )}
+        <button onClick={handleBook} disabled={!selectedSeat} className={`px-12 py-4 rounded-xl font-black text-white text-lg ${selectedSeat ? 'bg-green-600 hover:bg-green-700 shadow-xl' : 'bg-gray-400 cursor-not-allowed'}`}>
+          ยืนยันการจอง 🎟️
+        </button>
+      </div>
     </div>
   );
 }

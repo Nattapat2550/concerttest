@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// ===== Models (รวมโครงสร้างเก่าและใหม่) =====
+// ===== Models =====
 type News struct {
 	ID        int       `json:"id"`
 	Title     string    `json:"title"`
@@ -20,27 +20,38 @@ type News struct {
 }
 
 type Venue struct {
-	ID        int    `json:"id"`
-	Name      string `json:"name"`
-	MasterSVG string `json:"master_svg"`
-}
-
-type VenueZone struct {
-	ID       int    `json:"id"`
-	VenueID  int    `json:"venue_id"`
-	ZoneName string `json:"zone_name"`
-	SubSVG   string `json:"sub_svg"`
+	ID         int    `json:"id"`
+	Name       string `json:"name"`
+	SVGContent string `json:"svg_content"`
 }
 
 type Concert struct {
 	ID             int       `json:"id"`
 	Name           string    `json:"name"`
 	ShowDate       time.Time `json:"show_date"`
-	Venue          string    `json:"venue"`      // ของเก่า
-	VenueID        *int      `json:"venue_id"`   // ของใหม่
-	VenueName      string    `json:"venue_name"` // ของใหม่
+	Venue          string    `json:"venue"`
+	VenueID        *int      `json:"venue_id"`
+	VenueName      string    `json:"venue_name"`
 	TicketPrice    float64   `json:"ticket_price"`
 	LayoutImageURL string    `json:"layout_image_url"`
+}
+
+type ConcertSeatConfig struct {
+	SeatCode string  `json:"seat_code"`
+	ZoneName string  `json:"zone_name"`
+	Price    float64 `json:"price"`
+	Color    string  `json:"color"`
+}
+
+type ConcertDetailsResponse struct {
+	Concert         Concert             `json:"concert"`
+	SVGContent      string              `json:"svg_content"`
+	ConfiguredSeats []ConcertSeatConfig `json:"configured_seats"`
+	BookedSeats     []string            `json:"booked_seats"`
+}
+
+type AdminSaveSeatsRequest struct {
+	Seats []ConcertSeatConfig `json:"seats"`
 }
 
 type Seat struct {
@@ -49,17 +60,6 @@ type Seat struct {
 	SeatCode  string  `json:"seat_code"`
 	Price     float64 `json:"price"`
 	IsBooked  bool    `json:"is_booked"`
-}
-
-type ConcertMasterView struct {
-	Concert   Concert `json:"concert"`
-	MasterSVG string  `json:"master_svg"`
-}
-
-type ConcertZoneView struct {
-	ZoneName    string   `json:"zone_name"`
-	SubSVG      string   `json:"sub_svg"`
-	BookedSeats []string `json:"booked_seats"`
 }
 
 type BookSeatRequest struct {
@@ -101,7 +101,6 @@ func (h *Handler) GetConcerts(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, concerts)
 }
 
-// ระบบเก่าดึงที่นั่ง
 func (h *Handler) GetConcertSeats(w http.ResponseWriter, r *http.Request) {
 	concertID := chi.URLParam(r, "id")
 	rows, err := h.ConcertDB.Query(`SELECT id, concert_id, seat_code, price, is_booked FROM seats WHERE concert_id = $1 ORDER BY seat_code ASC`, concertID)
@@ -116,42 +115,38 @@ func (h *Handler) GetConcertSeats(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, seats)
 }
 
-// ระบบใหม่ Master-Detail
-func (h *Handler) GetConcertMaster(w http.ResponseWriter, r *http.Request) {
+// ระบบใหม่ (SVG ไฟล์เดียว)
+func (h *Handler) GetConcertDetails(w http.ResponseWriter, r *http.Request) {
 	concertID := chi.URLParam(r, "id")
-	var view ConcertMasterView
+	var res ConcertDetailsResponse
+	
 	err := h.ConcertDB.QueryRow(`
-		SELECT c.id, c.name, c.show_date, c.venue_id, COALESCE(v.name, ''), c.ticket_price, COALESCE(v.master_svg, '')
+		SELECT c.id, c.name, c.show_date, c.venue_id, COALESCE(v.name, ''), c.ticket_price, COALESCE(v.svg_content, '')
 		FROM concerts c LEFT JOIN venues v ON c.venue_id = v.id WHERE c.id = $1`, concertID).
-		Scan(&view.Concert.ID, &view.Concert.Name, &view.Concert.ShowDate, &view.Concert.VenueID, &view.Concert.VenueName, &view.Concert.TicketPrice, &view.MasterSVG)
-	if err != nil { h.writeError(w, http.StatusNotFound, "Concert not found"); return }
-	WriteJSON(w, http.StatusOK, view)
-}
-
-func (h *Handler) GetConcertZoneSeats(w http.ResponseWriter, r *http.Request) {
-	concertID := chi.URLParam(r, "id")
-	zoneName := chi.URLParam(r, "zone")
-	var view ConcertZoneView
-	view.ZoneName = zoneName
-
-	var venueID int
-	err := h.ConcertDB.QueryRow(`SELECT venue_id FROM concerts WHERE id = $1`, concertID).Scan(&venueID)
+		Scan(&res.Concert.ID, &res.Concert.Name, &res.Concert.ShowDate, &res.Concert.VenueID, &res.Concert.VenueName, &res.Concert.TicketPrice, &res.SVGContent)
 	if err != nil { h.writeError(w, http.StatusNotFound, "Concert not found"); return }
 
-	err = h.ConcertDB.QueryRow(`SELECT sub_svg FROM venue_zones WHERE venue_id = $1 AND zone_name = $2`, venueID, zoneName).Scan(&view.SubSVG)
-	if err != nil { view.SubSVG = "" }
-
-	rows, _ := h.ConcertDB.Query(`SELECT seat_code FROM bookings WHERE concert_id = $1 AND seat_code LIKE $2 AND status = 'confirmed'`, concertID, zoneName+"-%")
-	defer rows.Close()
+	// ดึงเก้าอี้ที่ Admin จัดการโซนแล้ว
+	rows, _ := h.ConcertDB.Query(`SELECT seat_code, zone_name, price, color FROM concert_seats WHERE concert_id = $1`, concertID)
 	for rows.Next() {
-		var sc string
-		if err := rows.Scan(&sc); err == nil { view.BookedSeats = append(view.BookedSeats, sc) }
+		var s ConcertSeatConfig
+		if err := rows.Scan(&s.SeatCode, &s.ZoneName, &s.Price, &s.Color); err == nil { res.ConfiguredSeats = append(res.ConfiguredSeats, s) }
 	}
-	if view.BookedSeats == nil { view.BookedSeats = []string{} }
-	WriteJSON(w, http.StatusOK, view)
+	rows.Close()
+	if res.ConfiguredSeats == nil { res.ConfiguredSeats = []ConcertSeatConfig{} }
+
+	// ดึงรหัสเก้าอี้ที่ถูกจองแล้ว
+	rows2, _ := h.ConcertDB.Query(`SELECT seat_code FROM bookings WHERE concert_id = $1 AND status = 'confirmed'`, concertID)
+	for rows2.Next() {
+		var sc string
+		if err := rows2.Scan(&sc); err == nil { res.BookedSeats = append(res.BookedSeats, sc) }
+	}
+	rows2.Close()
+	if res.BookedSeats == nil { res.BookedSeats = []string{} }
+
+	WriteJSON(w, http.StatusOK, res)
 }
 
-// รองรับทั้งระบบเก่าและใหม่
 func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 	var req BookSeatRequest
 	if err := ReadJSON(r, &req); err != nil { return }
@@ -162,7 +157,7 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 
 	if req.SeatCode != "" {
-		// ระบบใหม่ SVG (ใช้ SeatCode จองเข้า Bookings ตรงๆ)
+		// ระบบใหม่ SVG
 		_, err := tx.Exec(`INSERT INTO bookings (user_id, concert_id, seat_code, price, status) VALUES ($1, $2, $3, $4, 'confirmed')`, fmt.Sprint(u.ID), req.ConcertID, req.SeatCode, req.Price)
 		if err != nil { h.writeError(w, http.StatusConflict, "ที่นั่งนี้ถูกจองไปแล้ว กรุณาเลือกใหม่"); return }
 	} else {
@@ -266,23 +261,22 @@ func (h *Handler) AdminCancelBooking(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "Booking cancelled by admin"})
 }
 
-// ---- Venues (SVG Maps) ----
 func (h *Handler) AdminGetVenues(w http.ResponseWriter, r *http.Request) {
-	rows, _ := h.ConcertDB.Query(`SELECT id, name FROM venues ORDER BY id DESC`)
+	rows, _ := h.ConcertDB.Query(`SELECT id, name, svg_content FROM venues ORDER BY id DESC`)
 	defer rows.Close()
-	var list []map[string]any
+	var list []Venue
 	for rows.Next() {
-		var id int; var name string
-		if err := rows.Scan(&id, &name); err == nil { list = append(list, map[string]any{"id":id, "name":name}) }
+		var v Venue
+		if err := rows.Scan(&v.ID, &v.Name, &v.SVGContent); err == nil { list = append(list, v) }
 	}
-	if list == nil { list = []map[string]any{} }
+	if list == nil { list = []Venue{} }
 	WriteJSON(w, http.StatusOK, list)
 }
 
 func (h *Handler) AdminCreateVenue(w http.ResponseWriter, r *http.Request) {
 	var v Venue
 	if err := ReadJSON(r, &v); err != nil { h.writeError(w, http.StatusBadRequest, "Invalid JSON"); return }
-	err := h.ConcertDB.QueryRow(`INSERT INTO venues (name, master_svg) VALUES ($1, $2) RETURNING id`, v.Name, v.MasterSVG).Scan(&v.ID)
+	err := h.ConcertDB.QueryRow(`INSERT INTO venues (name, svg_content) VALUES ($1, $2) RETURNING id`, v.Name, v.SVGContent).Scan(&v.ID)
 	if err != nil { h.writeError(w, http.StatusInternalServerError, "Failed"); return }
 	WriteJSON(w, http.StatusCreated, v)
 }
@@ -292,89 +286,40 @@ func (h *Handler) AdminDeleteVenue(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) AdminCreateVenueZone(w http.ResponseWriter, r *http.Request) {
-	venueID := chi.URLParam(r, "id")
-	var req VenueZone
-	if err := ReadJSON(r, &req); err != nil { return }
-	_, err := h.ConcertDB.Exec(`
-		INSERT INTO venue_zones (venue_id, zone_name, sub_svg) VALUES ($1, $2, $3)
-		ON CONFLICT (venue_id, zone_name) DO UPDATE SET sub_svg = EXCLUDED.sub_svg
-	`, venueID, req.ZoneName, req.SubSVG)
-	if err != nil { h.writeError(w, http.StatusInternalServerError, "Save zone failed"); return }
-	WriteJSON(w, http.StatusOK, map[string]string{"message": "Zone saved"})
-}
-
-func (h *Handler) AdminGetVenueZones(w http.ResponseWriter, r *http.Request) {
-	venueID := chi.URLParam(r, "id")
-	rows, _ := h.ConcertDB.Query(`SELECT id, zone_name FROM venue_zones WHERE venue_id = $1 ORDER BY zone_name`, venueID)
-	defer rows.Close()
-	var list []map[string]any
-	for rows.Next() {
-		var id int; var name string
-		if err := rows.Scan(&id, &name); err == nil { list = append(list, map[string]any{"id":id, "name":name}) }
-	}
-	if list == nil { list = []map[string]any{} }
-	WriteJSON(w, http.StatusOK, list)
-}
-
-// ---- Concerts ----
 func (h *Handler) AdminCreateConcert(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 4*1024*1024)
 	r.ParseMultipartForm(4 * 1024 * 1024)
-	name := r.FormValue("name")
-	venue := r.FormValue("venue")
-	venueID := r.FormValue("venue_id")
-	price := r.FormValue("ticket_price")
-	if price == "" { price = "2500" }
-	showDate := r.FormValue("show_date")
-	imageURL, _ := tryReadImageDataURL(r, "image", 4*1024*1024)
-
-	// รองรับทั้งแบบมี VenueID และไม่มี (ใส่ null)
-	var err error
-	if venueID != "" {
-		_, err = h.ConcertDB.Exec(`INSERT INTO concerts (name, venue, venue_id, ticket_price, show_date, layout_image_url) VALUES ($1, $2, $3, $4, $5, $6)`, name, venue, venueID, price, showDate, imageURL)
-	} else {
-		_, err = h.ConcertDB.Exec(`INSERT INTO concerts (name, venue, ticket_price, show_date, layout_image_url) VALUES ($1, $2, $3, $4, $5)`, name, venue, price, showDate, imageURL)
-	}
-
-	if err != nil { h.writeError(w, http.StatusInternalServerError, "Failed to create concert"); return }
+	h.ConcertDB.Exec(`INSERT INTO concerts (name, venue, venue_id, ticket_price, show_date) VALUES ($1, $2, $3, $4, $5)`, r.FormValue("name"), r.FormValue("venue"), r.FormValue("venue_id"), r.FormValue("ticket_price"), r.FormValue("show_date"))
 	WriteJSON(w, http.StatusCreated, map[string]string{"message": "Success"})
 }
 
 func (h *Handler) AdminUpdateConcert(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	r.Body = http.MaxBytesReader(w, r.Body, 4*1024*1024)
 	r.ParseMultipartForm(4 * 1024 * 1024)
-	name := r.FormValue("name")
-	venue := r.FormValue("venue")
-	venueID := r.FormValue("venue_id")
-	price := r.FormValue("ticket_price")
-	showDate := r.FormValue("show_date")
-	imageURL, _ := tryReadImageDataURL(r, "image", 4*1024*1024)
-
-	if venueID == "" {
-		if imageURL != "" {
-			h.ConcertDB.Exec(`UPDATE concerts SET name=$1, venue=$2, venue_id=NULL, ticket_price=$3, show_date=$4, layout_image_url=$5 WHERE id=$6`, name, venue, price, showDate, imageURL, id)
-		} else {
-			h.ConcertDB.Exec(`UPDATE concerts SET name=$1, venue=$2, venue_id=NULL, ticket_price=$3, show_date=$4 WHERE id=$5`, name, venue, price, showDate, id)
-		}
-	} else {
-		if imageURL != "" {
-			h.ConcertDB.Exec(`UPDATE concerts SET name=$1, venue=$2, venue_id=$3, ticket_price=$4, show_date=$5, layout_image_url=$6 WHERE id=$7`, name, venue, venueID, price, showDate, imageURL, id)
-		} else {
-			h.ConcertDB.Exec(`UPDATE concerts SET name=$1, venue=$2, venue_id=$3, ticket_price=$4, show_date=$5 WHERE id=$6`, name, venue, venueID, price, showDate, id)
-		}
-	}
+	h.ConcertDB.Exec(`UPDATE concerts SET name=$1, venue=$2, venue_id=$3, ticket_price=$4, show_date=$5 WHERE id=$6`, r.FormValue("name"), r.FormValue("venue"), r.FormValue("venue_id"), r.FormValue("ticket_price"), r.FormValue("show_date"), chi.URLParam(r, "id"))
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "Updated"})
 }
 
 func (h *Handler) AdminDeleteConcert(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	h.ConcertDB.Exec(`DELETE FROM concerts WHERE id=$1`, id)
+	h.ConcertDB.Exec(`DELETE FROM concerts WHERE id=$1`, chi.URLParam(r, "id"))
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// ---- News ----
+func (h *Handler) AdminSaveConcertSeats(w http.ResponseWriter, r *http.Request) {
+	concertID := chi.URLParam(r, "id")
+	var req AdminSaveSeatsRequest
+	if err := ReadJSON(r, &req); err != nil { return }
+
+	tx, _ := h.ConcertDB.Begin()
+	defer tx.Rollback()
+
+	tx.Exec(`DELETE FROM concert_seats WHERE concert_id = $1`, concertID)
+	for _, s := range req.Seats {
+		tx.Exec(`INSERT INTO concert_seats (concert_id, seat_code, zone_name, price, color) VALUES ($1, $2, $3, $4, $5)`, concertID, s.SeatCode, s.ZoneName, s.Price, s.Color)
+	}
+	tx.Commit()
+
+	WriteJSON(w, http.StatusOK, map[string]string{"message": "Seats configured"})
+}
+
 func (h *Handler) AdminGetNewsList(w http.ResponseWriter, r *http.Request) {
 	rows, _ := h.ConcertDB.Query(`SELECT id, title, content, COALESCE(image_url, ''), is_active, created_at FROM news ORDER BY created_at DESC`)
 	defer rows.Close()
@@ -386,35 +331,17 @@ func (h *Handler) AdminGetNewsList(w http.ResponseWriter, r *http.Request) {
 	if list == nil { list = []News{} }
 	WriteJSON(w, http.StatusOK, list)
 }
-
 func (h *Handler) AdminCreateNews(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 4*1024*1024)
 	r.ParseMultipartForm(4 * 1024 * 1024)
-	title := r.FormValue("title")
-	content := r.FormValue("content")
-	imageURL, _ := tryReadImageDataURL(r, "image", 4*1024*1024)
-	h.ConcertDB.Exec(`INSERT INTO news (title, content, image_url, is_active) VALUES ($1, $2, $3, true)`, title, content, imageURL)
+	h.ConcertDB.Exec(`INSERT INTO news (title, content, is_active) VALUES ($1, $2, true)`, r.FormValue("title"), r.FormValue("content"))
 	WriteJSON(w, http.StatusCreated, map[string]string{"message": "Success"})
 }
-
 func (h *Handler) AdminUpdateNews(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	r.Body = http.MaxBytesReader(w, r.Body, 4*1024*1024)
 	r.ParseMultipartForm(4 * 1024 * 1024)
-	title := r.FormValue("title")
-	content := r.FormValue("content")
-	isActive := r.FormValue("is_active") == "true"
-	imageURL, _ := tryReadImageDataURL(r, "image", 4*1024*1024)
-	if imageURL != "" {
-		h.ConcertDB.Exec(`UPDATE news SET title=$1, content=$2, is_active=$3, image_url=$4 WHERE id=$5`, title, content, isActive, imageURL, id)
-	} else {
-		h.ConcertDB.Exec(`UPDATE news SET title=$1, content=$2, is_active=$3 WHERE id=$4`, title, content, isActive, id)
-	}
+	h.ConcertDB.Exec(`UPDATE news SET title=$1, content=$2, is_active=$3 WHERE id=$4`, r.FormValue("title"), r.FormValue("content"), r.FormValue("is_active") == "true", chi.URLParam(r, "id"))
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "Updated"})
 }
-
 func (h *Handler) AdminDeleteNews(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	h.ConcertDB.Exec(`DELETE FROM news WHERE id=$1`, id)
+	h.ConcertDB.Exec(`DELETE FROM news WHERE id=$1`, chi.URLParam(r, "id"))
 	w.WriteHeader(http.StatusNoContent)
 }
