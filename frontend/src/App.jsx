@@ -13,7 +13,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const CheckCodePage = lazy(() => import('./pages/CheckCodePage'));
 const CompleteProfilePage = lazy(() => import('./pages/CompleteProfilePage'));
-const HomePage = lazy(() => import('./pages/HomePage'));
+const HomePage = lazy(() => import('./pages/HomePage')); // หน้า Concert หลัก
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
@@ -22,7 +22,6 @@ const ContactPage = lazy(() => import('./pages/ContactPage'));
 const DownloadPage = lazy(() => import('./pages/DownloadPage'));
 
 const App = () => {
-  // ✅ เพิ่ม useEffect สำหรับดักจับ Token เวลา Login ผ่าน Google
   useEffect(() => {
     const hash = window.location.hash;
     if (hash && hash.includes('token=')) {
@@ -31,23 +30,21 @@ const App = () => {
       const role = params.get('role');
 
       if (token) {
-        // เซฟ Token ลง LocalStorage เพื่อให้ Redux/Axios ดึงไปใช้ต่อได้
         localStorage.setItem('token', token);
         if (role) localStorage.setItem('role', role);
 
-        // เคลียร์ URL เพื่อซ่อน Token ไม่ให้รกหน้าจอและป้องกันความปลอดภัย
         window.history.replaceState(null, '', window.location.pathname);
-
-        // โหลดหน้าใหม่ 1 ครั้ง เพื่อให้ระบบ State ยืนยันการเข้าสู่ระบบ
         window.location.href = '/home';
       }
     }
   }, []);
 
   return (
-    <Layout>
-      <Suspense fallback={<div className="page-loading" aria-busy="true">กำลังโหลด...</div>}>
-        <Routes>
+    <Suspense fallback={<div className="page-loading" aria-busy="true">กำลังโหลด...</div>}>
+      <Routes>
+        {/* ✅ ใช้ Layout เป็น Route แบบ Nested เพื่อให้ <Outlet /> ทำงาน */}
+        <Route element={<Layout />}>
+          
           {/* Public routes */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
@@ -84,6 +81,16 @@ const App = () => {
             }
           />
 
+          {/* ✅ เพิ่ม Route สำหรับ Concerts เพื่อให้ตรงกับ Navbar */}
+          <Route
+            path="/concerts"
+            element={
+              <ProtectedRoute>
+                <HomePage /> {/* ใช้ HomePage เป็นหน้าแสดง Concert */}
+              </ProtectedRoute>
+            }
+          />
+
           {/* เฉพาะ role admin */}
           <Route
             path="/admin"
@@ -96,9 +103,10 @@ const App = () => {
 
           {/* route ไม่เจอ → กลับหน้าแรก */}
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
-    </Layout>
+          
+        </Route>
+      </Routes>
+    </Suspense>
   );
 };
 
