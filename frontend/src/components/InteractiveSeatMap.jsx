@@ -12,7 +12,6 @@ export default function InteractiveSeatMap({
   const [mapStart, setMapStart] = useState({ x: 0, y: 0 });
   const [showZoomHint, setShowZoomHint] = useState(false);
 
-  // ใช้ Ref จัดการ Drag ช่วยแยกแยะการคลิก กับ การลาก ได้แม่นยำ ไม่ดีเลย์
   const dragRef = useRef({ isDragging: false, startX: 0, startY: 0 });
   const scaleRef = useRef(1);
   const wrapperRef = useRef(null);
@@ -20,7 +19,7 @@ export default function InteractiveSeatMap({
 
   useEffect(() => { scaleRef.current = scale; }, [scale]);
 
-  // ระบบ Zoom ที่ไม่กวน Scroll ของหน้าเว็บ
+  // ระบบ Zoom
   useEffect(() => {
     const wrapper = wrapperRef.current;
     if (!wrapper) return;
@@ -42,7 +41,7 @@ export default function InteractiveSeatMap({
     return () => wrapper.removeEventListener('wheel', handleWheel);
   }, []);
 
-  // วาดและลงสีที่นั่ง (เพิ่ม selectedSeat ใน useEffect เพื่อให้สีเปลี่ยนแน่นอน 100%)
+  // ลงสีและจัดการ Event แบบฝังตรงเข้าที่นั่ง (แก้บัคคลิกไม่ติด 100%)
   useEffect(() => {
     if (!svgContainerRef.current || !svgContent) return;
 
@@ -56,40 +55,76 @@ export default function InteractiveSeatMap({
 
       seat.style.transition = 'transform 0.15s ease, filter 0.15s ease';
       seat.style.transformOrigin = 'center';
+      
+      // ล้าง Event เก่าทิ้งก่อน กันทำงานซ้อนกัน
+      seat.onclick = null;
+      seat.onmouseenter = null;
+      seat.onmouseleave = null;
 
       if (!config) {
         seat.style.opacity = '0';
         seat.style.pointerEvents = 'none';
-        seat.setAttribute('data-status', 'hidden');
         return;
       }
 
       const isBooked = bookedSeats.includes(seatId);
       const isSelected = selectedSeat?.seat_code === seatId;
       
-      seat.style.pointerEvents = 'auto'; // มั่นใจว่าเปิดรับการคลิก
+      seat.style.pointerEvents = 'auto';
 
       if (isBooked) {
-        seat.style.fill = '#475569'; // สีเทา
+        // สถานะ: จองแล้ว (สีเทา)
+        seat.style.fill = '#475569'; 
         seat.style.opacity = '0.3';
         seat.style.cursor = 'not-allowed';
         seat.style.stroke = 'none';
         seat.style.transform = 'scale(1)';
-        seat.setAttribute('data-status', 'booked');
       } else {
-        // ลงสีสถานะ "กำลังเลือก" โดยตรง ทับ Inline style ทั้งหมด
-        seat.style.fill = isSelected ? '#ffffff' : (config.color || '#cccccc');
-        seat.style.stroke = isSelected ? '#ef4444' : 'none';
-        seat.style.strokeWidth = isSelected ? '3px' : '0';
-        seat.style.transform = isSelected ? 'scale(1.15)' : 'scale(1)';
+        // สถานะ: ว่าง / กำลังเลือก
+        // ให้สียังคงเดิม ไม่เปลี่ยนเป็นสีเทาหรือขาวตามที่ขอ
+        seat.style.fill = config.color || '#cccccc';
         seat.style.opacity = '1';
         seat.style.cursor = 'pointer';
-        seat.setAttribute('data-status', 'available');
+        
+        if (isSelected) {
+          // ถ้าเลือกอยู่ ให้ใช้สีเดิม แต่เพิ่มขอบแดงหนาๆ ตามแท็บล่าง
+          seat.style.stroke = '#ef4444'; 
+          seat.style.strokeWidth = '4px';
+          seat.style.transform = 'scale(1.2)';
+          seat.style.filter = 'none'; 
+        } else {
+          // ถ้ายังไม่ได้เลือก (ว่าง)
+          seat.style.stroke = 'none';
+          seat.style.strokeWidth = '0';
+          seat.style.transform = 'scale(1)';
+        }
+
+        // JS Hover Effect (หลีกเลี่ยงการใช้ CSS เพื่อไม่ให้สไตล์ตีกัน)
+        seat.onmouseenter = () => {
+          if (!isSelected) {
+            seat.style.filter = 'brightness(1.2)';
+            seat.style.transform = 'scale(1.15)';
+          }
+        };
+        seat.onmouseleave = () => {
+          if (!isSelected) {
+            seat.style.filter = 'none';
+            seat.style.transform = 'scale(1)';
+          }
+        };
+
+        // จับการคลิกตรงนี้ ชัวร์สุด
+        seat.onclick = (e) => {
+          e.stopPropagation();
+          // ถ้าผู้ใช้กำลังลากแผนที่อยู่ จะไม่นับว่าเป็นการคลิกที่นั่ง
+          if (dragRef.current.isDragging) return;
+          onSeatSelect(config);
+        };
       }
     });
-  }, [svgContent, configuredSeats, bookedSeats, selectedSeat]);
+  }, [svgContent, configuredSeats, bookedSeats, selectedSeat, onSeatSelect]);
 
-  // --- จัดการ Mouse Events บนแผนที่ ---
+  // ระบบลากแผนที่
   const handleMouseDown = (e) => {
     dragRef.current = { isDragging: false, startX: e.clientX, startY: e.clientY };
     setMapStart({ x: position.x, y: position.y });
@@ -97,41 +132,20 @@ export default function InteractiveSeatMap({
 
   const handleMouseMove = (e) => {
     if (!dragRef.current.startX) return;
-
     const dx = e.clientX - dragRef.current.startX;
     const dy = e.clientY - dragRef.current.startY;
 
-    // เพิ่มระยะ Threshold เป็น 5px (ถ้ามือสั่นตอนคลิกนิดหน่อย จะยังถือว่าเป็นการคลิก)
     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
       dragRef.current.isDragging = true;
       setPosition({ x: mapStart.x + dx, y: mapStart.y + dy });
     }
   };
 
-  const handleMouseUp = (e) => {
-    if (!dragRef.current.startX) return;
-
-    // ถ้าไม่ได้ขยับเมาส์เลย (หรือขยับน้อยมาก) = ผู้ใช้ตั้งใจ "คลิก" ที่นั่ง
-    if (!dragRef.current.isDragging) {
-      handleSeatClick(e);
-    }
-
-    dragRef.current = { isDragging: false, startX: 0, startY: 0 };
-  };
-
-  const handleSeatClick = (e) => {
-    // e.target.closest ช่วยดักจับกรณีผู้ใช้คลิกโดนเส้นหรือรูปทรงข้างในแท็ก <g class="seat">
-    const seatEl = e.target.closest('.seat');
-    if (!seatEl) return;
-
-    const status = seatEl.getAttribute('data-status');
-    if (status === 'available') {
-      const seatId = seatEl.getAttribute('id');
-      const config = configuredSeats.find(s => s.seat_code === seatId);
-      if (config) {
-        onSeatSelect(config);
-      }
-    }
+  const handleMouseUp = () => {
+    // ดีเลย์เคลียร์สถานะ Drag นิดนึง เพื่อให้ Event onclick ข้างบนมีเวลาเช็คก่อน
+    setTimeout(() => {
+      dragRef.current = { isDragging: false, startX: 0, startY: 0 };
+    }, 50);
   };
 
   return (
@@ -154,15 +168,6 @@ export default function InteractiveSeatMap({
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
-        <style>
-          {`
-            .seat[data-status="available"]:hover {
-              filter: brightness(1.2);
-              transform: scale(1.15) !important;
-            }
-          `}
-        </style>
-
         {configuredSeats.length === 0 ? (
           <div className="flex flex-col items-center justify-center">
             <span className="text-6xl mb-4">🚧</span>
