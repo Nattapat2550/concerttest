@@ -17,13 +17,20 @@ export default function AdminPage() {
   const [mapSvg, setMapSvg] = useState('');
   const [channels, setChannels] = useState([{ id: 1, name: 'VIP', price: 5000, color: '#ef4444' }]);
   const [activeChannelId, setActiveChannelId] = useState(1);
+  
   const seatConfigRef = useRef({}); 
+  const activeChannelRef = useRef(null); // ใช้ Ref ช่วยเก็บค่า Channel ป้องกัน Closure Stale
   const svgContainerRef = useRef(null);
 
-  // Marquee Selection States (สำหรับลากคลุมที่นั่ง)
+  // Marquee Selection States
   const [selectionBox, setSelectionBox] = useState(null);
 
   useEffect(() => { fetchData(); }, [activeTab]);
+
+  // อัปเดต activeChannelRef ทันทีที่เปลี่ยน Channel
+  useEffect(() => {
+    activeChannelRef.current = channels.find(c => c.id === activeChannelId);
+  }, [activeChannelId, channels]);
 
   const fetchData = async () => {
     try {
@@ -89,7 +96,6 @@ export default function AdminPage() {
     }
   };
 
-  // --- เพิ่ม Headers รูปปกใน สร้าง/อัปเดต Concert ---
   const handleCreateConcert = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -101,9 +107,7 @@ export default function AdminPage() {
       alert("สร้างคอนเสิร์ตสำเร็จ!");
       e.target.reset();
       fetchData();
-    } catch (err) { 
-      alert(err.response?.data?.error || "เกิดข้อผิดพลาดในการสร้างคอนเสิร์ต"); 
-    }
+    } catch (err) { alert("เกิดข้อผิดพลาด"); }
   };
 
   const handleUpdateConcert = async (e) => {
@@ -156,45 +160,67 @@ export default function AdminPage() {
     } catch (e) { alert("Error loading map"); }
   };
 
+  // ฟังก์ชันทาสีใหม่ทั้งหมด เพื่อใช้บังคับ Render สีเก้าอี้
+  const repaintSeats = () => {
+    if (!svgContainerRef.current) return;
+    const seats = svgContainerRef.current.querySelectorAll('.seat');
+    seats.forEach(seat => {
+      const seatId = seat.getAttribute('id');
+      const config = seatConfigRef.current[seatId];
+      seat.style.fill = config ? config.color : '#334155';
+    });
+  };
+
+  // ผูก Event ให้เก้าอี้ *ทำครั้งเดียวเมื่อ SVG โหลด*
   useEffect(() => {
     if (mapConcert && mapSvg && svgContainerRef.current) {
+      let isMouseDown = false;
       const seats = svgContainerRef.current.querySelectorAll('.seat');
-      
+
       seats.forEach(seat => {
-        const seatId = seat.getAttribute('id');
-        const config = seatConfigRef.current[seatId];
-        seat.style.fill = config ? config.color : '#334155'; 
         seat.style.cursor = 'crosshair';
         seat.style.transition = 'none';
-        
-        // เราใช้ onclick สำรองกรณีผู้ใช้คลิกทีละเก้าอี้
-        seat.onclick = (e) => {
-           e.stopPropagation(); // ไม่ให้ Trigger Marquee
-           const activeChannel = channels.find(c => c.id === activeChannelId);
-           if (!activeChannel) return;
-           
-           if (seatConfigRef.current[seatId]?.id === activeChannel.id) {
-             delete seatConfigRef.current[seatId];
-             seat.style.fill = '#334155'; 
-           } else {
-             seatConfigRef.current[seatId] = activeChannel;
-             seat.style.fill = activeChannel.color;
-           }
-        };
-      });
-    }
-  }, [mapConcert, mapSvg, activeChannelId, channels]);
 
-  // ระบบลากคลุม (Marquee Selection)
+        const paintSeat = () => {
+          const activeChannel = activeChannelRef.current;
+          if (!activeChannel) return;
+          const seatId = seat.getAttribute('id');
+          if (seatConfigRef.current[seatId]?.id === activeChannel.id) {
+            delete seatConfigRef.current[seatId]; // ยกเลิกสี
+          } else {
+            seatConfigRef.current[seatId] = activeChannel; // เทสี
+          }
+          repaintSeats();
+        };
+
+        // ใช้ Event Listeners แบบ Raw DOM ป้องกัน React แทรกแซง
+        seat.onmousedown = (e) => { 
+          isMouseDown = true; 
+          paintSeat(); 
+          e.preventDefault(); 
+          e.stopPropagation(); // หยุดไม่ให้ Event ทะลุไปหา Marquee พื้นหลัง
+        };
+        seat.onmouseenter = () => { if (isMouseDown) paintSeat(); };
+      });
+
+      document.onmouseup = () => { isMouseDown = false; };
+      repaintSeats(); // โหลดสีตั้งต้นตอนเปิดแผนที่
+      return () => { document.onmouseup = null; };
+    }
+  }, [mapConcert, mapSvg]);
+
+  // คอยเติมสีทุกครั้งที่มีการ Re-render (เช่น กล่อง Marquee ขยับ)
+  useEffect(() => {
+    if (mapConcert) repaintSeats();
+  });
+
+  // ระบบลากคลุมพื้นที่ (Marquee Selection)
   const handleMapMouseDown = (e) => {
-    if (e.target.classList.contains('seat')) return; // ถ้ากดโดนเก้าอี้โดยตรง ปล่อยให้มันคลิกปกติ
-    const rect = e.currentTarget.getBoundingClientRect();
+    // ถ้าคลิกโดนเก้าอี้ ปล่อยให้ฟังก์ชันเก้าอี้จัดการเอง
+    if (e.target.classList.contains('seat')) return; 
     setSelectionBox({
-      startX: e.clientX,
-      startY: e.clientY,
-      currentX: e.clientX,
-      currentY: e.clientY,
-      containerRect: rect
+      startX: e.clientX, startY: e.clientY,
+      currentX: e.clientX, currentY: e.clientY,
     });
   };
 
@@ -211,9 +237,8 @@ export default function AdminPage() {
     const top = Math.min(selectionBox.startY, selectionBox.currentY);
     const bottom = Math.max(selectionBox.startY, selectionBox.currentY);
 
-    // หากลากคลุมได้ระยะที่เหมาะสม (ไม่ใช่แค่คลิกพลาด)
     if (right - left > 5 || bottom - top > 5) {
-      const activeChannel = channels.find(c => c.id === activeChannelId);
+      const activeChannel = activeChannelRef.current;
       if (activeChannel && svgContainerRef.current) {
         const seats = svgContainerRef.current.querySelectorAll('.seat');
         seats.forEach(seat => {
@@ -221,13 +246,13 @@ export default function AdminPage() {
           const seatCenterX = seatRect.left + seatRect.width / 2;
           const seatCenterY = seatRect.top + seatRect.height / 2;
 
-          // เช็คว่าจุดศูนย์กลางของเก้าอี้อยู่ในกล่องสี่เหลี่ยมที่ลากคลุมหรือไม่
+          // ถ้าจุดกึ่งกลางเก้าอี้อยู่ในกล่องลากคลุม ให้เทสีใส่ Config ทันที
           if (seatCenterX >= left && seatCenterX <= right && seatCenterY >= top && seatCenterY <= bottom) {
             const seatId = seat.getAttribute('id');
             seatConfigRef.current[seatId] = activeChannel;
-            seat.style.fill = activeChannel.color;
           }
         });
+        repaintSeats(); // บังคับให้เปลี่ยนสีให้เห็นทันที
       }
     }
     setSelectionBox(null);
@@ -235,7 +260,6 @@ export default function AdminPage() {
 
   const handleSaveMap = async () => {
     if (!window.confirm("ยืนยันการตั้งค่าผัง? (ที่นั่งที่ไม่ได้ระบายสีจะไม่ถูกเปิดขาย)")) return;
-    
     const seatsToSave = Object.keys(seatConfigRef.current).map(seatId => {
       const ch = seatConfigRef.current[seatId];
       return { seat_code: seatId, zone_name: ch.name, price: Number(ch.price), color: ch.color };
@@ -248,7 +272,6 @@ export default function AdminPage() {
     } catch(e) { alert("เกิดข้อผิดพลาดในการบันทึก"); }
   };
 
-  // --- News ---
   const handleCreateNews = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -296,7 +319,6 @@ export default function AdminPage() {
         </div>
 
         <div className="flex flex-col lg:flex-row gap-6">
-          {/* แถบเครื่องมือสร้าง Channel ด้านซ้าย */}
           <div className="w-full lg:w-1/4 bg-white p-4 shadow rounded border h-fit">
             <h3 className="text-lg font-bold mb-4 border-b pb-2">🎨 สร้างโซน/ราคา</h3>
             <div className="space-y-4 mb-6">
@@ -316,13 +338,12 @@ export default function AdminPage() {
               + เพิ่มสีโซน (Channel)
             </button>
             <p className="text-sm text-gray-500 mt-6 bg-gray-100 p-3 rounded">
-              💡 <b>วิธีใช้:</b> คลิกเลือกสีโซน จากนั้น <b>"คลิกที่เก้าอี้"</b> หรือ <b>"คลิกค้างแล้วลากคลุมเก้าอี้หลายตัว"</b> บนแผนที่เพื่อเปิดขาย (คลิกซ้ำเพื่อยกเลิก)
+              💡 <b>วิธีใช้:</b> เลือกสีโซนด้านบน จากนั้น <b>"คลิกที่เก้าอี้"</b> หรือ <b>"ลากคลุมเก้าอี้หลายตัว"</b> บนแผนที่เพื่อเปิดขาย (คลิกซ้ำเพื่อยกเลิก)
             </p>
           </div>
 
-          {/* พื้นที่แสดง SVG ด้านขวา พร้อมระบบลากคลุม */}
           <div 
-            className="relative w-full lg:w-3/4 bg-gray-900 p-6 shadow rounded border overflow-auto h-[700px] flex justify-center items-start cursor-crosshair"
+            className="relative w-full lg:w-3/4 bg-[#0f172a] p-6 shadow rounded border overflow-auto h-[700px] flex justify-center items-start cursor-crosshair"
             onMouseDown={handleMapMouseDown}
             onMouseMove={handleMapMouseMove}
             onMouseUp={handleMapMouseUp}
@@ -396,13 +417,11 @@ export default function AdminPage() {
             <h3 className="text-xl font-bold mb-4 dark:text-white">+ สร้างคอนเสิร์ต</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <input type="text" name="name" placeholder="ชื่อคอนเสิร์ต" required className="p-2 border rounded dark:bg-gray-800 dark:text-white" />
-              <input type="text" name="venue" placeholder="สถานที่จัดงาน (ข้อความเผื่อไว้)" className="p-2 border rounded dark:bg-gray-800 dark:text-white" />
-              
+              <input type="text" name="venue" placeholder="สถานที่จัดงาน (ข้อความ)" className="p-2 border rounded dark:bg-gray-800 dark:text-white" />
               <select name="venue_id" required className="p-2 border rounded dark:bg-gray-800 dark:text-white">
                 <option value="">-- เลือกสถานที่ (SVG Map) --</option>
                 {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
               </select>
-              
               <input type="number" name="ticket_price" placeholder="ราคาตั๋วเริ่มต้น (บาท)" required className="p-2 border rounded dark:bg-gray-800 dark:text-white" />
               <input type="datetime-local" name="show_date" required className="p-2 border rounded dark:bg-gray-800 dark:text-white" />
               <input type="file" name="image" accept="image/*" className="p-2 border rounded bg-white dark:bg-gray-800" title="รูปปกคอนเสิร์ต" />
@@ -535,7 +554,7 @@ export default function AdminPage() {
               </select>
               <input type="number" name="ticket_price" defaultValue={editingConcert.ticket_price} required className="p-2 border rounded dark:bg-gray-700 dark:text-white" />
               <input type="datetime-local" name="show_date" defaultValue={formatDateForInput(editingConcert.show_date)} required className="p-2 border rounded dark:bg-gray-700 dark:text-white" />
-              <p className="text-sm text-gray-500 -mb-2.5">อัปเดตรูปภาพปก (เว้นว่างไว้หากใช้รูปเดิม)</p>
+              <p className="text-sm text-gray-500 -mb-2">อัปเดตรูปภาพปก (เว้นว่างไว้หากใช้รูปเดิม)</p>
               <input type="file" name="image" accept="image/*" className="p-2 border rounded dark:bg-gray-700 dark:text-white" />
             </div>
             <div className="mt-6 flex justify-end gap-3">
@@ -557,7 +576,7 @@ export default function AdminPage() {
                 <option value="true">เปิดใช้งาน</option>
                 <option value="false">ปิดใช้งาน</option>
               </select>
-              <p className="text-sm text-gray-500 -mb-2.5">อัปเดตรูปภาพประกอบ (เว้นว่างไว้หากใช้รูปเดิม)</p>
+              <p className="text-sm text-gray-500 -mb-2">อัปเดตรูปภาพประกอบ (เว้นว่างไว้หากใช้รูปเดิม)</p>
               <input type="file" name="image" accept="image/*" className="p-2 border rounded dark:bg-gray-700 dark:text-white" />
             </div>
             <div className="mt-6 flex justify-end gap-3">

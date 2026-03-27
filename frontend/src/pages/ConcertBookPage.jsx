@@ -18,8 +18,11 @@ export default function ConcertBookPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
+  const scaleRef = useRef(1); // เก็บค่า Scale ล่าสุดสำหรับแก้บัคลูกกลิ้งเมาส์
   const svgContainerRef = useRef(null);
   const mapWrapperRef = useRef(null);
+
+  useEffect(() => { scaleRef.current = scale; }, [scale]);
 
   useEffect(() => {
     const fetchDetails = async () => {
@@ -34,7 +37,7 @@ export default function ConcertBookPage() {
     fetchDetails();
   }, [id]);
 
-  // ซ่อนที่นั่งที่ไม่ได้ระบายสี และกำหนดสีตาม Admin Config
+  // ซ่อนที่นั่งที่ไม่ได้เปิดขาย และกำหนด Event ให้ที่นั่ง
   useEffect(() => {
     if (svgContent && svgContainerRef.current) {
       const seats = svgContainerRef.current.querySelectorAll('.seat');
@@ -46,6 +49,8 @@ export default function ConcertBookPage() {
         const seatId = seat.getAttribute('id');
         const config = configMap[seatId];
 
+        // ล้าง Event เก่าเพื่อป้องกันปัญหาคลิกซ้อน
+        seat.onmousedown = null;
         seat.onclick = null;
         seat.onmouseover = null;
         seat.onmouseout = null;
@@ -77,8 +82,10 @@ export default function ConcertBookPage() {
           seat.onmouseover = () => { if(!isSelected) seat.style.transform = 'scale(1.4)'; };
           seat.onmouseout = () => { if(!isSelected) seat.style.transform = 'scale(1)'; };
           
-          seat.onclick = (e) => { 
-            e.stopPropagation(); // กันไม่ให้ไปโดน event ลาก map
+          // ใช้ onmousedown แทน onclick และสั่ง stopPropagation() 
+          // เพื่อป้องกันไม่ให้ไปรบกวนระบบคลิกลากของ Map Wrapper
+          seat.onmousedown = (e) => { 
+            e.stopPropagation(); 
             setSelectedSeat(config); 
           };
         }
@@ -87,12 +94,21 @@ export default function ConcertBookPage() {
   }, [svgContent, configuredSeats, bookedSeats, selectedSeat]);
 
   // --- Pan & Zoom Logic ---
-  const handleWheel = (e) => {
-    e.preventDefault();
-    const scaleAdjust = e.deltaY * -0.002;
-    const newScale = Math.min(Math.max(0.5, scale + scaleAdjust), 8); 
-    setScale(newScale);
-  };
+  // ผูก Event ลูกกลิ้งเพียงครั้งเดียว โดยใช้ Ref อ้างอิงค่าปัจจุบัน
+  useEffect(() => {
+    const wrapper = mapWrapperRef.current;
+    const handleWheel = (e) => {
+      e.preventDefault();
+      const scaleAdjust = e.deltaY * -0.002;
+      const newScale = Math.min(Math.max(0.5, scaleRef.current + scaleAdjust), 8); 
+      setScale(newScale);
+    };
+
+    if (wrapper) {
+      wrapper.addEventListener('wheel', handleWheel, { passive: false });
+      return () => wrapper.removeEventListener('wheel', handleWheel);
+    }
+  }, []);
 
   const handleMouseDown = (e) => {
     setIsDragging(true);
@@ -103,14 +119,6 @@ export default function ConcertBookPage() {
     setPosition({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
   };
   const handleMouseUp = () => setIsDragging(false);
-
-  useEffect(() => {
-    const wrapper = mapWrapperRef.current;
-    if (wrapper) {
-      wrapper.addEventListener('wheel', handleWheel, { passive: false });
-      return () => wrapper.removeEventListener('wheel', handleWheel);
-    }
-  }, [scale]);
 
   const handleBook = async () => {
     if (!selectedSeat) return;
