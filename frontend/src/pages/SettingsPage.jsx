@@ -1,110 +1,105 @@
-import React, { useEffect, useState, useRef } from 'react';
-import api from '../services/api';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import api from '../services/api';
 
-const SettingsPage = () => {
-  const [username, setUsername] = useState('');
-  const [avatarUrl, setAvatarUrl] = useState('');
-  const [msg, setMsg] = useState(null);
+export default function SettingsPage() {
+  const [profile, setProfile] = useState({ first_name: '', last_name: '', tel: '' });
+  const [loading, setLoading] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const navigate = useNavigate();
-  const fileInputRef = useRef(null);
 
   useEffect(() => {
-    const loadMe = async () => {
+    // ดึงข้อมูลผู้ใช้จาก API
+    const fetchUser = async () => {
       try {
-        const res = await api.get('/api/users/me');
-        setUsername(res.data.username || '');
-        if (res.data.profile_picture_url) setAvatarUrl(res.data.profile_picture_url);
-      } catch {
-        navigate('/', { replace: true });
+        const { data } = await api.get('/api/users/me');
+        setProfile({
+          first_name: data.first_name || '',
+          last_name: data.last_name || '',
+          tel: data.tel || ''
+        });
+      } catch (err) {
+        console.error('Failed to fetch user', err);
       }
     };
-    loadMe();
-  }, [navigate]);
+    fetchUser();
+  }, []);
 
-  const handleProfileSave = async (e) => {
+  const handleUpdateProfile = async (e) => {
     e.preventDefault();
-    setMsg(null);
+    setLoading(true);
     try {
-      await api.put('/api/users/me', { username: username.trim() });
-      setMsg({ text: 'อัปเดตโปรไฟล์เรียบร้อยแล้ว', type: 'success' });
+      await api.patch('/api/users/me', profile);
+      setSuccessMsg('อัปเดตข้อมูลสำเร็จ');
+      setTimeout(() => setSuccessMsg(''), 3000);
     } catch (err) {
-      setMsg({ text: err.response?.data?.error || 'Update failed', type: 'error' });
+      alert('เกิดข้อผิดพลาดในการอัปเดตข้อมูล');
     }
+    setLoading(false);
   };
 
-  const handleAvatarChange = async (e) => {
-    setMsg(null);
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const formData = new FormData();
-    formData.append('avatar', file);
+  const handleDeleteAccount = async () => {
     try {
-      const res = await api.post('/api/users/me/avatar', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
-      if (res.data.profile_picture_url) setAvatarUrl(res.data.profile_picture_url);
-      setMsg({ text: 'อัปโหลดรูปประจำตัวสำเร็จ', type: 'success' });
+      // ส่ง status: 'deleted' เพื่อ Soft Delete
+      await api.patch('/api/users/me', { status: 'deleted' });
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      alert('บัญชีของคุณถูกปิดใช้งานแล้ว');
+      navigate('/login');
     } catch (err) {
-      setMsg({ text: err.response?.data?.error || 'Upload failed', type: 'error' });
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!window.confirm('คุณต้องการลบบัญชีใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้')) return;
-    try {
-      await api.delete('/api/users/me');
-      navigate('/', { replace: true });
-    } catch (err) {
-      setMsg({ text: err.response?.data?.error || 'Delete failed', type: 'error' });
+      alert('เกิดข้อผิดพลาดในการลบบัญชี');
     }
   };
 
   return (
-    <div className="max-w-2xl mx-auto mt-10 p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-      <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-8 border-b border-gray-200 dark:border-gray-700 pb-4">ตั้งค่าบัญชี</h2>
+    <div className="max-w-3xl mx-auto p-6 mt-10 bg-white rounded-lg shadow-md">
+      <h2 className="text-2xl font-bold border-b pb-4 mb-6">ตั้งค่าโปรไฟล์</h2>
+      
+      {successMsg && <div className="mb-4 p-3 bg-green-100 text-green-700 rounded">{successMsg}</div>}
 
-      <div className="flex flex-col sm:flex-row gap-8">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-gray-100 dark:border-gray-700 bg-gray-200 dark:bg-gray-600 shadow-sm">
-            {avatarUrl ? (
-              <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" />
-            ) : (
-              <svg className="w-full h-full text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.996A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-            )}
+      <form onSubmit={handleUpdateProfile} className="space-y-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">ชื่อจริง</label>
+            <input type="text" value={profile.first_name} onChange={(e) => setProfile({...profile, first_name: e.target.value})} className="mt-1 block w-full border rounded-md shadow-sm p-2" />
           </div>
-          <button type="button" onClick={() => fileInputRef.current?.click()} className="text-sm px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition">
-            เปลี่ยนรูป
-          </button>
-          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" />
-        </div>
-
-        <div className="flex-1 space-y-6">
-          <form onSubmit={handleProfileSave} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ชื่อผู้ใช้</label>
-              <input type="text" required value={username} onChange={(e) => setUsername(e.target.value.trimStart())} className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-gray-900 dark:text-white" />
-            </div>
-            <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors">
-              บันทึกการเปลี่ยนแปลง
-            </button>
-          </form>
-
-          {msg && (
-            <div className={`p-3 text-sm rounded-lg border ${msg.type === 'success' ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800'}`}>
-              {msg.text}
-            </div>
-          )}
-
-          <div className="pt-6 border-t border-gray-200 dark:border-gray-700">
-            <h3 className="text-red-600 dark:text-red-400 font-bold mb-2">เขตอันตราย</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">การลบบัญชีจะเป็นการลบข้อมูลทั้งหมดของคุณออกจากระบบและไม่สามารถกู้คืนได้</p>
-            <button type="button" onClick={handleDelete} className="bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-600 hover:text-white dark:hover:bg-red-600 border border-red-200 dark:border-red-800 font-semibold py-2 px-6 rounded-lg transition-all">
-              ลบบัญชีผู้ใช้
-            </button>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">นามสกุล</label>
+            <input type="text" value={profile.last_name} onChange={(e) => setProfile({...profile, last_name: e.target.value})} className="mt-1 block w-full border rounded-md shadow-sm p-2" />
           </div>
         </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700">เบอร์โทรศัพท์</label>
+          <input type="tel" value={profile.tel} onChange={(e) => setProfile({...profile, tel: e.target.value})} className="mt-1 block w-full border rounded-md shadow-sm p-2" />
+        </div>
+        <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700">
+          {loading ? 'กำลังบันทึก...' : 'บันทึกข้อมูล'}
+        </button>
+      </form>
+
+      {/* Danger Zone */}
+      <div className="mt-12 pt-6 border-t border-red-200">
+        <h3 className="text-xl font-bold text-red-600 mb-2">Danger Zone</h3>
+        <p className="text-sm text-gray-500 mb-4">เมื่อลบบัญชี ข้อมูลของคุณจะถูกซ่อนจากระบบ หากคุณไม่กลับมาเข้าสู่ระบบภายใน 30 วัน ข้อมูลจะถูกลบถาวรอัตโนมัติ</p>
+        <button onClick={() => setShowDeleteModal(true)} className="bg-red-600 text-white py-2 px-4 rounded hover:bg-red-700">
+          ลบบัญชีผู้ใช้งาน
+        </button>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-lg max-w-sm w-full">
+            <h3 className="text-lg font-bold mb-4">ยืนยันการลบบัญชี?</h3>
+            <p className="text-sm text-gray-600 mb-6">คุณแน่ใจหรือไม่ว่าต้องการลบบัญชีของคุณ? การกระทำนี้สามารถกู้คืนได้ภายใน 30 วันโดยการเข้าสู่ระบบใหม่</p>
+            <div className="flex justify-end space-x-3">
+              <button onClick={() => setShowDeleteModal(false)} className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">ยกเลิก</button>
+              <button onClick={handleDeleteAccount} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">ยืนยันลบ</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-};
-
-export default SettingsPage;
+}

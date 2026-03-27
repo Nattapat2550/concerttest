@@ -22,10 +22,18 @@ func (h *Handler) UsersMeGet(w http.ResponseWriter, r *http.Request) {
 		h.writeErrFrom(w, err)
 		return
 	}
+	
+	// ซ่อน User ที่โดนลบไปแล้วหากจำเป็น
+	if me.Status != nil && *me.Status == "deleted" {
+		h.clearAuthCookie(w)
+		h.writeError(w, http.StatusUnauthorized, "User not found")
+		return
+	}
+
 	WriteJSON(w, http.StatusOK, me)
 }
 
-// PUT /api/users/me
+// PUT /api/users/me  (หรือ PATCH)
 func (h *Handler) UsersMePut(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	u := GetUser(r)
@@ -54,6 +62,12 @@ func (h *Handler) UsersMePut(w http.ResponseWriter, r *http.Request) {
 		h.writeErrFrom(w, err)
 		return
 	}
+
+	// ✅ ถ้า Payload เข้ามาสั่ง Soft Delete ให้ Clear Cookie ทันที (ให้หลุดออกจากระบบ)
+	if status, ok := body["status"].(string); ok && status == "deleted" {
+		h.clearAuthCookie(w)
+	}
+
 	WriteJSON(w, http.StatusOK, updated)
 }
 
@@ -124,11 +138,17 @@ func (h *Handler) UsersMeDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.Pure.Post(ctx, "/api/internal/delete-user", map[string]any{"id": u.ID}, nil); err != nil {
+	// ✅ เปลี่ยนจาก Hard Delete (ลบถาวร) เป็น Soft Delete (แก้ไขสถานะเป็น deleted)
+	payload := map[string]any{
+		"id":     u.ID,
+		"status": "deleted",
+	}
+
+	if err := h.Pure.Post(ctx, "/api/internal/admin/users/update", payload, nil); err != nil {
 		h.writeErrFrom(w, err)
 		return
 	}
 
 	h.clearAuthCookie(w)
-	WriteJSON(w, http.StatusOK, map[string]any{"ok": true})
+	WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "Account has been soft-deleted"})
 }

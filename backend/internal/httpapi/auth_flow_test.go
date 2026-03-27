@@ -102,7 +102,7 @@ func TestComprehensiveSystem(t *testing.T) {
 		GoogleClientSecret: "mock-secret",
 		GoogleCallbackURI: "http://localhost:3000/callback",
 	}
-	router := httpapi.NewRouter(cfg)
+	router := httpapi.NewRouter(cfg, nil) 
 
 	execute := func(req *http.Request) *httptest.ResponseRecorder {
 		rr := httptest.NewRecorder()

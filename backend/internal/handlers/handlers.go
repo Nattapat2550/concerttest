@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -11,14 +12,19 @@ import (
 )
 
 type Handler struct {
-	Cfg    config.Config
-	Pure   *pureapi.Client
-	Mail   *Mailer
-	Google *GoogleOAuth
+	Cfg       config.Config
+	Pure      *pureapi.Client
+	Mail      *Mailer
+	Google    *GoogleOAuth
+	ConcertDB *sql.DB // ✅ เพิ่ม ConcertDB เข้ามาในนี้
 }
 
-func New(cfg config.Config, p *pureapi.Client) *Handler {
-	h := &Handler{Cfg: cfg, Pure: p}
+func New(cfg config.Config, p *pureapi.Client, concertDB *sql.DB) *Handler {
+	h := &Handler{
+		Cfg:       cfg, 
+		Pure:      p, 
+		ConcertDB: concertDB, // ✅ รับค่าและเก็บไว้ใช้
+	}
 	h.Mail = NewMailer(cfg)
 	h.Google = NewGoogleOAuth(cfg)
 	return h
@@ -45,8 +51,6 @@ func (h *Handler) writeError(w http.ResponseWriter, status int, msg string) {
 func (h *Handler) writeErrFrom(w http.ResponseWriter, err error) {
 	var pe *pureapi.Error
 	if errors.As(err, &pe) {
-		// Node/Docker style:
-		// { error: "..." }
 		msg := pe.Message
 		details := extractPureDetails(pe.Detail)
 		resp := map[string]any{"error": msg}

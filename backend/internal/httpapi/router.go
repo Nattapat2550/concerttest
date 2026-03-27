@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"database/sql"
 	"net/http"
 	"strings"
 	"time"
@@ -13,7 +14,8 @@ import (
 	"backend/internal/pureapi"
 )
 
-func NewRouter(cfg config.Config) http.Handler {
+// ✅ รับ *sql.DB เพิ่มเข้ามาที่ NewRouter
+func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -45,11 +47,12 @@ func NewRouter(cfg config.Config) http.Handler {
 	})
 
 	p := pureapi.NewClient(cfg.PureAPIBaseURL, cfg.PureAPIKey, cfg.PureAPIInternalURL)
-	h := handlers.New(cfg, p)
+	
+	// ✅ ส่ง concertDB เข้าไปใน Handlers
+	h := handlers.New(cfg, p, concertDB)
 
 	// ---- Auth ----
 	r.Route("/api/auth", func(ar chi.Router) {
-		// ✅ นำ Rate Limit มาใช้เฉพาะ /api/auth เหมือนใน Node.js
 		ar.Use(rateLimit(100, 15*time.Minute, func(req *http.Request) (string, error) {
 			return GetClientIP(req), nil
 		}))
@@ -65,8 +68,6 @@ func NewRouter(cfg config.Config) http.Handler {
 
 		ar.Get("/google", h.AuthGoogleStart)
 		ar.Get("/google/callback", h.AuthGoogleCallback)
-		
-		// ✅ แก้ให้ Google Mobile ใช้งาน Route แบบ POST
 		ar.Post("/google-mobile", h.AuthGoogleMobileCallback)
 	})
 
@@ -77,6 +78,7 @@ func NewRouter(cfg config.Config) http.Handler {
 	
 	r.Get("/api/download/windows", h.DownloadWindows)
 	r.Get("/api/download/android", h.DownloadAndroid)
+	
 	// ---- User ----
 	r.Route("/api/users", func(ur chi.Router) {
 		ur.Use(h.RequireAuth)
@@ -84,6 +86,16 @@ func NewRouter(cfg config.Config) http.Handler {
 		ur.Put("/me", h.UsersMePut)
 		ur.Post("/me/avatar", h.UsersMeAvatar)
 		ur.Delete("/me", h.UsersMeDelete)
+	})
+
+	// ✅ ---- Concerts (เพิ่มใหม่) ----
+	r.Route("/api/concerts", func(cr chi.Router) {
+		cr.Get("/news/latest", h.GetLatestNews)
+		cr.Get("/list", h.GetConcerts)
+		cr.Get("/{id}/seats", h.GetConcertSeats)
+		
+		// ต้องผ่าน RequireAuth ก่อนถึงจะจองได้
+		cr.With(h.RequireAuth).Post("/book", h.BookSeat)
 	})
 
 	// ---- Admin ----
@@ -100,6 +112,9 @@ func NewRouter(cfg config.Config) http.Handler {
 		ad.Delete("/carousel/{id}", h.AdminCarouselDelete)
 
 		ad.Put("/homepage", h.HomepageUpdate)
+		
+		// เพิ่ม Route สำหรับให้ Admin จัดการ Concert ถ้าต้องการ
+		// ad.Post("/concerts/create", h.AdminConcertCreate)
 	})
 
 	return r

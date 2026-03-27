@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"crypto/rand"
-	"fmt"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -15,10 +15,16 @@ import (
 
 var emailRe = regexp.MustCompile(`^\S+@\S+\.\S+$`)
 
+// ✅ เพิ่มฟิลด์ใหม่ๆ ตามที่ Backend (Rust/PureAPI) อัปเดตมา
 type userDTO struct {
 	ID                int64   `json:"id"`
+	UserID            *string `json:"user_id"` // UUID 
 	Email             string  `json:"email"`
 	Username          *string `json:"username"`
+	FirstName         *string `json:"first_name"`
+	LastName          *string `json:"last_name"`
+	Tel               *string `json:"tel"`
+	Status            *string `json:"status"` // 'active', 'suspended', 'banned', 'deleted'
 	Role              string  `json:"role"`
 	PasswordHash      *string `json:"password_hash"`
 	IsEmailVerified   bool    `json:"is_email_verified"`
@@ -35,12 +41,15 @@ type verifyReq struct {
 	Email string `json:"email"`
 	Code  string `json:"code"`
 }
+// ✅ เพิ่มฟิลด์ลงใน Complete Profile
 type completeProfileReq struct {
-	Email    string `json:"email"`
-	// เอา Code ออก เพราะเช็คไปแล้วในขั้นตอนก่อนหน้า
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Remember bool   `json:"remember"`
+	Email     string `json:"email"`
+	Username  string `json:"username"`
+	Password  string `json:"password"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Tel       string `json:"tel"`
+	Remember  bool   `json:"remember"`
 }
 type loginReq struct {
 	Email    string `json:"email"`
@@ -155,7 +164,6 @@ func (h *Handler) AuthCompleteProfile(w http.ResponseWriter, r *http.Request) {
 	username := strings.TrimSpace(req.Username)
 	password := req.Password
 
-	// ไม่ต้องเช็ค code แล้ว
 	if email == "" || username == "" || password == "" {
 		h.writeError(w, http.StatusBadRequest, "Missing fields")
 		return
@@ -165,14 +173,18 @@ func (h *Handler) AuthCompleteProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ลบการเช็ค api/internal/verify-code ออกไปเลย เพราะตรวจและลบทิ้งไปตั้งแต่ Check Code แล้ว
-
 	var user userDTO
-	if err := h.Pure.Post(ctx, "/api/internal/set-username-password", map[string]any{
-		"email":    email,
-		"username": username,
-		"password": password,
-	}, &user); err != nil {
+	// ✅ ส่งข้อมูลส่วนตัวเพิ่มเข้าไปด้วย
+	payload := map[string]any{
+		"email":      email,
+		"username":   username,
+		"password":   password,
+		"first_name": strings.TrimSpace(req.FirstName),
+		"last_name":  strings.TrimSpace(req.LastName),
+		"tel":        strings.TrimSpace(req.Tel),
+	}
+
+	if err := h.Pure.Post(ctx, "/api/internal/set-username-password", payload, &user); err != nil {
 		if isUsernameUniqueViolation(err) {
 			h.writeError(w, http.StatusConflict, "Username already taken")
 			return
@@ -194,8 +206,13 @@ func (h *Handler) AuthCompleteProfile(w http.ResponseWriter, r *http.Request) {
 		"role":  user.Role,
 		"user": map[string]any{
 			"id":                  user.ID,
+			"user_id":             user.UserID,
 			"email":               user.Email,
 			"username":            user.Username,
+			"first_name":          user.FirstName,
+			"last_name":           user.LastName,
+			"tel":                 user.Tel,
+			"status":              user.Status,
 			"role":                user.Role,
 			"profile_picture_url": user.ProfilePictureURL,
 		},
@@ -225,14 +242,36 @@ func (h *Handler) AuthLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if user.PasswordHash == nil || *user.PasswordHash == "" {
-		fmt.Println("Login Error: Password hash is nil")
 		h.writeError(w, http.StatusUnauthorized, "Invalid credentials")
 		return
 	}
 	if err := bcrypt.CompareHashAndPassword([]byte(*user.PasswordHash), []byte(req.Password)); err != nil {
-		fmt.Println("Login Error: Bcrypt mismatch")
 		h.writeError(w, http.StatusUnauthorized, "Invalid credentials")
 		return
+	}
+
+	// ✅ เช็คสถานะการแบน
+	currentStatus := "active"
+	if user.Status != nil {
+		currentStatus = *user.Status
+	}
+	if currentStatus == "banned" {
+		h.writeError(w, http.StatusUnauthorized, "ACCOUNT_BANNED")
+		return
+	}
+
+	// ✅ ระบบกู้คืนบัญชี (Auto-Reactivate) เมื่อ Status = deleted
+	reactivated := false
+	if currentStatus == "deleted" {
+		reactivatedPayload := map[string]any{
+			"id":     user.ID,
+			"status": "active",
+		}
+		var updatedUser userDTO
+		if err := h.Pure.Post(ctx, "/api/internal/admin/users/update", reactivatedPayload, &updatedUser); err == nil {
+			reactivated = true
+			user.Status = updatedUser.Status
+		}
 	}
 
 	token, err := h.signToken(user.ID, user.Role)
@@ -243,14 +282,21 @@ func (h *Handler) AuthLogin(w http.ResponseWriter, r *http.Request) {
 	
 	h.setAuthCookie(w, token, req.Remember)
 
+	// ✅ ส่งข้อมูล User แบบใหม่กลับไป (รวม first_name, last_name, tel, status)
 	WriteJSON(w, http.StatusOK, map[string]any{
-		"ok":    true,
-		"role":  user.Role,
-		"token": token,
+		"ok":          true,
+		"reactivated": reactivated,
+		"role":        user.Role,
+		"token":       token,
 		"user": map[string]any{
 			"id":                  user.ID,
+			"user_id":             user.UserID,
 			"email":               user.Email,
 			"username":            user.Username,
+			"first_name":          user.FirstName,
+			"last_name":           user.LastName,
+			"tel":                 user.Tel,
+			"status":              user.Status,
 			"role":                user.Role,
 			"profile_picture_url": user.ProfilePictureURL,
 		},
@@ -275,6 +321,13 @@ func (h *Handler) AuthStatus(w http.ResponseWriter, r *http.Request) {
 	var user userDTO
 	if err := h.Pure.Post(ctx, "/api/internal/find-user", map[string]any{"id": claims.UserID}, &user); err != nil {
 		WriteJSON(w, http.StatusOK, map[string]any{"authenticated": false})
+		return
+	}
+
+	// ดักไว้หากถูกแบนระหว่างใช้งาน
+	if user.Status != nil && *user.Status == "banned" {
+		h.clearAuthCookie(w)
+		WriteJSON(w, http.StatusOK, map[string]any{"authenticated": false, "reason": "banned"})
 		return
 	}
 	
@@ -373,8 +426,6 @@ func (h *Handler) AuthResetPassword(w http.ResponseWriter, r *http.Request) {
 
 	WriteJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
-
-// ---- helpers ----
 
 func generateSixDigitCode() string {
 	b := make([]byte, 4)
