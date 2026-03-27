@@ -2,13 +2,14 @@ package handlers
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 )
 
-// Models สำหรับ Concert
+// Models
 type News struct {
 	ID       int    `json:"id"`
 	Title    string `json:"title"`
@@ -37,19 +38,21 @@ type BookSeatRequest struct {
 	SeatID    int `json:"seat_id"`
 }
 
-// 1. ดึงข่าวสารล่าสุด (Popup หน้าเว็บ)
+type MyBooking struct {
+	ID          int    `json:"id"`
+	ConcertName string `json:"concert_name"`
+	SeatCode    string `json:"seat_code"`
+	Status      string `json:"status"`
+}
+
+// 1. ดึงข่าวสารล่าสุด
 func (h *Handler) GetLatestNews(w http.ResponseWriter, r *http.Request) {
 	if h.ConcertDB == nil {
 		h.writeError(w, http.StatusInternalServerError, "Concert DB not configured")
 		return
 	}
-
 	var news News
-	err := h.ConcertDB.QueryRow(`
-		SELECT id, title, content, COALESCE(image_url, '') 
-		FROM news WHERE is_active = true ORDER BY created_at DESC LIMIT 1
-	`).Scan(&news.ID, &news.Title, &news.Content, &news.ImageURL)
-
+	err := h.ConcertDB.QueryRow(`SELECT id, title, content, COALESCE(image_url, '') FROM news WHERE is_active = true ORDER BY created_at DESC LIMIT 1`).Scan(&news.ID, &news.Title, &news.Content, &news.ImageURL)
 	if err == sql.ErrNoRows {
 		h.writeError(w, http.StatusNotFound, "No active news")
 		return
@@ -57,21 +60,12 @@ func (h *Handler) GetLatestNews(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusInternalServerError, "Database error")
 		return
 	}
-
 	WriteJSON(w, http.StatusOK, news)
 }
 
-// 2. ดึงรายการคอนเสิร์ต
+// 2. ดึงคอนเสิร์ต
 func (h *Handler) GetConcerts(w http.ResponseWriter, r *http.Request) {
-	if h.ConcertDB == nil {
-		h.writeError(w, http.StatusInternalServerError, "Concert DB not configured")
-		return
-	}
-
-	rows, err := h.ConcertDB.Query(`
-		SELECT id, name, show_date, venue, COALESCE(layout_image_url, '') 
-		FROM concerts ORDER BY show_date ASC
-	`)
+	rows, err := h.ConcertDB.Query(`SELECT id, name, show_date, venue, COALESCE(layout_image_url, '') FROM concerts ORDER BY show_date ASC`)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "Database error")
 		return
@@ -85,28 +79,14 @@ func (h *Handler) GetConcerts(w http.ResponseWriter, r *http.Request) {
 			concerts = append(concerts, c)
 		}
 	}
-
-	// ถ้า array ว่าง ให้ส่ง [] กลับไปแทนที่จะเป็น null
-	if concerts == nil {
-		concerts = []Concert{}
-	}
-
+	if concerts == nil { concerts = []Concert{} }
 	WriteJSON(w, http.StatusOK, concerts)
 }
 
-// 3. ดึงที่นั่งสำหรับคอนเสิร์ตที่ระบุ
+// 3. ดึงที่นั่ง
 func (h *Handler) GetConcertSeats(w http.ResponseWriter, r *http.Request) {
-	if h.ConcertDB == nil {
-		h.writeError(w, http.StatusInternalServerError, "Concert DB not configured")
-		return
-	}
-
 	concertID := chi.URLParam(r, "id")
-	rows, err := h.ConcertDB.Query(`
-		SELECT id, concert_id, seat_code, price, is_booked 
-		FROM seats WHERE concert_id = $1 ORDER BY seat_code ASC
-	`, concertID)
-	
+	rows, err := h.ConcertDB.Query(`SELECT id, concert_id, seat_code, price, is_booked FROM seats WHERE concert_id = $1 ORDER BY seat_code ASC`, concertID)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "Database error")
 		return
@@ -120,35 +100,24 @@ func (h *Handler) GetConcertSeats(w http.ResponseWriter, r *http.Request) {
 			seats = append(seats, s)
 		}
 	}
-
-	if seats == nil {
-		seats = []Seat{}
-	}
-
+	if seats == nil { seats = []Seat{} }
 	WriteJSON(w, http.StatusOK, seats)
 }
 
-// 4. ระบบจองที่นั่ง
+// 4. ระบบจองที่นั่ง (แก้บัค 500)
 func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
-	if h.ConcertDB == nil {
-		h.writeError(w, http.StatusInternalServerError, "Concert DB not configured")
-		return
-	}
-
 	var req BookSeatRequest
 	if err := ReadJSON(r, &req); err != nil {
-		h.writeError(w, http.StatusBadRequest, "Invalid request body")
+		h.writeError(w, http.StatusBadRequest, "Invalid request")
 		return
 	}
 
-	// ✅ แก้ไขตรงนี้: ใช้ GetUser(r) ซึ่งถูกแนบมาโดย RequireAuth Middleware แล้ว
 	u := GetUser(r)
 	if u == nil {
-		h.writeError(w, http.StatusUnauthorized, "Unauthorized to book")
+		h.writeError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
-	// ใช้ Transaction ป้องกันการจองซ้ำซ้อน
 	tx, err := h.ConcertDB.Begin()
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "Transaction error")
@@ -156,45 +125,112 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	// เช็คว่าที่นั่งว่างหรือไม่
 	var isBooked bool
-	err = tx.QueryRow(`
-		SELECT is_booked FROM seats WHERE id = $1 AND concert_id = $2 FOR UPDATE
-	`, req.SeatID, req.ConcertID).Scan(&isBooked)
-
-	if err != nil {
-		h.writeError(w, http.StatusNotFound, "Seat not found")
-		return
-	}
-	if isBooked {
-		h.writeError(w, http.StatusConflict, "Seat is already booked")
+	err = tx.QueryRow(`SELECT is_booked FROM seats WHERE id = $1 AND concert_id = $2 FOR UPDATE`, req.SeatID, req.ConcertID).Scan(&isBooked)
+	if err != nil || isBooked {
+		h.writeError(w, http.StatusConflict, "Seat unavailable")
 		return
 	}
 
-	// อัปเดตสถานะที่นั่ง
 	_, err = tx.Exec("UPDATE seats SET is_booked = true WHERE id = $1", req.SeatID)
 	if err != nil {
-		h.writeError(w, http.StatusInternalServerError, "Failed to update seat")
+		h.writeError(w, http.StatusInternalServerError, "Update failed")
 		return
 	}
 
-	// ✅ แก้ไขตรงนี้: ใช้ u.ID จาก GetUser(r)
-	_, err = tx.Exec(`
-		INSERT INTO bookings (user_id, concert_id, seat_id, status) 
-		VALUES ($1, $2, $3, 'confirmed')
-	`, u.ID, req.ConcertID, req.SeatID)
-	
+	// ✅ ใช้ fmt.Sprint(u.ID) แก้ปัญหา Type Mismatch
+	_, err = tx.Exec(`INSERT INTO bookings (user_id, concert_id, seat_id, status) VALUES ($1, $2, $3, 'confirmed')`, fmt.Sprint(u.ID), req.ConcertID, req.SeatID)
 	if err != nil {
-		h.writeError(w, http.StatusInternalServerError, "Failed to create booking")
+		h.writeError(w, http.StatusInternalServerError, "Insert booking failed")
+		return
+	}
+	tx.Commit()
+
+	WriteJSON(w, http.StatusCreated, map[string]string{"message": "success"})
+}
+
+// 5. ดึงประวัติการจองของตัวเอง (แก้ 404)
+func (h *Handler) GetMyBookings(w http.ResponseWriter, r *http.Request) {
+	u := GetUser(r)
+	if u == nil {
+		h.writeError(w, http.StatusUnauthorized, "Unauthorized")
 		return
 	}
 
-	if err = tx.Commit(); err != nil {
-		h.writeError(w, http.StatusInternalServerError, "Failed to commit transaction")
+	rows, err := h.ConcertDB.Query(`
+		SELECT b.id, c.name, s.seat_code, b.status 
+		FROM bookings b 
+		JOIN concerts c ON b.concert_id = c.id 
+		JOIN seats s ON b.seat_id = s.id 
+		WHERE b.user_id = $1 ORDER BY b.booked_at DESC
+	`, fmt.Sprint(u.ID))
+
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "DB error")
+		return
+	}
+	defer rows.Close()
+
+	var bookings []MyBooking
+	for rows.Next() {
+		var b MyBooking
+		if err := rows.Scan(&b.ID, &b.ConcertName, &b.SeatCode, &b.Status); err == nil {
+			bookings = append(bookings, b)
+		}
+	}
+	if bookings == nil { bookings = []MyBooking{} }
+	WriteJSON(w, http.StatusOK, bookings)
+}
+
+// ================= ADMIN FUNCTIONS =================
+
+// Admin: สร้างคอนเสิร์ต
+func (h *Handler) AdminCreateConcert(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Name           string `json:"name"`
+		Venue          string `json:"venue"`
+		ShowDate       string `json:"show_date"`
+		LayoutImageURL string `json:"layout_image_url"`
+	}
+	if err := ReadJSON(r, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "Invalid JSON")
 		return
 	}
 
-	WriteJSON(w, http.StatusCreated, map[string]string{
-		"message": "Booking successful",
-	})
+	var newID int
+	err := h.ConcertDB.QueryRow(`
+		INSERT INTO concerts (name, venue, show_date, layout_image_url) 
+		VALUES ($1, $2, $3, $4) RETURNING id
+	`, req.Name, req.Venue, req.ShowDate, req.LayoutImageURL).Scan(&newID)
+
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "Failed to create concert")
+		return
+	}
+
+	// สร้างที่นั่งจำลองให้คอนเสิร์ตใหม่ทันที
+	seats := []string{"A1", "A2", "B1", "B2"}
+	for _, sc := range seats {
+		h.ConcertDB.Exec(`INSERT INTO seats (concert_id, seat_code, price) VALUES ($1, $2, 1500.00)`, newID, sc)
+	}
+
+	WriteJSON(w, http.StatusCreated, map[string]any{"id": newID, "message": "Concert created"})
+}
+
+// Admin: สร้างข่าวสาร
+func (h *Handler) AdminCreateNews(w http.ResponseWriter, r *http.Request) {
+	var req News
+	if err := ReadJSON(r, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+	_, err := h.ConcertDB.Exec(`
+		INSERT INTO news (title, content, image_url, is_active) 
+		VALUES ($1, $2, $3, true)
+	`, req.Title, req.Content, req.ImageURL)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "Failed to create news")
+		return
+	}
+	WriteJSON(w, http.StatusCreated, map[string]string{"message": "News created"})
 }

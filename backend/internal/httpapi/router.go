@@ -88,14 +88,15 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 		ur.Delete("/me", h.UsersMeDelete)
 	})
 
-	// ✅ ---- Concerts (เพิ่มใหม่) ----
+	// ---- Concerts ----
 	r.Route("/api/concerts", func(cr chi.Router) {
 		cr.Get("/news/latest", h.GetLatestNews)
 		cr.Get("/list", h.GetConcerts)
 		cr.Get("/{id}/seats", h.GetConcertSeats)
 		
-		// ต้องผ่าน RequireAuth ก่อนถึงจะจองได้
 		cr.With(h.RequireAuth).Post("/book", h.BookSeat)
+		// ✅ เพิ่ม Route ดึงประวัติการจองของ User
+		cr.With(h.RequireAuth).Get("/my-bookings", h.GetMyBookings)
 	})
 
 	// ---- Admin ----
@@ -113,8 +114,9 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 
 		ad.Put("/homepage", h.HomepageUpdate)
 		
-		// เพิ่ม Route สำหรับให้ Admin จัดการ Concert ถ้าต้องการ
-		// ad.Post("/concerts/create", h.AdminConcertCreate)
+		// ✅ เพิ่ม Route สำหรับให้ Admin จัดการ Concert และ News
+		ad.Post("/concerts", h.AdminCreateConcert)
+		ad.Post("/news", h.AdminCreateNews)
 	})
 
 	return r
