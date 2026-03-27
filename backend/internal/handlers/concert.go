@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// ===== Models =====
+// ===== Models (รวมโครงสร้างเก่าและใหม่) =====
 type News struct {
 	ID        int       `json:"id"`
 	Title     string    `json:"title"`
@@ -286,15 +286,55 @@ func (h *Handler) AdminDeleteVenue(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ---------------- CONCERTS CRUD (Fixed DB Error checking) ----------------
 func (h *Handler) AdminCreateConcert(w http.ResponseWriter, r *http.Request) {
 	r.ParseMultipartForm(4 * 1024 * 1024)
-	h.ConcertDB.Exec(`INSERT INTO concerts (name, venue, venue_id, ticket_price, show_date) VALUES ($1, $2, $3, $4, $5)`, r.FormValue("name"), r.FormValue("venue"), r.FormValue("venue_id"), r.FormValue("ticket_price"), r.FormValue("show_date"))
+	name := r.FormValue("name")
+	venue := r.FormValue("venue")
+	venueID := r.FormValue("venue_id")
+	price := r.FormValue("ticket_price")
+	if price == "" { price = "0" } // ป้องกัน Error หากไม่มีราคา
+	showDate := r.FormValue("show_date")
+
+	var vID interface{}
+	if venueID == "" {
+		vID = nil // ป้องกัน Error empty string into integer
+	} else {
+		vID = venueID
+	}
+
+	_, err := h.ConcertDB.Exec(`INSERT INTO concerts (name, venue, venue_id, ticket_price, show_date) VALUES ($1, $2, $3, $4, $5)`, name, venue, vID, price, showDate)
+	if err != nil { 
+		h.writeError(w, http.StatusInternalServerError, "Failed to create concert: " + err.Error())
+		return 
+	}
+
 	WriteJSON(w, http.StatusCreated, map[string]string{"message": "Success"})
 }
 
 func (h *Handler) AdminUpdateConcert(w http.ResponseWriter, r *http.Request) {
 	r.ParseMultipartForm(4 * 1024 * 1024)
-	h.ConcertDB.Exec(`UPDATE concerts SET name=$1, venue=$2, venue_id=$3, ticket_price=$4, show_date=$5 WHERE id=$6`, r.FormValue("name"), r.FormValue("venue"), r.FormValue("venue_id"), r.FormValue("ticket_price"), r.FormValue("show_date"), chi.URLParam(r, "id"))
+	name := r.FormValue("name")
+	venue := r.FormValue("venue")
+	venueID := r.FormValue("venue_id")
+	price := r.FormValue("ticket_price")
+	if price == "" { price = "0" }
+	showDate := r.FormValue("show_date")
+	id := chi.URLParam(r, "id")
+
+	var vID interface{}
+	if venueID == "" {
+		vID = nil
+	} else {
+		vID = venueID
+	}
+
+	_, err := h.ConcertDB.Exec(`UPDATE concerts SET name=$1, venue=$2, venue_id=$3, ticket_price=$4, show_date=$5 WHERE id=$6`, name, venue, vID, price, showDate, id)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "Failed to update concert: " + err.Error())
+		return
+	}
+
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "Updated"})
 }
 
@@ -320,6 +360,7 @@ func (h *Handler) AdminSaveConcertSeats(w http.ResponseWriter, r *http.Request) 
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "Seats configured"})
 }
 
+// ---- News ----
 func (h *Handler) AdminGetNewsList(w http.ResponseWriter, r *http.Request) {
 	rows, _ := h.ConcertDB.Query(`SELECT id, title, content, COALESCE(image_url, ''), is_active, created_at FROM news ORDER BY created_at DESC`)
 	defer rows.Close()

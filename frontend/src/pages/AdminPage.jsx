@@ -9,6 +9,9 @@ export default function AdminPage() {
   const [news, setNews] = useState([]);
   const [venues, setVenues] = useState([]); 
 
+  const [editingConcert, setEditingConcert] = useState(null);
+  const [editingNews, setEditingNews] = useState(null);
+
   // Map Builder States
   const [mapConcert, setMapConcert] = useState(null);
   const [mapSvg, setMapSvg] = useState('');
@@ -46,6 +49,13 @@ export default function AdminPage() {
     } catch (e) { console.error(e); }
   };
 
+  const handleUpdateUserStatus = async (userId, status) => {
+    try {
+      await api.put(`/api/admin/users/${userId}`, { status });
+      alert("อัปเดตสถานะผู้ใช้สำเร็จ");
+    } catch (e) { alert("Error updating user"); }
+  };
+
   const handleCancelBooking = async (bookingId) => {
     if (window.confirm("ต้องการยกเลิกการจองนี้ใช่หรือไม่?")) {
       await api.put(`/api/admin/bookings/${bookingId}/cancel`);
@@ -76,16 +86,42 @@ export default function AdminPage() {
     }
   };
 
+  // --- เพิ่ม Headers ให้ครบถ้วน ป้องกันบัคส่ง Form Data ---
   const handleCreateConcert = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
     formData.set('show_date', new Date(formData.get('show_date')).toISOString());
     try {
-      await api.post('/api/admin/concerts', formData);
+      await api.post('/api/admin/concerts', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
       alert("สร้างคอนเสิร์ตสำเร็จ!");
       e.target.reset();
       fetchData();
+    } catch (err) { 
+      alert(err.response?.data?.error || "เกิดข้อผิดพลาดในการสร้างคอนเสิร์ต"); 
+    }
+  };
+
+  const handleUpdateConcert = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    formData.set('show_date', new Date(formData.get('show_date')).toISOString());
+    try {
+      await api.put(`/api/admin/concerts/${editingConcert.id}`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+      alert("แก้ไขคอนเสิร์ตสำเร็จ!");
+      setEditingConcert(null);
+      fetchData();
     } catch (err) { alert("เกิดข้อผิดพลาด"); }
+  };
+
+  const handleDeleteConcert = async (id) => {
+    if (window.confirm("ต้องการลบคอนเสิร์ตนี้?")) {
+      await api.delete(`/api/admin/concerts/${id}`);
+      fetchData();
+    }
   };
 
   // ================= MAP BUILDER LOGIC =================
@@ -125,7 +161,7 @@ export default function AdminPage() {
       seats.forEach(seat => {
         const seatId = seat.getAttribute('id');
         const config = seatConfigRef.current[seatId];
-        seat.style.fill = config ? config.color : '#334155'; // สีเริ่มต้น
+        seat.style.fill = config ? config.color : '#334155'; // สีเทา
         seat.style.cursor = 'crosshair';
         seat.style.transition = 'none';
 
@@ -166,7 +202,41 @@ export default function AdminPage() {
     } catch(e) { alert("เกิดข้อผิดพลาดในการบันทึก"); }
   };
 
-  // ---------------- UI ----------------
+  const handleCreateNews = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    try {
+      await api.post('/api/admin/news', formData, { headers: { 'Content-Type': 'multipart/form-data' }});
+      alert("สร้างประกาศสำเร็จ!");
+      e.target.reset();
+      fetchData();
+    } catch (err) { alert("เกิดข้อผิดพลาด"); }
+  };
+
+  const handleUpdateNews = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    try {
+      await api.put(`/api/admin/news/${editingNews.id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' }});
+      alert("แก้ไขประกาศสำเร็จ!");
+      setEditingNews(null);
+      fetchData();
+    } catch (err) { alert("เกิดข้อผิดพลาด"); }
+  };
+
+  const handleDeleteNews = async (id) => {
+    if (window.confirm("ต้องการลบประกาศนี้?")) {
+      await api.delete(`/api/admin/news/${id}`);
+      fetchData();
+    }
+  };
+
+  const formatDateForInput = (isoString) => {
+    if (!isoString) return '';
+    return new Date(isoString).toISOString().slice(0, 16);
+  };
+
+  // ---------------- UI MAP BUILDER ----------------
   if (mapConcert) {
     return (
       <div className="max-w-screen-2xl mx-auto p-4 bg-gray-50 min-h-screen select-none">
@@ -200,7 +270,7 @@ export default function AdminPage() {
             <p className="text-sm text-gray-500 mt-6 bg-gray-100 p-3 rounded">💡 <b>วิธีใช้:</b> เลือกสีโซนด้านบน จากนั้นคลิกหรือลากผ่านเก้าอี้บนแผนที่เพื่อเปิดขาย (คลิกซ้ำเพื่อยกเลิก)</p>
           </div>
 
-          <div className="w-full lg:w-3/4 bg-gray-900 p-6 shadow rounded border overflow-auto h-[700px] flex justify-center items-start cursor-crosshair">
+          <div className="w-full lg:w-3/4 bg-[#0f172a] p-6 shadow rounded border overflow-auto h-[700px] flex justify-center items-start cursor-crosshair">
             {mapSvg ? (
               <div ref={svgContainerRef} className="w-full max-w-[1200px]" dangerouslySetInnerHTML={{ __html: mapSvg }} />
             ) : (
@@ -212,6 +282,7 @@ export default function AdminPage() {
     );
   }
 
+  // ---------------- UI ADMIN DASHBOARD ----------------
   return (
     <div className="max-w-7xl mx-auto p-6 mt-6 bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700 min-h-[70vh]">
       <h2 className="text-3xl font-bold mb-6 dark:text-white border-b dark:border-gray-700 pb-4">Admin Dashboard</h2>
@@ -219,6 +290,8 @@ export default function AdminPage() {
         <button onClick={() => setActiveTab('venues')} className={`px-4 py-2 rounded-lg font-bold ${activeTab === 'venues' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 dark:text-gray-300'}`}>1. จัดการสถานที่ (SVG Map)</button>
         <button onClick={() => setActiveTab('concerts')} className={`px-4 py-2 rounded-lg font-bold ${activeTab === 'concerts' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 dark:text-gray-300'}`}>2. จัดการคอนเสิร์ต/ผังที่นั่ง</button>
         <button onClick={() => setActiveTab('bookings')} className={`px-4 py-2 rounded-lg font-bold ${activeTab === 'bookings' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 dark:text-gray-300'}`}>3. ดูการจองตั๋ว</button>
+        <button onClick={() => setActiveTab('users')} className={`px-4 py-2 rounded-lg font-bold ${activeTab === 'users' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 dark:text-gray-300'}`}>จัดการผู้ใช้</button>
+        <button onClick={() => setActiveTab('news')} className={`px-4 py-2 rounded-lg font-bold ${activeTab === 'news' ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-700 dark:text-gray-300'}`}>จัดการข่าวสาร</button>
       </div>
 
       {activeTab === 'venues' && (
@@ -246,24 +319,34 @@ export default function AdminPage() {
         <div className="space-y-8">
           <form onSubmit={handleCreateConcert} className="bg-gray-50 dark:bg-gray-900 p-6 rounded border shadow-sm dark:border-gray-700">
             <h3 className="text-xl font-bold mb-4 dark:text-white">+ สร้างคอนเสิร์ต</h3>
-            <div className="grid grid-cols-2 gap-4">
+            {/* แก้ไข Input ให้ครบถ้วนป้องกันข้อมูลขาดหาย */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <input type="text" name="name" placeholder="ชื่อคอนเสิร์ต" required className="p-2 border rounded dark:bg-gray-800 dark:text-white" />
+              <input type="text" name="venue" placeholder="สถานที่จัดงาน (ข้อความเผื่อไว้)" className="p-2 border rounded dark:bg-gray-800 dark:text-white" />
+              
               <select name="venue_id" required className="p-2 border rounded dark:bg-gray-800 dark:text-white">
                 <option value="">-- เลือกสถานที่ (SVG Map) --</option>
                 {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
               </select>
+              
+              <input type="number" name="ticket_price" placeholder="ราคาตั๋วเริ่มต้น (บาท)" required className="p-2 border rounded dark:bg-gray-800 dark:text-white" />
               <input type="datetime-local" name="show_date" required className="p-2 border rounded dark:bg-gray-800 dark:text-white" />
             </div>
-            <button type="submit" className="mt-4 bg-green-600 text-white font-bold py-2 px-6 rounded">สร้างคอนเสิร์ต</button>
+            <button type="submit" className="mt-4 bg-green-600 text-white font-bold py-2 px-6 rounded hover:bg-green-700">สร้างคอนเสิร์ต</button>
           </form>
+
           <div className="grid gap-4">
             {concerts.map(c => (
               <div key={c.id} className="bg-white dark:bg-gray-900 p-4 border dark:border-gray-700 rounded shadow-sm flex justify-between items-center border-l-4 border-blue-500">
                 <div>
                   <h4 className="font-bold text-xl dark:text-white">{c.name}</h4>
-                  <p className="text-gray-500">วันที่: {new Date(c.show_date).toLocaleDateString()}</p>
+                  <p className="text-sm text-gray-500">สถานที่: {c.venue_name} | วันที่: {new Date(c.show_date).toLocaleDateString()}</p>
                 </div>
-                <button onClick={() => openMapBuilder(c)} className="bg-purple-600 text-white px-6 py-3 rounded-lg font-black hover:bg-purple-700">🗺️ จัดการผังที่นั่ง</button>
+                <div className="flex gap-2">
+                  <button onClick={() => openMapBuilder(c)} className="bg-purple-600 text-white px-6 py-3 rounded-lg font-black hover:bg-purple-700 shadow transition">🗺️ จัดการผังที่นั่ง/ราคา</button>
+                  <button onClick={() => setEditingConcert(c)} className="bg-blue-600 text-white px-4 py-3 rounded-lg font-bold">แก้ไข</button>
+                  <button onClick={() => handleDeleteConcert(c.id)} className="bg-red-600 text-white px-4 py-3 rounded-lg font-bold">ลบ</button>
+                </div>
               </div>
             ))}
           </div>
@@ -277,21 +360,131 @@ export default function AdminPage() {
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-bold dark:text-gray-200">คอนเสิร์ต</th>
                 <th className="px-6 py-3 text-left text-sm font-bold dark:text-gray-200">รหัสที่นั่ง</th>
+                <th className="px-6 py-3 text-left text-sm font-bold dark:text-gray-200">ราคา</th>
+                <th className="px-6 py-3 text-left text-sm font-bold dark:text-gray-200">ผู้จอง (Email)</th>
                 <th className="px-6 py-3 text-left text-sm font-bold dark:text-gray-200">สถานะ</th>
                 <th className="px-6 py-3 text-left text-sm font-bold dark:text-gray-200">จัดการ</th>
               </tr>
             </thead>
             <tbody>
-              {bookings.map(b => (
-                <tr key={b.id} className="border-b dark:border-gray-700">
-                  <td className="px-6 py-4 font-bold dark:text-gray-300">{b.concert_name}</td>
-                  <td className="px-6 py-4 text-blue-600 font-bold">{b.seat_code} (฿{b.price})</td>
-                  <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-xs font-bold ${b.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{b.status}</span></td>
-                  <td className="px-6 py-4">{b.status === 'confirmed' && <button onClick={() => handleCancelBooking(b.id)} className="bg-red-500 text-white px-3 py-1 rounded text-sm">ยกเลิก</button>}</td>
+              {bookings.map(b => {
+                const user = users.find(u => String(u.id) === String(b.user_id));
+                return (
+                  <tr key={b.id} className="border-b dark:border-gray-700">
+                    <td className="px-6 py-4 font-bold dark:text-gray-300">{b.concert_name}</td>
+                    <td className="px-6 py-4 text-blue-600 font-bold">{b.seat_code || 'ระบบเก่า'}</td>
+                    <td className="px-6 py-4 dark:text-gray-300">฿{b.price}</td>
+                    <td className="px-6 py-4 dark:text-gray-300">{user ? user.email : `User ID: ${b.user_id}`}</td>
+                    <td className="px-6 py-4"><span className={`px-2 py-1 rounded text-xs font-bold ${b.status === 'confirmed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>{b.status}</span></td>
+                    <td className="px-6 py-4">{b.status === 'confirmed' && <button onClick={() => handleCancelBooking(b.id)} className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600">ยกเลิก</button>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* --- TAB: USERS --- */}
+      {activeTab === 'users' && (
+        <div className="overflow-x-auto">
+          <table className="min-w-full bg-white dark:bg-gray-900 rounded shadow">
+            <thead className="bg-gray-100 dark:bg-gray-700 border-b dark:border-gray-600">
+              <tr>
+                <th className="px-6 py-3 text-left text-sm font-bold dark:text-gray-200">Email</th>
+                <th className="px-6 py-3 text-left text-sm font-bold dark:text-gray-200">Role</th>
+                <th className="px-6 py-3 text-left text-sm font-bold dark:text-gray-200">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map(u => (
+                <tr key={u.id} className="border-b dark:border-gray-700">
+                  <td className="px-6 py-4 dark:text-gray-300">{u.email}</td>
+                  <td className="px-6 py-4 dark:text-gray-300">{u.role}</td>
+                  <td className="px-6 py-4">
+                    <select defaultValue={u.status || 'active'} onChange={(e) => handleUpdateUserStatus(u.id, e.target.value)} className="border rounded p-1 dark:bg-gray-800 dark:text-white outline-none">
+                      <option value="active">Active</option>
+                      <option value="suspended">Suspended</option>
+                      <option value="banned">Banned</option>
+                    </select>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* --- TAB: NEWS --- */}
+      {activeTab === 'news' && (
+        <div className="space-y-8">
+          <form onSubmit={handleCreateNews} className="bg-gray-50 dark:bg-gray-900 p-6 rounded border dark:border-gray-700">
+            <h3 className="text-xl font-bold dark:text-white mb-4">+ ประกาศข่าวสารใหม่</h3>
+            <div className="flex flex-col gap-4">
+              <input type="text" name="title" placeholder="หัวข้อข่าว" required className="p-2 border rounded dark:bg-gray-800 dark:text-white" />
+              <textarea name="content" placeholder="รายละเอียดข่าวสาร" required rows="3" className="p-2 border rounded dark:bg-gray-800 dark:text-white"></textarea>
+              <button type="submit" className="bg-blue-600 text-white font-bold py-2 px-6 rounded w-fit">ประกาศข่าว</button>
+            </div>
+          </form>
+
+          <h3 className="text-xl font-bold dark:text-white">ข่าวสารปัจจุบัน</h3>
+          <div className="grid gap-4">
+            {news.map(n => (
+              <div key={n.id} className="bg-white dark:bg-gray-900 p-4 border dark:border-gray-700 rounded flex justify-between items-center">
+                <div>
+                  <h4 className="font-bold dark:text-white">{n.title}</h4>
+                  <p className="text-sm text-gray-500">{new Date(n.created_at).toLocaleDateString()}</p>
+                </div>
+                <div className="flex space-x-2">
+                  <button onClick={() => setEditingNews(n)} className="bg-blue-600 text-white px-3 py-1 rounded text-sm">แก้ไข</button>
+                  <button onClick={() => handleDeleteNews(n.id)} className="bg-red-600 text-white px-3 py-1 rounded text-sm">ลบ</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* MODALS */}
+      {editingConcert && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+          <form onSubmit={handleUpdateConcert} className="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-lg w-full">
+            <h3 className="text-xl font-bold mb-4 dark:text-white">แก้ไขข้อมูลคอนเสิร์ต</h3>
+            <div className="flex flex-col gap-4">
+              <input type="text" name="name" defaultValue={editingConcert.name} required className="p-2 border rounded dark:bg-gray-700 dark:text-white" />
+              <input type="text" name="venue" defaultValue={editingConcert.venue || editingConcert.venue_name} placeholder="สถานที่ (ข้อความ)" className="p-2 border rounded dark:bg-gray-700 dark:text-white" />
+              <select name="venue_id" defaultValue={editingConcert.venue_id || ''} className="p-2 border rounded dark:bg-gray-700 dark:text-white">
+                <option value="">-- ไม่ใช้ SVG Map --</option>
+                {venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+              </select>
+              <input type="number" name="ticket_price" defaultValue={editingConcert.ticket_price} required className="p-2 border rounded dark:bg-gray-700 dark:text-white" />
+              <input type="datetime-local" name="show_date" defaultValue={formatDateForInput(editingConcert.show_date)} required className="p-2 border rounded dark:bg-gray-700 dark:text-white" />
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setEditingConcert(null)} className="px-4 py-2 bg-gray-300 rounded">ยกเลิก</button>
+              <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">บันทึก</button>
+            </div>
+          </form>
+        </div>
+      )}
+      
+      {editingNews && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+          <form onSubmit={handleUpdateNews} className="bg-white dark:bg-gray-800 p-6 rounded-lg max-w-lg w-full">
+            <h3 className="text-xl font-bold mb-4 dark:text-white">แก้ไขประกาศข่าวสาร</h3>
+            <div className="flex flex-col gap-4">
+              <input type="text" name="title" defaultValue={editingNews.title} required className="p-2 border rounded dark:bg-gray-700 dark:text-white" />
+              <textarea name="content" defaultValue={editingNews.content} required rows="4" className="p-2 border rounded dark:bg-gray-700 dark:text-white"></textarea>
+              <select name="is_active" defaultValue={editingNews.is_active} className="p-2 border rounded dark:bg-gray-700 dark:text-white">
+                <option value="true">เปิดใช้งาน</option>
+                <option value="false">ปิดใช้งาน</option>
+              </select>
+            </div>
+            <div className="mt-6 flex justify-end gap-3">
+              <button type="button" onClick={() => setEditingNews(null)} className="px-4 py-2 bg-gray-300 rounded">ยกเลิก</button>
+              <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">บันทึก</button>
+            </div>
+          </form>
         </div>
       )}
     </div>
