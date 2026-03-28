@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
-import InteractiveSeatMap from '../components/InteractiveSeatMap'; // Import Component ใหม่เข้ามา
+import InteractiveSeatMap from '../components/InteractiveSeatMap';
 
 export default function ConcertBookPage() {
   const { id } = useParams();
@@ -58,7 +58,6 @@ export default function ConcertBookPage() {
         </div>
       </div>
 
-      {/* เรียกใช้งาน Component แผนที่ และส่ง Props เข้าไป */}
       <InteractiveSeatMap 
         svgContent={svgContent}
         configuredSeats={configuredSeats}
@@ -67,10 +66,11 @@ export default function ConcertBookPage() {
         onSeatSelect={setSelectedSeat}
       />
 
+      {/* Legend คำอธิบายสถานะที่นั่ง */}
       <div className="flex gap-4 justify-center mt-4 text-sm font-bold dark:text-gray-300">
          <span className="flex items-center gap-1"><div className="w-4 h-4 bg-gray-400 rounded-full"></div> ที่นั่งโซนต่างๆ</span>
          <span className="flex items-center gap-1"><div className="w-4 h-4 bg-white border-2 border-red-500 rounded-full"></div> กำลังเลือก</span>
-         <span className="flex items-center gap-1"><div className="w-4 h-4 bg-gray-400 rounded-full opacity-30"></div> ถูกจองแล้ว</span>
+         <span className="flex items-center gap-1"><div className="w-4 h-4 bg-gray-400 opacity-40 rounded-full"></div> ถูกจองแล้ว</span>
       </div>
 
       <div className="bg-blue-50 dark:bg-gray-900 p-6 rounded-xl flex flex-col sm:flex-row justify-between items-center border border-blue-200 dark:border-gray-700 mt-6 shadow-md transition-all">
@@ -90,7 +90,7 @@ export default function ConcertBookPage() {
           disabled={!selectedSeat} 
           className={`px-12 py-4 rounded-xl font-black text-white text-lg transition-all duration-300 ${
             selectedSeat 
-            ? 'bg-green-600 hover:bg-green-700 hover:scale-105 shadow-xl hover:shadow-green-500/50' 
+            ? 'bg-green-600 hover:bg-green-700 hover:scale-105 shadow-xl hover:shadow-green-500/50 cursor-pointer' 
             : 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed opacity-70'
           }`}
         >

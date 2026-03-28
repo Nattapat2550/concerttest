@@ -41,7 +41,7 @@ export default function InteractiveSeatMap({
     return () => wrapper.removeEventListener('wheel', handleWheel);
   }, []);
 
-  // วาดสถานะที่นั่ง (เราแค่แปะ data-status แล้วให้ CSS จัดการสีให้ เพื่อไม่ให้ไปลบสีเดิมของ SVG)
+  // วาดสถานะที่นั่งและฝัง Event Click
   useEffect(() => {
     if (!svgContainerRef.current || !svgContent) return;
 
@@ -53,9 +53,10 @@ export default function InteractiveSeatMap({
       const seatId = seat.getAttribute('id');
       const config = configMap[seatId];
       
-      // ล้าง event เดิม
+      // ล้าง event เดิม ป้องกันบัคกดเบิ้ล
       seat.onclick = null;
 
+      // ถ้าไม่มีข้อมูลที่นั่งในระบบ ให้ซ่อนไปเลย
       if (!config) {
         seat.setAttribute('data-status', 'unavailable');
         return;
@@ -63,6 +64,11 @@ export default function InteractiveSeatMap({
 
       const isBooked = bookedSeats.includes(seatId);
       const isSelected = selectedSeat?.seat_code === seatId;
+
+      // ใส่สีดั้งเดิมของโซนตามที่ตั้งค่าไว้
+      if (config.color) {
+        seat.style.fill = config.color;
+      }
 
       if (isBooked) {
         seat.setAttribute('data-status', 'booked');
@@ -72,21 +78,25 @@ export default function InteractiveSeatMap({
         
         if (isSelected) {
           seat.setAttribute('data-selected', 'true');
+          // นำที่นั่งที่ถูกเลือกมาไว้ข้างหน้าสุด เพื่อไม่ให้ขอบโดนที่นั่งอื่นบัง
+          seat.parentNode.appendChild(seat);
         } else {
           seat.removeAttribute('data-selected');
         }
-
-        // กรณีแอดมินบังคับสีมา ค่อยเติมสีทับลงไป
-        if (config.color) {
-          seat.style.fill = config.color;
-        }
       }
 
-      // ฝัง Event การจองให้ชิ้นส่วน SVG โดยตรง (แก้ปัญหากดไม่ติด)
+      // ฝัง Event การจอง
       seat.onclick = (e) => {
+        // ถ้ากำลังลากแผนที่อยู่ จะไม่ถือว่าเป็นการคลิกจอง
         if (dragRef.current.isDragging) return;
         e.stopPropagation();
-        onSeatSelect(config);
+        
+        // ถ้ากดที่นั่งเดิมที่เลือกอยู่แล้ว ให้ยกเลิกการเลือก
+        if (selectedSeat?.seat_code === config.seat_code) {
+          onSeatSelect(null);
+        } else {
+          onSeatSelect(config);
+        }
       };
     });
   }, [svgContent, configuredSeats, bookedSeats, selectedSeat, onSeatSelect]);
@@ -102,6 +112,7 @@ export default function InteractiveSeatMap({
     const dx = e.clientX - dragRef.current.startX;
     const dy = e.clientY - dragRef.current.startY;
 
+    // ต้องลากเกิน 5px ถึงจะนับว่าเป็นการ Drag (กันคนมือสั่นตอนคลิก)
     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
       dragRef.current.isDragging = true;
       setPosition({ x: mapStart.x + dx, y: mapStart.y + dy });
@@ -109,7 +120,6 @@ export default function InteractiveSeatMap({
   };
 
   const handleMouseUp = () => {
-    // หน่วงเวลาเคลียร์เพื่อป้องกันการลากไปลั่นโดนการคลิก
     setTimeout(() => {
       dragRef.current = { isDragging: false, startX: null, startY: null };
     }, 50);
@@ -118,9 +128,9 @@ export default function InteractiveSeatMap({
   return (
     <div className="relative">
       <div className="absolute top-4 right-4 z-20 flex gap-2 bg-white/80 dark:bg-gray-800/80 p-2 rounded-lg shadow backdrop-blur-sm">
-        <button onClick={() => setScale(s => Math.max(0.5, s - 0.5))} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded font-bold hover:bg-gray-300">-</button>
-        <button onClick={() => { setScale(1); setPosition({x:0,y:0}); }} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded text-sm font-bold hover:bg-gray-300">RESET</button>
-        <button onClick={() => setScale(s => Math.min(8, s + 0.5))} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded font-bold hover:bg-gray-300">+</button>
+        <button onClick={() => setScale(s => Math.max(0.5, s - 0.5))} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded font-bold hover:bg-gray-300 transition">-</button>
+        <button onClick={() => { setScale(1); setPosition({x:0,y:0}); }} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded text-sm font-bold hover:bg-gray-300 transition">RESET</button>
+        <button onClick={() => setScale(s => Math.min(8, s + 0.5))} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded font-bold hover:bg-gray-300 transition">+</button>
       </div>
 
       <div className={`absolute top-4 left-1/2 -translate-x-1/2 bg-black/80 text-white px-5 py-2.5 rounded-full shadow-lg pointer-events-none z-20 font-bold text-sm transition-all duration-300 transform ${showZoomHint ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
@@ -137,43 +147,43 @@ export default function InteractiveSeatMap({
       >
         <style>
           {`
-            /* CSS จัดการทุกอย่างแทน JS ตรงนี้จะช่วยให้สี SVG ไม่หาย */
             .seat {
               transition: transform 0.15s ease, filter 0.15s ease, stroke 0.15s ease;
               transform-origin: center;
               transform-box: fill-box;
             }
 
-            /* ที่นั่งที่ไม่มีในระบบ (ซ่อน) */
+            /* 1. ที่นั่งที่ไม่มีในระบบ (ซ่อน) */
             .seat[data-status="unavailable"] {
-              opacity: 0;
-              pointer-events: none;
+              display: none !important;
             }
 
-            /* 1. ที่นั่งที่ว่าง (ชี้ได้) */
+            /* 2. ที่นั่งที่ว่าง (ชี้ได้) */
             .seat[data-status="available"] {
               opacity: 1;
               cursor: pointer;
               pointer-events: auto;
             }
 
-            /* 2. Hover ขยายใหญ่ (เฉพาะที่ว่าง) */
-            .seat[data-status="available"]:hover {
-              filter: brightness(1.3);
+            /* 3. Hover ขยายใหญ่ (เฉพาะที่ว่างและยังไม่ถูกเลือก) */
+            .seat[data-status="available"]:not([data-selected="true"]):hover {
+              filter: brightness(1.2);
               transform: scale(1.15) !important;
             }
 
-            /* 3. ที่นั่งถูกเลือก (รักษาสีเดิมไว้ เพิ่มแค่ขอบแดง) */
+            /* 4. ที่นั่งถูกเลือก (🔥 คงสีเดิมไว้ เพิ่มแค่ขอบแดงตามแท็บ) */
             .seat[data-selected="true"] {
-              stroke: #ef4444 !important;
+              stroke: #ef4444 !important; /* ขอบสีแดง */
               stroke-width: 4px !important;
-              transform: scale(1.2) !important;
+              transform: scale(1.25) !important;
+              filter: drop-shadow(0px 0px 4px rgba(239, 68, 68, 0.6));
+              /* ไม่มีการใส่คำสั่ง fill ตรงนี้ ทำให้สียังคงตามโซนเดิม */
             }
 
-            /* 4. ที่นั่งถูกจองแล้ว (บังคับเทา และคลิกไม่ได้) */
+            /* 5. ที่นั่งถูกจองแล้ว (บังคับเทา และคลิกไม่ได้) */
             .seat[data-status="booked"] {
-              fill: #475569 !important;
-              opacity: 0.3 !important;
+              fill: #9ca3af !important; /* เปลี่ยนเป็นสีเทา */
+              opacity: 0.4 !important;
               cursor: not-allowed !important;
               pointer-events: none !important;
               stroke: none !important;
@@ -187,7 +197,6 @@ export default function InteractiveSeatMap({
             <p className="text-gray-500 font-bold text-2xl text-center">แอดมินยังไม่ได้เปิดขายที่นั่ง<br/>สำหรับคอนเสิร์ตนี้</p>
           </div>
         ) : svgContent ? (
-          /* 🔥 จุดสำคัญที่แก้บัคตอนซูม: แยกกล่อง transform เอาไว้ด้านนอกกล่อง SVG เด็ดขาด 🔥 */
           <div 
             className="absolute origin-center w-full max-w-[1200px]"
             style={{ transform: `translate(${position.x}px, ${position.y}px) scale(${scale})` }}
