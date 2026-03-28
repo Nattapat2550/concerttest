@@ -2,9 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 
 export default function InteractiveSeatMap({
   svgContent,
-  configuredSeats,
-  bookedSeats,
-  selectedSeat,
+  configuredSeats = [], // ใส่ Default ป้องกัน Error ตอนโหลดข้อมูล
+  bookedSeats = [],
+  selectedSeat = null,
   onSeatSelect
 }) {
   const [scale, setScale] = useState(1);
@@ -42,7 +42,7 @@ export default function InteractiveSeatMap({
     return () => wrapper.removeEventListener('wheel', handleWheel);
   }, []);
 
-  // วาดสีที่นั่ง (สีคงเดิม เพิ่มแค่ขอบแดงเวลาถูกเลือก)
+  // จัดการสถานะและสีของที่นั่ง
   useEffect(() => {
     if (!svgContainerRef.current || !svgContent) return;
 
@@ -54,14 +54,12 @@ export default function InteractiveSeatMap({
       const seatId = seat.getAttribute('id');
       const config = configMap[seatId];
 
-      seat.style.transition = 'transform 0.15s ease, filter 0.15s ease, stroke 0.15s ease';
-      seat.style.transformOrigin = 'center';
-      
-      // ล้าง event เดิมทิ้ง ป้องกันบัคกดไม่ได้
+      // ล้าง event เดิมทิ้ง ป้องกันบัคกดไม่ได้จากตัว SVG เอง
       seat.onclick = null;
       seat.onmouseenter = null;
       seat.onmouseleave = null;
 
+      // ถ้าที่นั่งไม่มีในระบบ
       if (!config) {
         seat.style.opacity = '0';
         seat.style.pointerEvents = 'none';
@@ -72,38 +70,25 @@ export default function InteractiveSeatMap({
       const isSelected = selectedSeat?.seat_code === seatId;
 
       if (isBooked) {
-        // สถานะ: ถูกจองแล้ว (เทา/ทึบ)
+        // สถานะ: ถูกจองแล้ว 
         seat.setAttribute('data-status', 'booked');
+        seat.removeAttribute('data-selected');
+        // บังคับเปลี่ยนสีเป็นเทาเข้ม
         seat.style.fill = '#475569'; 
-        seat.style.opacity = '0.3';
-        seat.style.cursor = 'not-allowed';
-        seat.style.stroke = 'none';
-        seat.style.transform = 'scale(1)';
-        seat.style.pointerEvents = 'none'; // ป้องกันการคลิกซ้ำ
       } else {
         // สถานะ: ว่าง / กำลังเลือก
         seat.setAttribute('data-status', 'available');
-        seat.style.pointerEvents = 'auto';
         
-        // **ใช้สีเดิมของโซน** หรือถ้าไม่มีให้ปล่อยว่างเพื่อให้ใช้สีจาก SVG โดยตรง ไม่ใส่สีเทาทับ
+        // ถ้าถูกเลือก ให้ใส่ attribute สำหรับ CSS (สีเดิมจะยังคงอยู่ตาม SVG หรือที่เซ็ตไว้)
+        if (isSelected) {
+          seat.setAttribute('data-selected', 'true');
+        } else {
+          seat.removeAttribute('data-selected');
+        }
+
+        // หากมีสีที่ส่งมาจาก Database ให้ระบายสีนั้น แต่ถ้าไม่มีก็ไม่ต้องล้างค่า (ปล่อยให้เป็นสีเดิมของ SVG)
         if (config.color) {
           seat.style.fill = config.color;
-        } else {
-          seat.style.fill = ''; 
-        }
-        
-        seat.style.opacity = '1';
-        seat.style.cursor = 'pointer';
-
-        if (isSelected) {
-          // ถ้าถูกคลิกเลือก -> สียังคงเดิม แต่ใส่เส้นขอบสีแดงหนาๆ + ขยายใหญ่ขึ้น
-          seat.style.stroke = '#ef4444'; 
-          seat.style.strokeWidth = '4px';
-          seat.style.transform = 'scale(1.2)';
-        } else {
-          seat.style.stroke = 'none';
-          seat.style.strokeWidth = '0';
-          seat.style.transform = 'scale(1)';
         }
       }
     });
@@ -172,10 +157,38 @@ export default function InteractiveSeatMap({
       >
         <style>
           {`
-            /* เพิ่มลูกเล่นเวลาเอาเมาส์ชี้เฉพาะที่นั่งที่ว่าง */
-            .seat[data-status="available"]:hover {
+            /* ให้ transition ทำงานทุกที่นั่งจาก CSS ตรงๆ */
+            .seat {
+              transition: transform 0.15s ease, filter 0.15s ease, stroke 0.15s ease;
+              transform-origin: center;
+            }
+
+            /* 1. สถานะถูกจองแล้ว (เทา/ทึบ ไม่ให้กด) */
+            .seat[data-status="booked"] {
+              opacity: 0.3;
+              cursor: not-allowed !important;
+              pointer-events: none;
+              stroke: none;
+            }
+
+            /* 2. สถานะว่าง (ให้กดได้) */
+            .seat[data-status="available"] {
+              opacity: 1;
+              cursor: pointer;
+              pointer-events: auto;
+            }
+
+            /* 3. ลูกเล่น Hover เฉพาะที่นั่งว่าง ที่ยังไม่ได้ถูกคลิกเลือก */
+            .seat[data-status="available"]:not([data-selected="true"]):hover {
               filter: brightness(1.2);
               transform: scale(1.15) !important;
+            }
+
+            /* 4. ที่นั่งที่กำลังเลือก (สียังคงเดิม แต่เพิ่มขอบแดงและขยายใหญ่) */
+            .seat[data-selected="true"] {
+              stroke: #ef4444 !important;
+              stroke-width: 4px !important;
+              transform: scale(1.2) !important;
             }
           `}
         </style>
