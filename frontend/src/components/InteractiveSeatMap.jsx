@@ -12,11 +12,14 @@ export default function InteractiveSeatMap({
   const [mapStart, setMapStart] = useState({ x: 0, y: 0 });
   const [showZoomHint, setShowZoomHint] = useState(false);
 
-  // ใช้ null เพื่อป้องกันบัคพิกัด 0
   const dragRef = useRef({ isDragging: false, startX: null, startY: null });
   const scaleRef = useRef(1);
   const wrapperRef = useRef(null);
   const svgContainerRef = useRef(null);
+
+  // 🔥 ใช้ Ref เก็บฟังก์ชัน เพื่อไม่ให้ useEffect ทำงานซ้ำซ้อนเวลากดจอง
+  const onSeatSelectRef = useRef(onSeatSelect);
+  useEffect(() => { onSeatSelectRef.current = onSeatSelect; }, [onSeatSelect]);
 
   useEffect(() => { scaleRef.current = scale; }, [scale]);
 
@@ -42,7 +45,7 @@ export default function InteractiveSeatMap({
     return () => wrapper.removeEventListener('wheel', handleWheel);
   }, []);
 
-  // จัดการสถานะ สีของที่นั่ง และระบบการคลิก
+  // จัดการสถานะและสีของที่นั่ง
   useEffect(() => {
     if (!svgContainerRef.current || !svgContent) return;
 
@@ -54,10 +57,8 @@ export default function InteractiveSeatMap({
       const seatId = seat.getAttribute('id');
       const config = configMap[seatId];
 
-      // ล้าง event เก่าออกก่อนเสมอ (ป้องกันการทำงานซ้อนกันเวลาข้อมูลอัปเดต)
       seat.onclick = null;
 
-      // ถ้าที่นั่งไม่มีในระบบ
       if (!config) {
         seat.style.opacity = '0';
         seat.style.pointerEvents = 'none';
@@ -68,12 +69,10 @@ export default function InteractiveSeatMap({
       const isSelected = selectedSeat?.seat_code === seatId;
 
       if (isBooked) {
-        // สถานะ: ถูกจองแล้ว
         seat.setAttribute('data-status', 'booked');
         seat.removeAttribute('data-selected');
         seat.style.fill = '#475569'; 
       } else {
-        // สถานะ: ว่าง / กำลังเลือก
         seat.setAttribute('data-status', 'available');
         
         if (isSelected) {
@@ -86,18 +85,18 @@ export default function InteractiveSeatMap({
           seat.style.fill = config.color;
         }
 
-        // 🔥 ฝัง Event onClick ลงในชิ้นส่วน SVG โดยตรง (แม่นยำ 100%)
+        // ฝัง Event การจอง
         seat.onclick = (e) => {
-          // ถ้ากำลัง "ลาก" แผนที่อยู่ จะไม่นับว่าเป็นการคลิกจอง
           if (dragRef.current.isDragging) return;
-          
-          // หยุด Event ไม่ให้ทะลุไปโดนตัวจัดการลากแผนที่
           e.stopPropagation();
-          onSeatSelect(config);
+          if (onSeatSelectRef.current) {
+            onSeatSelectRef.current(config);
+          }
         };
       }
     });
-  }, [svgContent, configuredSeats, bookedSeats, selectedSeat, onSeatSelect]);
+  }, [svgContent, configuredSeats, bookedSeats, selectedSeat]); 
+  // เอา onSeatSelect ออกจาก Dependency ป้องกันการ Re-render ล้างค่า DOM
 
   // ระบบเช็ค การลากแผนที่
   const handleMouseDown = (e) => {
@@ -110,7 +109,6 @@ export default function InteractiveSeatMap({
     const dx = e.clientX - dragRef.current.startX;
     const dy = e.clientY - dragRef.current.startY;
 
-    // ถ้าเมาส์ขยับเกิน 5px ให้นับว่าเป็นการ "ลากแผนที่"
     if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
       dragRef.current.isDragging = true;
       setPosition({ x: mapStart.x + dx, y: mapStart.y + dy });
@@ -118,7 +116,6 @@ export default function InteractiveSeatMap({
   };
 
   const handleMouseUp = () => {
-    // หน่วงเวลาเคลียร์สถานะลาก 50ms เพื่อให้ onClick ด้านบนได้เช็คค่า isDragging ก่อน
     setTimeout(() => {
       dragRef.current = { isDragging: false, startX: null, startY: null };
     }, 50);
@@ -151,7 +148,6 @@ export default function InteractiveSeatMap({
               transform-origin: center;
             }
 
-            /* 1. สถานะถูกจองแล้ว (เทา/ทึบ ไม่ให้กด) */
             .seat[data-status="booked"] {
               opacity: 0.3;
               cursor: not-allowed !important;
@@ -159,20 +155,17 @@ export default function InteractiveSeatMap({
               stroke: none;
             }
 
-            /* 2. สถานะว่าง (ให้กดได้) */
             .seat[data-status="available"] {
               opacity: 1;
               cursor: pointer;
               pointer-events: auto;
             }
 
-            /* 3. ลูกเล่น Hover เฉพาะที่นั่งว่าง ที่ยังไม่ได้ถูกคลิกเลือก */
             .seat[data-status="available"]:not([data-selected="true"]):hover {
               filter: brightness(1.2);
               transform: scale(1.15) !important;
             }
 
-            /* 4. ที่นั่งที่กำลังเลือก (สียังคงเดิม แต่เพิ่มขอบแดงและขยายใหญ่) */
             .seat[data-selected="true"] {
               stroke: #ef4444 !important;
               stroke-width: 4px !important;
@@ -187,12 +180,17 @@ export default function InteractiveSeatMap({
             <p className="text-gray-500 font-bold text-2xl text-center">แอดมินยังไม่ได้เปิดขายที่นั่ง<br/>สำหรับคอนเสิร์ตนี้</p>
           </div>
         ) : svgContent ? (
+          // 🔥 แยก DIV ที่ใช้คุม Transform ขยับออกจาก DIV ที่ใส่ SVG เด็ดขาด 🔥
           <div 
-            ref={svgContainerRef}
             className="absolute origin-center w-full max-w-[1200px]"
             style={{ transform: `translate(${position.x}px, ${position.y}px) scale(${scale})` }}
-            dangerouslySetInnerHTML={{ __html: svgContent }} 
-          />
+          >
+            <div 
+              ref={svgContainerRef}
+              className="w-full h-full"
+              dangerouslySetInnerHTML={{ __html: svgContent }} 
+            />
+          </div>
         ) : (
           <p className="text-gray-400 font-bold text-xl">ไม่มีแผนผัง Interactive สำหรับคอนเสิร์ตนี้</p>
         )}
