@@ -9,10 +9,11 @@ export default function InteractiveSeatMap({
 }) {
   const containerRef = useRef(null);
   const transformWrapperRef = useRef(null);
+  const svgContainerRef = useRef(null); // เพิ่ม Ref ตัวนี้มาเพื่อเจาะจงที่ SVG โดยตรง
   const [showZoomHint, setShowZoomHint] = useState(false);
 
   const transform = useRef({ x: 0, y: 0, scale: 1 });
-  const dragState = useRef({ isDragging: false, startX: 0, startY: 0, mapStartX: 0, mapStartY: 0, startTime: 0 });
+  const dragState = useRef({ isDragging: false, startX: 0, startY: 0, mapStartX: 0, mapStartY: 0 });
 
   const applyTransform = () => {
     if (transformWrapperRef.current) {
@@ -20,11 +21,11 @@ export default function InteractiveSeatMap({
     }
   };
 
-  // --- 1. ระบบ CSS ---
+  // --- 1. ระบบจัดการสีและสไตล์ (ทำงานสมบูรณ์แล้ว) ---
   const generatedStyles = useMemo(() => {
     let css = `
       .svg-container svg { width: 100% !important; height: 100% !important; object-fit: contain; max-height: 650px; }
-      .seat { transition: filter 0.1s ease, stroke 0.1s ease; cursor: pointer; pointer-events: auto; transform-box: fill-box; }
+      .seat { transition: filter 0.1s ease, stroke 0.1s ease; cursor: pointer; transform-box: fill-box; }
       .seat:hover { filter: brightness(1.4); stroke: #ffffff; stroke-width: 2px; }
       .seat { display: none !important; }
     `;
@@ -45,11 +46,53 @@ export default function InteractiveSeatMap({
         }
       }
     });
-
     return css;
   }, [configuredSeats, bookedSeats, selectedSeat]);
 
-  // --- 2. ระบบ Zoom ---
+  // --- 2. 🔴 ระบบคลิกใหม่ล่าสุด (Native DOM Events Bypass React) 🔴 ---
+  useEffect(() => {
+    if (!svgContainerRef.current || !svgContent) return;
+
+    // ค้นหาที่นั่งทุกจุดในแผนที่
+    const seats = svgContainerRef.current.querySelectorAll('.seat');
+
+    // ฟังก์ชันจองที่ยิงตรงเข้าที่นั่ง ไม่สนใจการสเกล
+    const handleSeatClick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // ถ้ากำลังใช้เมาส์ไถลากแผนที่อยู่ ห้ามกดจอง
+      if (dragState.current.isDragging) return;
+
+      const seatId = e.currentTarget.getAttribute('id');
+      if (!seatId || bookedSeats.includes(seatId)) return;
+
+      const config = configuredSeats.find(s => s.seat_code === seatId);
+      if (config) {
+        if (selectedSeat?.seat_code === seatId) {
+          onSeatSelect(null);
+        } else {
+          onSeatSelect(config);
+        }
+      }
+    };
+
+    // ฝัง Event 'click' และ 'touchend' เข้าไปในชิ้นส่วนที่นั่งโดยตรง
+    seats.forEach(seat => {
+      seat.addEventListener('click', handleSeatClick);
+      seat.addEventListener('touchend', handleSeatClick); // รองรับมือถือ/ไอแพด
+    });
+
+    // คลีนอัพ Event เก่าทิ้งเมื่อข้อมูลเปลี่ยน
+    return () => {
+      seats.forEach(seat => {
+        seat.removeEventListener('click', handleSeatClick);
+        seat.removeEventListener('touchend', handleSeatClick);
+      });
+    };
+  }, [svgContent, configuredSeats, bookedSeats, selectedSeat, onSeatSelect]);
+
+  // --- 3. ระบบซูมแผนที่ ---
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -64,7 +107,6 @@ export default function InteractiveSeatMap({
           transform.current.x = 0;
           transform.current.y = 0;
         }
-        
         transform.current.scale = newScale;
         applyTransform();
         setShowZoomHint(false);
@@ -78,27 +120,26 @@ export default function InteractiveSeatMap({
     return () => container.removeEventListener('wheel', handleWheel);
   }, []);
 
-  // --- 3. ระบบ Pointer ---
+  // --- 4. ระบบลากและจัดการเมาส์ ---
   const handlePointerDown = (e) => {
+    if (transform.current.scale <= 1) return;
     dragState.current = {
       isDragging: false,
       startX: e.clientX,
       startY: e.clientY,
       mapStartX: transform.current.x,
-      mapStartY: transform.current.y,
-      startTime: Date.now()
+      mapStartY: transform.current.y
     };
   };
 
   const handlePointerMove = (e) => {
-    // e.buttons === 1 เช็คว่ากำลังกดคลิกซ้ายค้างไว้หรือไม่
     if (transform.current.scale <= 1 || e.buttons !== 1) return;
     
     const dx = e.clientX - dragState.current.startX;
     const dy = e.clientY - dragState.current.startY;
 
-    // เผื่อระยะมือสั่นตอนลาก 8px
-    if (!dragState.current.isDragging && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+    // ต้องลากเกิน 5px เบราว์เซอร์ถึงจะมองว่า "ลาก" เพื่อป้องกันมือสั่นตอนคลิก
+    if (!dragState.current.isDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
       dragState.current.isDragging = true;
     }
 
@@ -109,34 +150,14 @@ export default function InteractiveSeatMap({
     }
   };
 
-  // --- 4. ระบบกดคลิก (ถอด Pointer Capture ออกเพื่อไม่ให้บังการกด) ---
-  const handleMapClick = (e) => {
-    const isDrag = dragState.current.isDragging;
-    const clickDuration = Date.now() - dragState.current.startTime;
-
-    // รีเซ็ตสถานะการลากทันทีหลังกดเสร็จ
-    dragState.current.isDragging = false;
-
-    // ถ้าเป็นการลาก หรือกดเมาส์แช่นานเกิน 400ms ให้ข้ามไป
-    if (isDrag || clickDuration > 400) return;
-
-    // หา element `.seat` ที่ถูกคลิก
-    const seatNode = e.target.closest('.seat');
-    if (!seatNode) return;
-
-    const seatId = seatNode.getAttribute('id');
-    if (!seatId || bookedSeats.includes(seatId)) return;
-
-    const config = configuredSeats.find(s => s.seat_code === seatId);
-    if (config) {
-      if (selectedSeat?.seat_code === seatId) {
-        onSeatSelect(null);
-      } else {
-        onSeatSelect(config);
-      }
-    }
+  const handlePointerUp = () => {
+    // หน่วงเวลาเคลียร์สถานะ 50ms ป้องกันคลิกเด้งซ้อนกัน
+    setTimeout(() => {
+      dragState.current.isDragging = false;
+    }, 50);
   };
 
+  // ปุ่มคอนโทรล UI
   const handleZoomIn = () => { transform.current.scale = Math.min(transform.current.scale + 0.5, 10); applyTransform(); };
   const handleZoomOut = () => { 
     transform.current.scale = Math.max(transform.current.scale - 0.5, 1); 
@@ -164,7 +185,8 @@ export default function InteractiveSeatMap({
         className="bg-[#0f172a] rounded-xl flex items-center justify-center border dark:border-gray-600 shadow-inner overflow-hidden relative h-[650px] touch-none cursor-grab active:cursor-grabbing"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
-        onClick={handleMapClick}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
       >
         {configuredSeats.length === 0 ? (
           <div className="flex flex-col items-center justify-center absolute z-10 pointer-events-none">
@@ -174,9 +196,11 @@ export default function InteractiveSeatMap({
         ) : svgContent ? (
           <div 
             ref={transformWrapperRef}
-            className="w-full h-full origin-center transition-transform duration-75 ease-out will-change-transform flex items-center justify-center"
+            className="w-full h-full origin-center will-change-transform flex items-center justify-center"
           >
+            {/* โฟกัสตรงนี้: เอา onClick ออกจากกล่อง แล้วย้ายไปฝังใน DOM ของเก้าอี้โดยตรงด้านบน */}
             <div 
+              ref={svgContainerRef}
               className="svg-container w-full h-full"
               dangerouslySetInnerHTML={{ __html: svgContent }} 
             />
