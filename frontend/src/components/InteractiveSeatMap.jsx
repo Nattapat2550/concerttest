@@ -20,7 +20,7 @@ export default function InteractiveSeatMap({
     }
   };
 
-  // --- 1. ระบบ CSS (คงเดิม เพราะแก้ปัญหาสีหายได้ 100% แล้ว) ---
+  // --- 1. ระบบ CSS ---
   const generatedStyles = useMemo(() => {
     let css = `
       .svg-container svg { width: 100% !important; height: 100% !important; object-fit: contain; max-height: 650px; }
@@ -78,70 +78,62 @@ export default function InteractiveSeatMap({
     return () => container.removeEventListener('wheel', handleWheel);
   }, []);
 
-  // --- 3. ระบบ Pointer (แก้บัคเรื่องเวลาคลิกที่นี่) ---
+  // --- 3. ระบบ Pointer ---
   const handlePointerDown = (e) => {
-    // 🔴 แก้แล้ว: บันทึกค่าเสมอ ไม่ว่าสเกลจะเป็นเท่าไหร่ก็ตาม
     dragState.current = {
       isDragging: false,
       startX: e.clientX,
       startY: e.clientY,
       mapStartX: transform.current.x,
       mapStartY: transform.current.y,
-      startTime: Date.now() // บันทึกเวลาเริ่มกดเมาส์
+      startTime: Date.now()
     };
-    
-    // ยึดเมาส์ไว้เฉพาะตอนซูม เพื่อให้ลากได้
-    if (transform.current.scale > 1) {
-      e.currentTarget.setPointerCapture(e.pointerId);
-    }
   };
 
   const handlePointerMove = (e) => {
-    if (transform.current.scale <= 1 || !e.buttons) return;
+    // e.buttons === 1 เช็คว่ากำลังกดคลิกซ้ายค้างไว้หรือไม่
+    if (transform.current.scale <= 1 || e.buttons !== 1) return;
     
     const dx = e.clientX - dragState.current.startX;
     const dy = e.clientY - dragState.current.startY;
 
-    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+    // เผื่อระยะมือสั่นตอนลาก 8px
+    if (!dragState.current.isDragging && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
       dragState.current.isDragging = true;
+    }
+
+    if (dragState.current.isDragging) {
       transform.current.x = dragState.current.mapStartX + dx;
       transform.current.y = dragState.current.mapStartY + dy;
       applyTransform();
     }
   };
 
-  const handlePointerUp = (e) => {
-    e.currentTarget.releasePointerCapture(e.pointerId);
-  };
-
-  // --- 4. ระบบกดคลิก (ทำงานได้ 100% แล้ว) ---
+  // --- 4. ระบบกดคลิก (ถอด Pointer Capture ออกเพื่อไม่ให้บังการกด) ---
   const handleMapClick = (e) => {
     const isDrag = dragState.current.isDragging;
     const clickDuration = Date.now() - dragState.current.startTime;
 
-    console.log(`[Debug] เช็คการคลิก: ลากไหม?=${isDrag}, เวลากด=${clickDuration}ms`);
+    // รีเซ็ตสถานะการลากทันทีหลังกดเสร็จ
+    dragState.current.isDragging = false;
 
-    // ถ้าลากอยู่ หรือกดแช่เกิน 400ms ให้ข้ามไป
+    // ถ้าเป็นการลาก หรือกดเมาส์แช่นานเกิน 400ms ให้ข้ามไป
     if (isDrag || clickDuration > 400) return;
 
+    // หา element `.seat` ที่ถูกคลิก
     const seatNode = e.target.closest('.seat');
     if (!seatNode) return;
 
     const seatId = seatNode.getAttribute('id');
-    console.log(`[Debug] กดโดนที่นั่ง ID: ${seatId}`);
-
     if (!seatId || bookedSeats.includes(seatId)) return;
 
     const config = configuredSeats.find(s => s.seat_code === seatId);
     if (config) {
-      console.log(`[Debug] เจอในระบบ! ส่งคำสั่งจอง:`, config.seat_code);
       if (selectedSeat?.seat_code === seatId) {
         onSeatSelect(null);
       } else {
         onSeatSelect(config);
       }
-    } else {
-      console.warn(`[Debug] ❌ ไม่พบรหัส ${seatId} ใน Database`);
     }
   };
 
@@ -172,8 +164,6 @@ export default function InteractiveSeatMap({
         className="bg-[#0f172a] rounded-xl flex items-center justify-center border dark:border-gray-600 shadow-inner overflow-hidden relative h-[650px] touch-none cursor-grab active:cursor-grabbing"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
         onClick={handleMapClick}
       >
         {configuredSeats.length === 0 ? (
