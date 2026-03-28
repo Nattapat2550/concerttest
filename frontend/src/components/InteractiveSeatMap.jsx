@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 
 export default function InteractiveSeatMap({
   svgContent,
-  configuredSeats = [], // ใส่ Default ป้องกัน Error ตอนโหลดข้อมูล
+  configuredSeats = [],
   bookedSeats = [],
   selectedSeat = null,
   onSeatSelect
@@ -12,8 +12,8 @@ export default function InteractiveSeatMap({
   const [mapStart, setMapStart] = useState({ x: 0, y: 0 });
   const [showZoomHint, setShowZoomHint] = useState(false);
 
-  // ใช้ ref ตัวเดียวคุมทั้งการลากและการคลิก
-  const dragRef = useRef({ isDragging: false, startX: 0, startY: 0 });
+  // ใช้ null เพื่อป้องกันบัคพิกัด 0
+  const dragRef = useRef({ isDragging: false, startX: null, startY: null });
   const scaleRef = useRef(1);
   const wrapperRef = useRef(null);
   const svgContainerRef = useRef(null);
@@ -42,7 +42,7 @@ export default function InteractiveSeatMap({
     return () => wrapper.removeEventListener('wheel', handleWheel);
   }, []);
 
-  // จัดการสถานะและสีของที่นั่ง
+  // จัดการสถานะ สีของที่นั่ง และระบบการคลิก
   useEffect(() => {
     if (!svgContainerRef.current || !svgContent) return;
 
@@ -54,10 +54,8 @@ export default function InteractiveSeatMap({
       const seatId = seat.getAttribute('id');
       const config = configMap[seatId];
 
-      // ล้าง event เดิมทิ้ง ป้องกันบัคกดไม่ได้จากตัว SVG เอง
+      // ล้าง event เก่าออกก่อนเสมอ (ป้องกันการทำงานซ้อนกันเวลาข้อมูลอัปเดต)
       seat.onclick = null;
-      seat.onmouseenter = null;
-      seat.onmouseleave = null;
 
       // ถ้าที่นั่งไม่มีในระบบ
       if (!config) {
@@ -70,38 +68,45 @@ export default function InteractiveSeatMap({
       const isSelected = selectedSeat?.seat_code === seatId;
 
       if (isBooked) {
-        // สถานะ: ถูกจองแล้ว 
+        // สถานะ: ถูกจองแล้ว
         seat.setAttribute('data-status', 'booked');
         seat.removeAttribute('data-selected');
-        // บังคับเปลี่ยนสีเป็นเทาเข้ม
         seat.style.fill = '#475569'; 
       } else {
         // สถานะ: ว่าง / กำลังเลือก
         seat.setAttribute('data-status', 'available');
         
-        // ถ้าถูกเลือก ให้ใส่ attribute สำหรับ CSS (สีเดิมจะยังคงอยู่ตาม SVG หรือที่เซ็ตไว้)
         if (isSelected) {
           seat.setAttribute('data-selected', 'true');
         } else {
           seat.removeAttribute('data-selected');
         }
 
-        // หากมีสีที่ส่งมาจาก Database ให้ระบายสีนั้น แต่ถ้าไม่มีก็ไม่ต้องล้างค่า (ปล่อยให้เป็นสีเดิมของ SVG)
         if (config.color) {
           seat.style.fill = config.color;
         }
+
+        // 🔥 ฝัง Event onClick ลงในชิ้นส่วน SVG โดยตรง (แม่นยำ 100%)
+        seat.onclick = (e) => {
+          // ถ้ากำลัง "ลาก" แผนที่อยู่ จะไม่นับว่าเป็นการคลิกจอง
+          if (dragRef.current.isDragging) return;
+          
+          // หยุด Event ไม่ให้ทะลุไปโดนตัวจัดการลากแผนที่
+          e.stopPropagation();
+          onSeatSelect(config);
+        };
       }
     });
-  }, [svgContent, configuredSeats, bookedSeats, selectedSeat]);
+  }, [svgContent, configuredSeats, bookedSeats, selectedSeat, onSeatSelect]);
 
-  // ระบบเช็ค การลาก vs การคลิก (แม่นยำ 100%)
+  // ระบบเช็ค การลากแผนที่
   const handleMouseDown = (e) => {
     dragRef.current = { isDragging: false, startX: e.clientX, startY: e.clientY };
     setMapStart({ x: position.x, y: position.y });
   };
 
   const handleMouseMove = (e) => {
-    if (!dragRef.current.startX) return;
+    if (dragRef.current.startX === null) return;
     const dx = e.clientX - dragRef.current.startX;
     const dy = e.clientY - dragRef.current.startY;
 
@@ -112,27 +117,11 @@ export default function InteractiveSeatMap({
     }
   };
 
-  const handleMouseUp = (e) => {
-    if (!dragRef.current.startX) return;
-
-    // ถ้านี่ไม่ใช่การลาก = ผู้ใช้ตั้งใจ "คลิก"
-    if (!dragRef.current.isDragging) {
-      // ค้นหาที่นั่งที่ถูกคลิก
-      const seatEl = e.target.closest('.seat');
-      if (seatEl) {
-        const status = seatEl.getAttribute('data-status');
-        if (status === 'available') {
-          const seatId = seatEl.getAttribute('id');
-          const config = configuredSeats.find(s => s.seat_code === seatId);
-          if (config) {
-            onSeatSelect(config); // สั่งจองที่นั่งส่งไปอัปเดตข้างนอก
-          }
-        }
-      }
-    }
-
-    // เคลียร์ค่าเมาส์
-    dragRef.current = { isDragging: false, startX: 0, startY: 0 };
+  const handleMouseUp = () => {
+    // หน่วงเวลาเคลียร์สถานะลาก 50ms เพื่อให้ onClick ด้านบนได้เช็คค่า isDragging ก่อน
+    setTimeout(() => {
+      dragRef.current = { isDragging: false, startX: null, startY: null };
+    }, 50);
   };
 
   return (
@@ -157,7 +146,6 @@ export default function InteractiveSeatMap({
       >
         <style>
           {`
-            /* ให้ transition ทำงานทุกที่นั่งจาก CSS ตรงๆ */
             .seat {
               transition: transform 0.15s ease, filter 0.15s ease, stroke 0.15s ease;
               transform-origin: center;
