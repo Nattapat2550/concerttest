@@ -12,14 +12,11 @@ export default function InteractiveSeatMap({
   const [mapStart, setMapStart] = useState({ x: 0, y: 0 });
   const [showZoomHint, setShowZoomHint] = useState(false);
 
+  // เปลี่ยนค่าเริ่มต้นเป็น null เพื่อแก้บัคคลิกที่ขอบจอซ้ายสุด (x=0)
   const dragRef = useRef({ isDragging: false, startX: null, startY: null });
   const scaleRef = useRef(1);
   const wrapperRef = useRef(null);
   const svgContainerRef = useRef(null);
-
-  // 🔥 ใช้ Ref เก็บฟังก์ชัน เพื่อไม่ให้ useEffect ทำงานซ้ำซ้อนเวลากดจอง
-  const onSeatSelectRef = useRef(onSeatSelect);
-  useEffect(() => { onSeatSelectRef.current = onSeatSelect; }, [onSeatSelect]);
 
   useEffect(() => { scaleRef.current = scale; }, [scale]);
 
@@ -45,7 +42,7 @@ export default function InteractiveSeatMap({
     return () => wrapper.removeEventListener('wheel', handleWheel);
   }, []);
 
-  // จัดการสถานะและสีของที่นั่ง
+  // วาดสถานะที่นั่ง (เราแค่ใส่ Data Attribute ส่วนสีจะถูกคุมด้วย CSS ด้านล่าง)
   useEffect(() => {
     if (!svgContainerRef.current || !svgContent) return;
 
@@ -56,8 +53,11 @@ export default function InteractiveSeatMap({
     seats.forEach(seat => {
       const seatId = seat.getAttribute('id');
       const config = configMap[seatId];
-
+      
+      // ล้าง event เดิมทิ้ง
       seat.onclick = null;
+      seat.onmouseenter = null;
+      seat.onmouseleave = null;
 
       if (!config) {
         seat.style.opacity = '0';
@@ -68,11 +68,17 @@ export default function InteractiveSeatMap({
       const isBooked = bookedSeats.includes(seatId);
       const isSelected = selectedSeat?.seat_code === seatId;
 
+      // ถ้าแอดมินเซ็ตสีมาจากระบบหลังบ้าน ค่อยบังคับใช้สีนั้น (ปกติไม่มี จะได้ใช้สีแท้จาก SVG)
+      if (config.color) {
+        seat.style.fill = config.color;
+      }
+
       if (isBooked) {
+        // สถานะ: ถูกจองแล้ว
         seat.setAttribute('data-status', 'booked');
         seat.removeAttribute('data-selected');
-        seat.style.fill = '#475569'; 
       } else {
+        // สถานะ: ว่าง / กำลังเลือก
         seat.setAttribute('data-status', 'available');
         
         if (isSelected) {
@@ -80,25 +86,11 @@ export default function InteractiveSeatMap({
         } else {
           seat.removeAttribute('data-selected');
         }
-
-        if (config.color) {
-          seat.style.fill = config.color;
-        }
-
-        // ฝัง Event การจอง
-        seat.onclick = (e) => {
-          if (dragRef.current.isDragging) return;
-          e.stopPropagation();
-          if (onSeatSelectRef.current) {
-            onSeatSelectRef.current(config);
-          }
-        };
       }
     });
-  }, [svgContent, configuredSeats, bookedSeats, selectedSeat]); 
-  // เอา onSeatSelect ออกจาก Dependency ป้องกันการ Re-render ล้างค่า DOM
+  }, [svgContent, configuredSeats, bookedSeats, selectedSeat]);
 
-  // ระบบเช็ค การลากแผนที่
+  // ระบบเช็ค การลาก vs การคลิก
   const handleMouseDown = (e) => {
     dragRef.current = { isDragging: false, startX: e.clientX, startY: e.clientY };
     setMapStart({ x: position.x, y: position.y });
@@ -115,10 +107,25 @@ export default function InteractiveSeatMap({
     }
   };
 
-  const handleMouseUp = () => {
-    setTimeout(() => {
-      dragRef.current = { isDragging: false, startX: null, startY: null };
-    }, 50);
+  const handleMouseUp = (e) => {
+    if (dragRef.current.startX === null) return;
+
+    // ถ้านี่ไม่ใช่การลาก = ผู้ใช้ตั้งใจ "คลิก"
+    if (!dragRef.current.isDragging) {
+      const seatEl = e.target.closest('.seat');
+      if (seatEl) {
+        const status = seatEl.getAttribute('data-status');
+        if (status === 'available') {
+          const seatId = seatEl.getAttribute('id');
+          const config = configuredSeats.find(s => s.seat_code === seatId);
+          if (config) {
+            onSeatSelect(config); 
+          }
+        }
+      }
+    }
+
+    dragRef.current = { isDragging: false, startX: null, startY: null };
   };
 
   return (
@@ -143,33 +150,40 @@ export default function InteractiveSeatMap({
       >
         <style>
           {`
+            /* ควบคุม Animation และพฤติกรรมของที่นั่ง */
             .seat {
               transition: transform 0.15s ease, filter 0.15s ease, stroke 0.15s ease;
               transform-origin: center;
+              transform-box: fill-box; /* ทำให้การซูมชิ้นส่วน SVG แม่นยำตรงกลางเสมอ */
             }
 
-            .seat[data-status="booked"] {
-              opacity: 0.3;
-              cursor: not-allowed !important;
-              pointer-events: none;
-              stroke: none;
-            }
-
+            /* 1. ที่นั่งที่ว่าง (ชี้ได้) */
             .seat[data-status="available"] {
               opacity: 1;
               cursor: pointer;
               pointer-events: auto;
             }
 
+            /* 2. Hover เฉพาะที่นั่งว่างที่ยังไม่ถูกคลิก */
             .seat[data-status="available"]:not([data-selected="true"]):hover {
-              filter: brightness(1.2);
-              transform: scale(1.15) !important;
+              filter: brightness(1.3);
+              transform: scale(1.15);
             }
 
+            /* 3. ที่นั่งถูกเลือก (รักษาสีเดิม เพิ่มขอบแดงหนา) */
             .seat[data-selected="true"] {
               stroke: #ef4444 !important;
               stroke-width: 4px !important;
-              transform: scale(1.2) !important;
+              transform: scale(1.2);
+            }
+
+            /* 4. ที่นั่งถูกจองแล้ว (บังคับเทา และกดไม่ได้) */
+            .seat[data-status="booked"] {
+              fill: #475569 !important;
+              opacity: 0.3;
+              cursor: not-allowed !important;
+              pointer-events: none !important;
+              stroke: none !important;
             }
           `}
         </style>
@@ -180,7 +194,7 @@ export default function InteractiveSeatMap({
             <p className="text-gray-500 font-bold text-2xl text-center">แอดมินยังไม่ได้เปิดขายที่นั่ง<br/>สำหรับคอนเสิร์ตนี้</p>
           </div>
         ) : svgContent ? (
-          // 🔥 แยก DIV ที่ใช้คุม Transform ขยับออกจาก DIV ที่ใส่ SVG เด็ดขาด 🔥
+          /* 🔥 แยกกล่องควบคุมการ Zoom (transform) ออกจากกล่อง SVG เด็ดขาด ป้องกัน React ล้างค่า DOM 🔥 */
           <div 
             className="absolute origin-center w-full max-w-[1200px]"
             style={{ transform: `translate(${position.x}px, ${position.y}px) scale(${scale})` }}
