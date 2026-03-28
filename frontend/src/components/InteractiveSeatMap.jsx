@@ -9,35 +9,16 @@ export default function InteractiveSeatMap({
 }) {
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [mapStart, setMapStart] = useState({ x: 0, y: 0 });
   const [showZoomHint, setShowZoomHint] = useState(false);
 
-  const dragRef = useRef({ isDragging: false, startX: null, startY: null });
-  const scaleRef = useRef(1);
+  // ใช้ Pointer Events แทน Mouse Events เพื่อให้รองรับทั้งเมาส์และทัชสกรีนได้ดีกว่า
+  const dragRef = useRef({ isDragging: false, startX: 0, startY: 0, lastX: 0, lastY: 0 });
   const wrapperRef = useRef(null);
-  const svgContainerRef = useRef(null);
+  const scaleRef = useRef(1);
 
   useEffect(() => { scaleRef.current = scale; }, [scale]);
 
-  // 🔴 ฟังก์ชันคำนวณจำกัดขอบเขตไม่ให้ลากหลุดแผนที่ (ล็อกให้อยู่ในกรอบ)
-  const constrainPosition = (targetX, targetY, targetScale) => {
-    // ถ้าสเกลเป็น 1 จะไม่มีการลาก บังคับให้แผนที่อยู่ตรงกลางเป๊ะๆ ไม่เห็นพื้นหลัง
-    if (targetScale <= 1) return { x: 0, y: 0 };
-
-    const wrapper = wrapperRef.current;
-    if (!wrapper) return { x: targetX, y: targetY };
-
-    // คำนวณขอบเขตสูงสุดที่อนุญาตให้ลากได้โดยอิงจากสเกลที่ถูกซูม
-    const maxX = ((targetScale - 1) * wrapper.clientWidth) / 2;
-    const maxY = ((targetScale - 1) * wrapper.clientHeight) / 2;
-
-    return {
-      x: Math.max(-maxX, Math.min(targetX, maxX)),
-      y: Math.max(-maxY, Math.min(targetY, maxY)),
-    };
-  };
-
-  // 🔴 ระบบ Zoom แผนที่ (ป้องกันซูมออกเกิน 1)
+  // --- 1. ระบบ ZOOM (แก้ปัญหาภาพขาด โดยยกเลิกการกั้นขอบที่ผิดพลาด) ---
   useEffect(() => {
     const wrapper = wrapperRef.current;
     if (!wrapper) return;
@@ -45,13 +26,14 @@ export default function InteractiveSeatMap({
     const handleWheel = (e) => {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
-        const scaleAdjust = e.deltaY * -0.002;
-        // ปรับสเกลต่ำสุดเป็น 1 (แทนที่จะเป็น 0.5 ในรอบก่อน) เพื่อไม่ให้เห็นพื้นหลัง
-        const newScale = Math.min(Math.max(1, scaleRef.current + scaleAdjust), 8);
+        const delta = e.deltaY * -0.002;
+        const newScale = Math.min(Math.max(1, scaleRef.current + delta), 8);
         setScale(newScale);
 
-        // ดึงแผนที่กลับเข้าขอบเขตทันที ป้องกันกรณีซูมออกแล้วขอบแผนที่ลอยหลุดเฟรม
-        setPosition(prev => constrainPosition(prev.x, prev.y, newScale));
+        // ถ้าซูมออกสุด (สเกล 1) ให้เด้งกลับมาจุดศูนย์กลาง (X:0, Y:0) ทันที เพื่อไม่ให้เห็นพื้นหลัง
+        if (newScale === 1) {
+          setPosition({ x: 0, y: 0 });
+        }
         setShowZoomHint(false);
       } else {
         setShowZoomHint(true);
@@ -63,18 +45,40 @@ export default function InteractiveSeatMap({
     return () => wrapper.removeEventListener('wheel', handleWheel);
   }, []);
 
-  useEffect(() => {
-    if (!svgContainerRef.current || !svgContent) return;
+  // --- 2. ระบบ DRAG (ลากแผนที่อิสระเมื่อซูมเท่านั้น) ---
+  const handlePointerDown = (e) => {
+    // ถ้าสเกล 1 ไม่อนุญาตให้ลาก (ล็อกแผนที่ไว้ตรงกลาง)
+    if (scale === 1) return;
+    dragRef.current = { isDragging: false, startX: e.clientX, startY: e.clientY, lastX: position.x, lastY: position.y };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
 
-    const seats = svgContainerRef.current.querySelectorAll('.seat');
+  const handlePointerMove = (e) => {
+    if (scale === 1 || !e.buttons) return; // ทำงานเฉพาะตอนกดคลิกค้างและซูมอยู่
+    const dx = e.clientX - dragRef.current.startX;
+    const dy = e.clientY - dragRef.current.startY;
+
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+      dragRef.current.isDragging = true;
+      setPosition({ x: dragRef.current.lastX + dx, y: dragRef.current.lastY + dy });
+    }
+  };
+
+  const handlePointerUp = () => {
+    setTimeout(() => { dragRef.current.isDragging = false; }, 50);
+  };
+
+  // --- 3. ระบบจัดการสถานะสี (ไม่มี OnClick ในนี้แล้ว) ---
+  useEffect(() => {
+    if (!wrapperRef.current || !svgContent) return;
+
+    const seats = wrapperRef.current.querySelectorAll('.seat');
     const configMap = {};
     configuredSeats.forEach(s => { configMap[s.seat_code] = s; });
 
     seats.forEach(seat => {
       const seatId = seat.getAttribute('id');
       const config = configMap[seatId];
-      
-      seat.onclick = null;
 
       if (!config) {
         seat.setAttribute('data-status', 'unavailable');
@@ -84,90 +88,85 @@ export default function InteractiveSeatMap({
       const isBooked = bookedSeats.includes(seatId);
       const isSelected = selectedSeat?.seat_code === seatId;
 
-      if (config.color) {
-        seat.style.fill = config.color;
-      }
+      if (config.color) seat.style.fill = config.color;
 
       if (isBooked) {
         seat.setAttribute('data-status', 'booked');
         seat.removeAttribute('data-selected');
       } else {
         seat.setAttribute('data-status', 'available');
-        
         if (isSelected) {
           seat.setAttribute('data-selected', 'true');
-          seat.parentNode.appendChild(seat);
+          seat.parentNode.appendChild(seat); // เด้งที่นั่งที่เลือกมาไว้หน้าสุด
         } else {
           seat.removeAttribute('data-selected');
         }
       }
-
-      seat.onclick = (e) => {
-        if (dragRef.current.isDragging) return;
-        e.stopPropagation();
-        
-        if (selectedSeat?.seat_code === config.seat_code) {
-          onSeatSelect(null);
-        } else {
-          onSeatSelect(config);
-        }
-      };
     });
-  }, [svgContent, configuredSeats, bookedSeats, selectedSeat, onSeatSelect]);
+  }, [svgContent, configuredSeats, bookedSeats, selectedSeat]);
 
-  const handleMouseDown = (e) => {
-    dragRef.current = { isDragging: false, startX: e.clientX, startY: e.clientY };
-    setMapStart({ x: position.x, y: position.y });
-  };
+  // --- 4. ระบบกดจองที่นั่ง (🔥 โค้ดชุดนี้แก้ปัญหาจองไม่ติด 100%) ---
+  const handleMapClick = (e) => {
+    // 1. ถ้ากำลังลากแผนที่อยู่ จะไม่นับเป็นการคลิก
+    if (dragRef.current.isDragging) return;
 
-  const handleMouseMove = (e) => {
-    if (dragRef.current.startX === null) return;
-    const dx = e.clientX - dragRef.current.startX;
-    const dy = e.clientY - dragRef.current.startY;
+    // 2. ค้นหาว่าจุดที่คลิก เป็นชิ้นส่วนของ ".seat" หรือไม่
+    const seatNode = e.target.closest('.seat');
+    if (!seatNode) return; // ถ้าไม่ได้คลิกโดนที่นั่ง ให้ข้ามไป
 
-    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
-      dragRef.current.isDragging = true;
-      // 🔴 เอา constrainPosition มาล็อกตอนลากเมาส์ ไม่ให้ไถลหลุดกรอบ
-      setPosition(constrainPosition(mapStart.x + dx, mapStart.y + dy, scaleRef.current));
+    const seatId = seatNode.getAttribute('id');
+    const status = seatNode.getAttribute('data-status');
+    
+    // 🔥 ตัวช่วย Debug: กด F12 ดู Console เลยว่ามันอ่าน ID ว่าอะไร
+    console.log("👉 คลิกลงบนที่นั่ง ID ใน SVG คือ:", seatId, "| สถานะ:", status);
+
+    if (status === 'unavailable' || status === 'booked') {
+      console.log("❌ ที่นั่งนี้จองไม่ได้ หรือไม่มีในระบบ");
+      return;
+    }
+
+    // 3. จับคู่ ID ที่คลิก กับ ข้อมูลใน Database
+    const config = configuredSeats.find(s => s.seat_code === seatId);
+    
+    if (config) {
+      console.log("✅ จองสำเร็จ! ส่งข้อมูลเข้าสู่ระบบ:", config);
+      if (selectedSeat?.seat_code === seatId) {
+        onSeatSelect(null); // กดย้ำที่เดิม = ยกเลิกการเลือก
+      } else {
+        onSeatSelect(config); // เลือกที่นั่งใหม่
+      }
+    } else {
+      console.log("⚠️ หาที่นั่งไม่เจอในระบบ (Database ไม่มี seat_code นี้)");
     }
   };
 
-  const handleMouseUp = () => {
-    setTimeout(() => {
-      dragRef.current = { isDragging: false, startX: null, startY: null };
-    }, 50);
-  };
-
-  // ปุ่มกดซูมเข้า-ออก (ปรับจูนขอบเขตให้ด้วย)
-  const handleZoomOut = () => {
-    const newScale = Math.max(1, scale - 0.5);
-    setScale(newScale);
-    setPosition(prev => constrainPosition(prev.x, prev.y, newScale));
-  };
-
-  const handleZoomIn = () => {
-    setScale(s => Math.min(8, s + 0.5));
-  };
-
   return (
-    <div className="relative">
+    <div className="relative select-none">
+      {/* ปุ่มควบคุม */}
       <div className="absolute top-4 right-4 z-20 flex gap-2 bg-white/80 dark:bg-gray-800/80 p-2 rounded-lg shadow backdrop-blur-sm">
-        <button onClick={handleZoomOut} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded font-bold hover:bg-gray-300 transition">-</button>
+        <button onClick={() => {
+          const newScale = Math.max(1, scale - 0.5);
+          setScale(newScale);
+          if (newScale === 1) setPosition({ x: 0, y: 0 });
+        }} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded font-bold hover:bg-gray-300 transition">-</button>
         <button onClick={() => { setScale(1); setPosition({x:0,y:0}); }} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded text-sm font-bold hover:bg-gray-300 transition">RESET</button>
-        <button onClick={handleZoomIn} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded font-bold hover:bg-gray-300 transition">+</button>
+        <button onClick={() => setScale(s => Math.min(8, s + 0.5))} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded font-bold hover:bg-gray-300 transition">+</button>
       </div>
 
+      {/* ข้อความแนะนำ */}
       <div className={`absolute top-4 left-1/2 -translate-x-1/2 bg-black/80 text-white px-5 py-2.5 rounded-full shadow-lg pointer-events-none z-20 font-bold text-sm transition-all duration-300 transform ${showZoomHint ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
         💡 กด <kbd className="bg-gray-700 px-2 py-0.5 rounded text-xs border border-gray-600">Ctrl</kbd> ค้างไว้แล้วเลื่อนลูกกลิ้งเพื่อซูมแผนที่
       </div>
 
+      {/* กรอบแสดงแผนที่ */}
       <div 
         ref={wrapperRef}
-        className="bg-[#0f172a] rounded-xl flex items-center justify-center border dark:border-gray-600 shadow-inner overflow-hidden relative h-[650px] cursor-grab active:cursor-grabbing"
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp}
+        className="bg-[#0f172a] rounded-xl flex items-center justify-center border dark:border-gray-600 shadow-inner overflow-hidden relative h-[650px] cursor-grab active:cursor-grabbing touch-none"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerLeave={handlePointerUp}
+        onClick={handleMapClick} // 🔥 รับ Event คลิกที่นี่ที่เดียว
       >
         <style>
           {`
@@ -205,12 +204,11 @@ export default function InteractiveSeatMap({
           </div>
         ) : svgContent ? (
           <div 
-            className="absolute origin-center w-full max-w-[1200px]"
-            style={{ transform: `translate(${position.x}px, ${position.y}px) scale(${scale})` }}
+            className="w-full h-full flex items-center justify-center pointer-events-none"
           >
             <div 
-              ref={svgContainerRef}
-              className="w-full h-full"
+              className="origin-center w-full max-w-[1200px] pointer-events-auto"
+              style={{ transform: `translate(${position.x}px, ${position.y}px) scale(${scale})` }}
               dangerouslySetInnerHTML={{ __html: svgContent }} 
             />
           </div>
