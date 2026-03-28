@@ -7,25 +7,26 @@ export default function InteractiveSeatMap({
   selectedSeat = null,
   onSeatSelect
 }) {
-  const containerRef = useRef(null);
-  const svgWrapperRef = useRef(null);
+  const transformWrapperRef = useRef(null);
+  const svgContainerRef = useRef(null);
   const [showZoomHint, setShowZoomHint] = useState(false);
 
-  // 🔥 ใช้ Ref เก็บค่า ซูม/ลาก ล้วนๆ (แก้ปัญหา "ซูมแล้วสีหาย" เพราะ React จะไม่ล้างจอเรนเดอร์ใหม่)
-  const transform = useRef({ x: 0, y: 0, scale: 1 });
+  // ใช้ตัวแปร Ref เก็บค่าล้วนๆ เพื่อป้องกัน React รีเฟรชหน้าจอตอนซูม (กันสีหาย)
+  const transform = useRef({ scale: 1, x: 0, y: 0 });
   const isDragging = useRef(false);
   const dragStart = useRef({ x: 0, y: 0 });
 
-  // ฟังก์ชันยิงคำสั่งไปยืดหดภาพโดยตรง (ลื่นมากและภาพไม่ขาด)
-  const updateTransform = () => {
-    if (svgWrapperRef.current) {
-      svgWrapperRef.current.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
+  // ฟังก์ชันขยับภาพ (ยิงตรงเข้า DOM ไม่ผ่าน State สีเลยไม่หาย)
+  const applyTransform = () => {
+    if (transformWrapperRef.current) {
+      transformWrapperRef.current.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
     }
   };
 
   // --- 1. ระบบ ZOOM ---
   useEffect(() => {
-    const container = containerRef.current;
+    // ดักจับการ Scroll เมาส์ที่กล่องแม่
+    const container = transformWrapperRef.current?.parentElement;
     if (!container) return;
 
     const handleWheel = (e) => {
@@ -33,16 +34,17 @@ export default function InteractiveSeatMap({
         e.preventDefault();
         const delta = e.deltaY * -0.002;
         let newScale = transform.current.scale + delta;
-        newScale = Math.min(Math.max(1, newScale), 10); // ล็อกสเกลไว้ที่ 1x - 10x
+        
+        // บังคับสเกลให้อยู่ระหว่าง 1 ถึง 10
+        newScale = Math.max(1, Math.min(newScale, 10));
 
-        // ถ้าซูมกลับมาปกติ บังคับภาพกลับมาอยู่ตรงกลางเป๊ะๆ
         if (newScale === 1) {
           transform.current.x = 0;
           transform.current.y = 0;
         }
 
         transform.current.scale = newScale;
-        updateTransform();
+        applyTransform();
         setShowZoomHint(false);
       } else {
         setShowZoomHint(true);
@@ -54,11 +56,11 @@ export default function InteractiveSeatMap({
     return () => container.removeEventListener('wheel', handleWheel);
   }, []);
 
-  // --- 2. ระบบลงสี (ทำงานครั้งเดียว หรือเมื่อคนกดจอง สีจะไม่มีวันหายตอนซูม) ---
+  // --- 2. ระบบลงสีและสถานะ (ทำแค่ตอนข้อมูลเปลี่ยนเท่านั้น) ---
   useEffect(() => {
-    if (!svgWrapperRef.current || !svgContent) return;
+    if (!svgContainerRef.current || !svgContent) return;
 
-    const seats = svgWrapperRef.current.querySelectorAll('.seat');
+    const seats = svgContainerRef.current.querySelectorAll('.seat');
     const configMap = {};
     configuredSeats.forEach(s => { configMap[s.seat_code] = s; });
 
@@ -71,7 +73,7 @@ export default function InteractiveSeatMap({
         return;
       }
 
-      // ใส่สีดั้งเดิมตามที่แอดมินตั้ง
+      // 🎨 ใส่สีดั้งเดิม (สีที่ให้มากับ SVG หรือแอดมินตั้งค่า)
       if (config.color) {
         seat.style.fill = config.color;
       }
@@ -86,7 +88,7 @@ export default function InteractiveSeatMap({
         seat.setAttribute('data-status', 'available');
         if (isSelected) {
           seat.setAttribute('data-selected', 'true');
-          seat.parentNode.appendChild(seat); // เด้งมาไว้หน้าสุด
+          seat.parentNode.appendChild(seat); // ดันที่นั่งขึ้นมาหน้าสุดให้ขอบชัดๆ
         } else {
           seat.removeAttribute('data-selected');
         }
@@ -94,9 +96,9 @@ export default function InteractiveSeatMap({
     });
   }, [svgContent, configuredSeats, bookedSeats, selectedSeat]);
 
-  // --- 3. ระบบ DRAG (ลากแผนที่) ---
+  // --- 3. ระบบ DRAG (เลื่อนแผนที่) ---
   const handlePointerDown = (e) => {
-    if (transform.current.scale === 1) return; // ถ้าไม่ได้ซูม ห้ามลากภาพ
+    if (transform.current.scale <= 1) return; // สเกล 1 ห้ามเลื่อน
     isDragging.current = false;
     dragStart.current = {
       x: e.clientX - transform.current.x,
@@ -106,28 +108,29 @@ export default function InteractiveSeatMap({
   };
 
   const handlePointerMove = (e) => {
-    if (transform.current.scale === 1 || !e.buttons) return;
+    if (transform.current.scale <= 1 || !e.buttons) return;
 
     const newX = e.clientX - dragStart.current.x;
     const newY = e.clientY - dragStart.current.y;
 
-    // 🔥 แก้ปัญหา "ซูมใกล้แล้วกดจองไม่ติด" -> ต้องลากเกิน 6 pixel ถึงจะมองว่าเป็นการ "ลาก" (กันมือสั่น)
-    if (Math.abs(newX - transform.current.x) > 6 || Math.abs(newY - transform.current.y) > 6) {
+    // เผื่อระยะคนมือสั่นตอนคลิก (ต้องขยับเมาส์เกิน 10px ถึงจะมองว่าเป็นการลาก ไม่ใช่การคลิก)
+    if (Math.abs(newX - transform.current.x) > 10 || Math.abs(newY - transform.current.y) > 10) {
       isDragging.current = true;
       transform.current.x = newX;
       transform.current.y = newY;
-      updateTransform();
+      applyTransform();
     }
   };
 
   const handlePointerUp = (e) => {
     e.currentTarget.releasePointerCapture(e.pointerId);
+    // หน่วงเวลาปิดสถานะลากนิดหน่อย เพื่อไม่ให้ไปชนกับ Event คลิก
     setTimeout(() => { isDragging.current = false; }, 50);
   };
 
-  // --- 4. ระบบกดเลือกที่นั่ง ---
+  // --- 4. ระบบกดจองที่นั่ง ---
   const handleMapClick = (e) => {
-    if (isDragging.current) return; // ถ้าเป็นการลากแผนที่ จะไม่นับเป็นการกดจอง
+    if (isDragging.current) return; // ถ้ากำลังลากภาพอยู่ ไม่นับว่าเป็นการกดจอง
 
     const seatNode = e.target.closest('.seat');
     if (!seatNode) return;
@@ -142,31 +145,19 @@ export default function InteractiveSeatMap({
       if (selectedSeat?.seat_code === seatId) {
         onSeatSelect(null); // กดย้ำเพื่อยกเลิก
       } else {
-        onSeatSelect(config);
+        onSeatSelect(config); // เลือกที่นั่งใหม่
       }
     }
   };
 
-  // ปุ่มควบคุม
-  const handleZoomIn = () => {
-    transform.current.scale = Math.min(transform.current.scale + 0.5, 10);
-    updateTransform();
-  };
+  // ปุ่มคอนโทรล
+  const handleZoomIn = () => { transform.current.scale = Math.min(transform.current.scale + 0.5, 10); applyTransform(); };
   const handleZoomOut = () => {
-    const newScale = Math.max(transform.current.scale - 0.5, 1);
-    transform.current.scale = newScale;
-    if (newScale === 1) {
-      transform.current.x = 0;
-      transform.current.y = 0;
-    }
-    updateTransform();
+    transform.current.scale = Math.max(transform.current.scale - 0.5, 1);
+    if (transform.current.scale === 1) { transform.current.x = 0; transform.current.y = 0; }
+    applyTransform();
   };
-  const handleReset = () => {
-    transform.current.scale = 1;
-    transform.current.x = 0;
-    transform.current.y = 0;
-    updateTransform();
-  };
+  const handleReset = () => { transform.current.scale = 1; transform.current.x = 0; transform.current.y = 0; applyTransform(); };
 
   return (
     <div className="relative select-none">
@@ -180,9 +171,7 @@ export default function InteractiveSeatMap({
         💡 กด <kbd className="bg-gray-700 px-2 py-0.5 rounded text-xs border border-gray-600">Ctrl</kbd> ค้างไว้แล้วเลื่อนลูกกลิ้งเพื่อซูมแผนที่
       </div>
 
-      {/* กรอบแผนที่ (จัดการ Events ทั้งหมดที่นี่) */}
       <div 
-        ref={containerRef}
         className="bg-[#0f172a] rounded-xl flex items-center justify-center border dark:border-gray-600 shadow-inner overflow-hidden relative h-[650px] touch-none cursor-grab active:cursor-grabbing"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -192,32 +181,40 @@ export default function InteractiveSeatMap({
       >
         <style>
           {`
-            /* 🔥 แก้ภาพขาด: บังคับให้ SVG ไม่ว่าจะสเกลไหน ก็ต้องอยู่ในกล่อง 100% ไม่หลุดขอบ */
-            .svg-wrapper > svg {
+            .svg-container {
+              width: 100%;
+              height: 100%;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .svg-container svg {
               width: 100% !important;
               height: 100% !important;
               max-height: 650px;
             }
             .seat {
+              /* 🔥 ถอดคำสั่ง transform ออก ป้องกันเป้าดิ้นหนีมือตอนซูมคลิก */
               transition: filter 0.15s ease, stroke 0.15s ease;
-              transform-origin: center;
               transform-box: fill-box;
             }
             .seat[data-status="unavailable"] { display: none !important; }
             .seat[data-status="available"] { opacity: 1; cursor: pointer; pointer-events: auto; }
             
-            /* แก้กดไม่ติด: เอาคำสั่งขยายที่นั่งเวลาชี้เมาส์ออก เพราะมันทำให้เป้ากดดิ้นหนีมือตอนซูมใกล้ๆ */
+            /* เปลี่ยนจากสเกลขยาย เป็นเรืองแสงสว่างขึ้นแทน เพื่อให้กล่อง Hitbox อยู่กับที่เป๊ะๆ */
             .seat[data-status="available"]:not([data-selected="true"]):hover {
-              filter: brightness(1.3);
+              filter: brightness(1.5);
+              stroke: #ffffff;
+              stroke-width: 1.5px;
             }
             .seat[data-selected="true"] {
               stroke: #ef4444 !important;
               stroke-width: 4px !important;
-              filter: drop-shadow(0px 0px 4px rgba(239, 68, 68, 0.6));
+              filter: brightness(1.2) drop-shadow(0px 0px 4px rgba(239, 68, 68, 0.8));
             }
             .seat[data-status="booked"] {
-              fill: #9ca3af !important;
-              opacity: 0.4 !important;
+              fill: #475569 !important; /* บังคับที่นั่งที่จองแล้วเป็นสีเทาเข้ม */
+              opacity: 0.5 !important;
               cursor: not-allowed !important;
               pointer-events: none !important;
               stroke: none !important;
@@ -231,12 +228,16 @@ export default function InteractiveSeatMap({
             <p className="text-gray-500 font-bold text-2xl text-center">แอดมินยังไม่ได้เปิดขายที่นั่ง<br/>สำหรับคอนเสิร์ตนี้</p>
           </div>
         ) : svgContent ? (
-          /* 🔥 กล่องห่อหุ้ม SVG (ตัวที่จะถูกซูมและย้ายตำแหน่ง) */
           <div 
-            ref={svgWrapperRef}
-            className="svg-wrapper w-full h-full flex items-center justify-center origin-center transition-transform duration-75 ease-out"
-            dangerouslySetInnerHTML={{ __html: svgContent }} 
-          />
+            ref={transformWrapperRef}
+            className="w-full h-full origin-center transition-transform duration-75 ease-out will-change-transform"
+          >
+            <div 
+              ref={svgContainerRef}
+              className="svg-container"
+              dangerouslySetInnerHTML={{ __html: svgContent }} 
+            />
+          </div>
         ) : (
           <p className="text-gray-400 font-bold text-xl absolute z-10">ไม่มีแผนผัง Interactive สำหรับคอนเสิร์ตนี้</p>
         )}
