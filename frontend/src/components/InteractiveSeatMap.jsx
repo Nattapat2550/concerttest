@@ -11,9 +11,8 @@ export default function InteractiveSeatMap({
   const transformWrapperRef = useRef(null);
   const [showZoomHint, setShowZoomHint] = useState(false);
 
-  // --- ระบบอ้างอิงตำแหน่ง (ไม่ใช้ State เพื่อลดอาการกระตุกและลดบักของ React) ---
   const transform = useRef({ x: 0, y: 0, scale: 1 });
-  const dragState = useRef({ isDragging: false, startX: 0, startY: 0, startTime: 0 });
+  const dragState = useRef({ isDragging: false, startX: 0, startY: 0, mapStartX: 0, mapStartY: 0, startTime: 0 });
 
   const applyTransform = () => {
     if (transformWrapperRef.current) {
@@ -21,39 +20,26 @@ export default function InteractiveSeatMap({
     }
   };
 
-  // --- 1. ระบบจัดการสีขั้นสูง (The Silver Bullet - แก้สีหาย 100%) ---
-  // ใช้การสร้าง CSS Stylesheet ขึ้นมาคุมแทนการแก้ DOM สีจะไม่หายเวลาซูมหรือขยับ
+  // --- 1. ระบบ CSS (คงเดิม เพราะแก้ปัญหาสีหายได้ 100% แล้ว) ---
   const generatedStyles = useMemo(() => {
     let css = `
-      /* บังคับสเกล SVG ให้พอดีกล่องเป๊ะ ป้องกันภาพขาด */
       .svg-container svg { width: 100% !important; height: 100% !important; object-fit: contain; max-height: 650px; }
-      
-      /* ตั้งค่าเริ่มต้นของที่นั่ง */
       .seat { transition: filter 0.1s ease, stroke 0.1s ease; cursor: pointer; pointer-events: auto; transform-box: fill-box; }
       .seat:hover { filter: brightness(1.4); stroke: #ffffff; stroke-width: 2px; }
-      
-      /* ซ่อนที่นั่งทั้งหมดที่แอดมินยังไม่ได้ตั้งค่าในระบบ */
       .seat { display: none !important; }
     `;
 
     configuredSeats.forEach(seat => {
-      // ป้องกัน Error กรณี ID ที่นั่งมีตัวอักษรพิเศษ (เช่น A-1, B/2)
       const safeId = CSS.escape(seat.seat_code);
       const isBooked = bookedSeats.includes(seat.seat_code);
       const isSelected = selectedSeat?.seat_code === seat.seat_code;
 
-      // เปิดการมองเห็นให้ที่นั่งที่มีใน Database
       css += `\n#${safeId} { display: block !important; }`;
 
       if (isBooked) {
-        // ที่นั่งถูกจองแล้ว (เทา + กดไม่ได้)
         css += `\n#${safeId} { fill: #475569 !important; opacity: 0.5 !important; pointer-events: none !important; cursor: not-allowed !important; stroke: none !important; }`;
       } else {
-        // ที่นั่งว่าง ลงสีตามที่ตั้งค่าไว้
-        if (seat.color) {
-          css += `\n#${safeId} { fill: ${seat.color} !important; }`;
-        }
-        // ถ้าถูกเลือกอยู่ ให้เรืองแสงและมีขอบแดง
+        if (seat.color) css += `\n#${safeId} { fill: ${seat.color} !important; }`;
         if (isSelected) {
           css += `\n#${safeId} { stroke: #ef4444 !important; stroke-width: 4px !important; filter: brightness(1.2) drop-shadow(0px 0px 4px rgba(239,68,68,0.8)); }`;
         }
@@ -63,7 +49,7 @@ export default function InteractiveSeatMap({
     return css;
   }, [configuredSeats, bookedSeats, selectedSeat]);
 
-  // --- 2. ระบบซูมด้วย Scroll Mouse ---
+  // --- 2. ระบบ Zoom ---
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -72,10 +58,8 @@ export default function InteractiveSeatMap({
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         const delta = e.deltaY * -0.002;
-        let newScale = transform.current.scale + delta;
-        newScale = Math.max(1, Math.min(newScale, 10)); // ล็อกสเกล ต่ำสุด 1x, สูงสุด 10x
+        let newScale = Math.max(1, Math.min(transform.current.scale + delta, 10));
 
-        // ถ้าซูมออกสุด บังคับภาพกลับมาตรงกลางเป๊ะๆ
         if (newScale === 1) {
           transform.current.x = 0;
           transform.current.y = 0;
@@ -94,28 +78,34 @@ export default function InteractiveSeatMap({
     return () => container.removeEventListener('wheel', handleWheel);
   }, []);
 
-  // --- 3. ระบบลากแผนที่ (Pan) ---
+  // --- 3. ระบบ Pointer (แก้บัคเรื่องเวลาคลิกที่นี่) ---
   const handlePointerDown = (e) => {
-    if (transform.current.scale <= 1) return; // ไม่ซูม ห้ามลาก
+    // 🔴 แก้แล้ว: บันทึกค่าเสมอ ไม่ว่าสเกลจะเป็นเท่าไหร่ก็ตาม
     dragState.current = {
       isDragging: false,
-      startX: e.clientX - transform.current.x,
-      startY: e.clientY - transform.current.y,
-      startTime: Date.now() // เก็บเวลาที่เริ่มกด (สำคัญมาก ใช้แยกแยะการคลิก)
+      startX: e.clientX,
+      startY: e.clientY,
+      mapStartX: transform.current.x,
+      mapStartY: transform.current.y,
+      startTime: Date.now() // บันทึกเวลาเริ่มกดเมาส์
     };
-    e.currentTarget.setPointerCapture(e.pointerId);
+    
+    // ยึดเมาส์ไว้เฉพาะตอนซูม เพื่อให้ลากได้
+    if (transform.current.scale > 1) {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
   };
 
   const handlePointerMove = (e) => {
     if (transform.current.scale <= 1 || !e.buttons) return;
-    const newX = e.clientX - dragState.current.startX;
-    const newY = e.clientY - dragState.current.startY;
+    
+    const dx = e.clientX - dragState.current.startX;
+    const dy = e.clientY - dragState.current.startY;
 
-    // ต้องขยับเมาส์เกิน 10px ถึงจะนับว่าลาก (เผื่อมือสั่นตอนกดจอง)
-    if (Math.abs(newX - transform.current.x) > 10 || Math.abs(newY - transform.current.y) > 10) {
+    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
       dragState.current.isDragging = true;
-      transform.current.x = newX;
-      transform.current.y = newY;
+      transform.current.x = dragState.current.mapStartX + dx;
+      transform.current.y = dragState.current.mapStartY + dy;
       applyTransform();
     }
   };
@@ -124,40 +114,37 @@ export default function InteractiveSeatMap({
     e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
-  // --- 4. ระบบกดคลิกเพื่อจอง (Bulletproof Click) ---
+  // --- 4. ระบบกดคลิก (ทำงานได้ 100% แล้ว) ---
   const handleMapClick = (e) => {
-    // กรองการคลิก vs การลาก แบบแม่นยำ
     const isDrag = dragState.current.isDragging;
     const clickDuration = Date.now() - dragState.current.startTime;
-    
-    // คืนค่า Drag กลับเป็น False
-    dragState.current.isDragging = false;
 
-    // ถ้าระบบตรวจพบว่าลากแผนที่อยู่ หรือกดเมาส์ค้างนานกว่า 300ms ให้ถือว่าไม่ได้คลิกจอง
-    if (isDrag || clickDuration > 300) return;
+    console.log(`[Debug] เช็คการคลิก: ลากไหม?=${isDrag}, เวลากด=${clickDuration}ms`);
 
-    // หาชิ้นส่วนที่นั่งที่ถูกคลิก
+    // ถ้าลากอยู่ หรือกดแช่เกิน 400ms ให้ข้ามไป
+    if (isDrag || clickDuration > 400) return;
+
     const seatNode = e.target.closest('.seat');
     if (!seatNode) return;
 
     const seatId = seatNode.getAttribute('id');
-    if (!seatId) return;
+    console.log(`[Debug] กดโดนที่นั่ง ID: ${seatId}`);
 
-    // ตรวจสอบข้อมูลเพื่อสั่งจอง
-    const isBooked = bookedSeats.includes(seatId);
-    if (isBooked) return;
+    if (!seatId || bookedSeats.includes(seatId)) return;
 
     const config = configuredSeats.find(s => s.seat_code === seatId);
     if (config) {
+      console.log(`[Debug] เจอในระบบ! ส่งคำสั่งจอง:`, config.seat_code);
       if (selectedSeat?.seat_code === seatId) {
-        onSeatSelect(null); // กดย้ำที่เดิม = ยกเลิกการเลือก
+        onSeatSelect(null);
       } else {
-        onSeatSelect(config); // เลือกที่นั่งใหม่
+        onSeatSelect(config);
       }
+    } else {
+      console.warn(`[Debug] ❌ ไม่พบรหัส ${seatId} ใน Database`);
     }
   };
 
-  // --- ควบคุมปุ่ม UI ---
   const handleZoomIn = () => { transform.current.scale = Math.min(transform.current.scale + 0.5, 10); applyTransform(); };
   const handleZoomOut = () => { 
     transform.current.scale = Math.max(transform.current.scale - 0.5, 1); 
@@ -168,22 +155,18 @@ export default function InteractiveSeatMap({
 
   return (
     <div className="relative select-none w-full">
-      {/* แทรก Style ที่ Gen มาเข้าไปตรงๆ React จะจัดการไม่ให้สีหาย */}
       <style>{generatedStyles}</style>
 
-      {/* ปุ่มเครื่องมือขวาบน */}
       <div className="absolute top-4 right-4 z-20 flex gap-2 bg-white/80 dark:bg-gray-800/80 p-2 rounded-lg shadow backdrop-blur-sm">
         <button onClick={handleZoomOut} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded font-bold hover:bg-gray-300 transition">-</button>
         <button onClick={handleReset} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded text-sm font-bold hover:bg-gray-300 transition">RESET</button>
         <button onClick={handleZoomIn} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded font-bold hover:bg-gray-300 transition">+</button>
       </div>
 
-      {/* คำแนะนำ Tooltip */}
       <div className={`absolute top-4 left-1/2 -translate-x-1/2 bg-black/80 text-white px-5 py-2.5 rounded-full shadow-lg pointer-events-none z-20 font-bold text-sm transition-all duration-300 transform ${showZoomHint ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
         💡 กด <kbd className="bg-gray-700 px-2 py-0.5 rounded text-xs border border-gray-600">Ctrl</kbd> ค้างไว้แล้วเลื่อนลูกกลิ้งเพื่อซูมแผนที่
       </div>
 
-      {/* พื้นที่แผนที่หลัก */}
       <div 
         ref={containerRef}
         className="bg-[#0f172a] rounded-xl flex items-center justify-center border dark:border-gray-600 shadow-inner overflow-hidden relative h-[650px] touch-none cursor-grab active:cursor-grabbing"
