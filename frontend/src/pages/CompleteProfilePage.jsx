@@ -8,14 +8,22 @@ const CompleteProfilePage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const [search] = useSearchParams();
+  
+  // ✅ ดึงค่า Email และ Name จาก URL
   const emailFromQuery = search.get('email') || '';
+  const nameFromQuery = search.get('name') || '';
+
+  // ✅ ระบบแยกชื่อกับนามสกุลอัตโนมัติ (สมมติว่า Google ส่งมาเป็น "Somchai Jaidee")
+  const nameParts = nameFromQuery.trim().split(' ');
+  const defaultFirstName = nameParts[0] || '';
+  const defaultLastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
 
   const [email, setEmail] = useState(emailFromQuery);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  // ✅ เพิ่มตัวแปรสำหรับรับค่า FirstName, LastName และ Tel
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+  // เซ็ตค่าเริ่มต้นให้ First Name และ Last Name ถ้ามีข้อมูลจาก Google
+  const [firstName, setFirstName] = useState(defaultFirstName);
+  const [lastName, setLastName] = useState(defaultLastName);
   const [tel, setTel] = useState('');
   
   const [msg, setMsg] = useState(null);
@@ -31,7 +39,6 @@ const CompleteProfilePage = () => {
     e.preventDefault();
     setMsg(null);
     try {
-      // ✅ ส่งข้อมูลทั้งหมดไปยัง Backend (ตรงกับ completeProfileReq struct ใน auth.go แล้ว)
       await api.post('/api/auth/complete-profile', {
         email: email.trim(), 
         username: username.trim(), 
@@ -62,7 +69,6 @@ const CompleteProfilePage = () => {
           <input type="text" required value={username} onChange={(e) => setUsername(e.target.value)} className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-gray-900 dark:text-white" />
         </div>
 
-        {/* ✅ เพิ่มฟิลด์ชื่อจริงและนามสกุลเรียงคู่กัน */}
         <div className="flex gap-4">
           <div className="flex-1">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">ชื่อจริง</label>
@@ -74,7 +80,6 @@ const CompleteProfilePage = () => {
           </div>
         </div>
 
-        {/* ✅ เพิ่มฟิลด์เบอร์โทรศัพท์ */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">เบอร์โทรศัพท์</label>
           <input type="tel" required value={tel} onChange={(e) => setTel(e.target.value)} className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-gray-900 dark:text-white" />

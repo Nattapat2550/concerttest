@@ -56,13 +56,22 @@ func (h *Handler) AuthGoogleCallback(w http.ResponseWriter, r *http.Request) {
 		role = "user"
 	}
 
-	// ✅ ถ้ายังไม่มี Username (เพิ่งสร้างบัญชีใหม่จาก Google) ให้เด้งไปหน้า Complete Profile ทันที
-	if user.Username == nil || *user.Username == "" {
-		http.Redirect(w, r, front+"/complete-profile?email="+url.QueryEscape(user.Email), http.StatusFound)
+	// ✅ เปลี่ยนมาเช็คจาก 'เบอร์โทร' (Tel) แทน Username 
+	// เพราะ Google ไม่เคยส่งเบอร์โทรมา ถ้าไม่มีเบอร์โทร = ข้อมูลยังไม่ครบ (ต้องไปหน้า Complete Profile)
+	isProfileIncomplete := user.Tel == nil || strings.TrimSpace(*user.Tel) == ""
+
+	if isProfileIncomplete {
+		// พ่วงอีเมล และ ชื่อ(Name) จาก Google ไปกับ URL ให้ Frontend ไปแยกเป็น First/Last Name
+		redirectURL := fmt.Sprintf("%s/complete-profile?email=%s&name=%s",
+			front,
+			url.QueryEscape(user.Email),
+			url.QueryEscape(info.Name), // ส่ง Name ที่ได้จาก Google เข้าไปด้วย
+		)
+		http.Redirect(w, r, redirectURL, http.StatusFound)
 		return
 	}
 
-	// ✅ ถ้ามีข้อมูลครบแล้ว (ไอดีเก่า) ให้พาเข้าหน้า Home หรือ Admin ตาม Role
+	// ✅ ถ้ามีข้อมูลครบแล้ว (ไอดีเก่าที่เคยกรอกเบอร์แล้ว) ให้พาเข้าหน้า Home หรือ Admin ตาม Role
 	frag := "token=" + url.QueryEscape(token) + "&role=" + url.QueryEscape(role)
 	if role == "admin" {
 		http.Redirect(w, r, front+"/admin#"+frag, http.StatusFound)
@@ -87,7 +96,6 @@ type googleMobileReq struct {
 }
 
 // POST /api/auth/google-mobile 
-// (เปลี่ยนเป็น POST และรับ authCode จาก Body ให้ตรงกับโปรเจคอื่น)
 func (h *Handler) AuthGoogleMobileCallback(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -122,16 +130,17 @@ func (h *Handler) AuthGoogleMobileCallback(w http.ResponseWriter, r *http.Reques
 
 	h.setAuthCookie(w, token, true)
 	
-	// คืนค่า User Data ครบชุดเหมือนโปรเจค Node
+	// คืนค่า User Data ครบชุด
 	WriteJSON(w, http.StatusOK, map[string]any{
 		"token": token,
 		"role":  user.Role,
-		// ✅ เพิ่ม Flag ส่งไปบอก Mobile ว่าบัญชีนี้ข้อมูลยังไม่ครบ ต้องพาไปหน้ากรอกข้อมูลเพิ่มไหม
-		"isProfileIncomplete": user.Username == nil || *user.Username == "", 
+		// ✅ อัปเดตเงื่อนไขให้ Mobile ด้วย (เช็คจากเบอร์โทร)
+		"isProfileIncomplete": user.Tel == nil || strings.TrimSpace(*user.Tel) == "", 
 		"user": map[string]any{
 			"id":                  user.ID,
 			"email":               user.Email,
 			"username":            user.Username,
+			"name":                info.Name, // ส่ง Name จาก Google ให้ Mobile ด้วยเผื่อต้องใช้
 			"role":                user.Role,
 			"profile_picture_url": user.ProfilePictureURL,
 		},
@@ -145,7 +154,6 @@ func (h *Handler) setOAuthUser(ctx context.Context, info *googleUserInfo) (userD
 	pic := strings.TrimSpace(info.Picture)
 	name := strings.TrimSpace(info.Name)
 
-	// แก้ Key ให้ตรงกับที่ Rust SetOAuthUserBody (camelCase) คาดหวัง
 	payload := map[string]any{
 		"provider":   "google",
 		"oauthId":    subject,
