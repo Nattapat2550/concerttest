@@ -18,15 +18,12 @@ export default function NewsPopup() {
 
   const fetchActiveNews = async () => {
     try {
-      // ดึงข้อมูลข่าวสารทั้งหมดจาก Backend (เปลี่ยน Endpoint ให้ดึงทั้งหมดแทน /latest)
-      const { data } = await api.get('/api/concerts/news'); 
+      // ✅ เปลี่ยนกลับมาใช้ /latest เพื่อให้ตรงกับ Backend เดิมที่มีอยู่
+      const { data } = await api.get('/api/concerts/news/latest'); 
       if (data) {
-        // รองรับทั้งกรณี Backend ส่งมาเป็น Array หรือ Object เดียว
-        const newsArray = Array.isArray(data) ? data : [data];
-        if (newsArray.length > 0) {
-          setNewsList(newsArray);
-          setShowNewsModal(true);
-        }
+        // ✅ นำข่าวเดียวที่ได้มา ใส่เข้าไปใน Array เพื่อให้โค้ดเก่าใช้ .map() ได้โดยไม่พัง
+        setNewsList([data]);
+        setShowNewsModal(true);
       }
     } catch (error) {
       console.log("No active news");

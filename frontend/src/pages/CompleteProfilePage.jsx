@@ -39,7 +39,7 @@ const CompleteProfilePage = () => {
     e.preventDefault();
     setMsg(null);
     try {
-      await api.post('/api/auth/complete-profile', {
+      const { data } = await api.post('/api/auth/complete-profile', {
         email: email.trim(), 
         username: username.trim(), 
         password: password,
@@ -47,8 +47,15 @@ const CompleteProfilePage = () => {
         last_name: lastName.trim(),
         tel: tel.trim()
       });
+      
+      // ✅ บังคับบันทึก Token และข้อมูล User ลง localStorage เพื่อให้เข้าสู่ระบบทันที
+      localStorage.setItem('token', data.token);
+      if (data.user) {
+        localStorage.setItem('user', JSON.stringify(data.user));
+      }
+
       await dispatch(checkAuthStatus());
-      navigate('/home', { replace: true });
+      window.location.href = '/home'; // ✅ ใช้ window.location.href เพื่อรีโหลดระบบ Auth 
     } catch (err) {
       setMsg(err.response?.data?.error || 'Failed to complete profile');
     }
