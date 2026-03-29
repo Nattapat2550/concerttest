@@ -9,7 +9,6 @@ import (
 )
 
 // GET /api/auth/google
-// GET /api/auth/google
 func (h *Handler) AuthGoogleStart(w http.ResponseWriter, r *http.Request) {
 	u, ok := h.Google.AuthURL("state")
 	if !ok {
@@ -32,14 +31,14 @@ func (h *Handler) AuthGoogleCallback(w http.ResponseWriter, r *http.Request) {
 
 	info, err := h.Google.ExchangeWeb(ctx, code) // returns *googleUserInfo
 	if err != nil || info == nil {
-		fmt.Println("Google ExchangeWeb Error:", err) // ✅ แสดง Log 
+		fmt.Println("Google ExchangeWeb Error:", err)
 		http.Redirect(w, r, front+"/login?error=oauth_failed", http.StatusFound)
 		return
 	}
 
 	user, err := h.setOAuthUser(ctx, info)
 	if err != nil {
-		fmt.Println("Database setOAuthUser Error:", err) // ✅ แสดง Log 
+		fmt.Println("Database setOAuthUser Error:", err)
 		http.Redirect(w, r, front+"/login?error=oauth_failed", http.StatusFound)
 		return
 	}
@@ -57,13 +56,14 @@ func (h *Handler) AuthGoogleCallback(w http.ResponseWriter, r *http.Request) {
 		role = "user"
 	}
 
-	frag := "token=" + url.QueryEscape(token) + "&role=" + url.QueryEscape(role)
-
+	// ✅ ถ้ายังไม่มี Username (เพิ่งสร้างบัญชีใหม่จาก Google) ให้เด้งไปหน้า Complete Profile ทันที
 	if user.Username == nil || *user.Username == "" {
-		http.Redirect(w, r, front+"/form?email="+url.QueryEscape(user.Email)+"#"+frag, http.StatusFound)
+		http.Redirect(w, r, front+"/complete-profile?email="+url.QueryEscape(user.Email), http.StatusFound)
 		return
 	}
 
+	// ✅ ถ้ามีข้อมูลครบแล้ว (ไอดีเก่า) ให้พาเข้าหน้า Home หรือ Admin ตาม Role
+	frag := "token=" + url.QueryEscape(token) + "&role=" + url.QueryEscape(role)
 	if role == "admin" {
 		http.Redirect(w, r, front+"/admin#"+frag, http.StatusFound)
 		return
@@ -126,6 +126,8 @@ func (h *Handler) AuthGoogleMobileCallback(w http.ResponseWriter, r *http.Reques
 	WriteJSON(w, http.StatusOK, map[string]any{
 		"token": token,
 		"role":  user.Role,
+		// ✅ เพิ่ม Flag ส่งไปบอก Mobile ว่าบัญชีนี้ข้อมูลยังไม่ครบ ต้องพาไปหน้ากรอกข้อมูลเพิ่มไหม
+		"isProfileIncomplete": user.Username == nil || *user.Username == "", 
 		"user": map[string]any{
 			"id":                  user.ID,
 			"email":               user.Email,
@@ -136,14 +138,14 @@ func (h *Handler) AuthGoogleMobileCallback(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// ใช้ info.Name เพื่อส่งเข้าไปประกอบด้วย (ตรงกับที่แก้ใน Node.js)
+// ใช้ info.Name เพื่อส่งเข้าไปประกอบด้วย
 func (h *Handler) setOAuthUser(ctx context.Context, info *googleUserInfo) (userDTO, error) {
 	email := strings.ToLower(strings.TrimSpace(info.Email))
 	subject := strings.TrimSpace(info.ID) 
 	pic := strings.TrimSpace(info.Picture)
 	name := strings.TrimSpace(info.Name)
 
-	// ✅ แก้ Key ให้ตรงกับที่ Rust SetOAuthUserBody (camelCase) คาดหวัง
+	// แก้ Key ให้ตรงกับที่ Rust SetOAuthUserBody (camelCase) คาดหวัง
 	payload := map[string]any{
 		"provider":   "google",
 		"oauthId":    subject,

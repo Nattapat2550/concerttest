@@ -9,7 +9,7 @@ export default function InteractiveSeatMap({
 }) {
   const containerRef = useRef(null);
   const transformWrapperRef = useRef(null);
-  const svgContainerRef = useRef(null); // เพิ่ม Ref ตัวนี้มาเพื่อเจาะจงที่ SVG โดยตรง
+  const svgContainerRef = useRef(null);
   const [showZoomHint, setShowZoomHint] = useState(false);
 
   const transform = useRef({ x: 0, y: 0, scale: 1 });
@@ -21,7 +21,6 @@ export default function InteractiveSeatMap({
     }
   };
 
-  // --- 1. ระบบจัดการสีและสไตล์ (ทำงานสมบูรณ์แล้ว) ---
   const generatedStyles = useMemo(() => {
     let css = `
       .svg-container svg { width: 100% !important; height: 100% !important; object-fit: contain; max-height: 650px; }
@@ -49,19 +48,13 @@ export default function InteractiveSeatMap({
     return css;
   }, [configuredSeats, bookedSeats, selectedSeat]);
 
-  // --- 2. 🔴 ระบบคลิกใหม่ล่าสุด (Native DOM Events Bypass React) 🔴 ---
   useEffect(() => {
     if (!svgContainerRef.current || !svgContent) return;
-
-    // ค้นหาที่นั่งทุกจุดในแผนที่
     const seats = svgContainerRef.current.querySelectorAll('.seat');
 
-    // ฟังก์ชันจองที่ยิงตรงเข้าที่นั่ง ไม่สนใจการสเกล
     const handleSeatClick = (e) => {
       e.preventDefault();
       e.stopPropagation();
-
-      // ถ้ากำลังใช้เมาส์ไถลากแผนที่อยู่ ห้ามกดจอง
       if (dragState.current.isDragging) return;
 
       const seatId = e.currentTarget.getAttribute('id');
@@ -77,13 +70,11 @@ export default function InteractiveSeatMap({
       }
     };
 
-    // ฝัง Event 'click' และ 'touchend' เข้าไปในชิ้นส่วนที่นั่งโดยตรง
     seats.forEach(seat => {
       seat.addEventListener('click', handleSeatClick);
-      seat.addEventListener('touchend', handleSeatClick); // รองรับมือถือ/ไอแพด
+      seat.addEventListener('touchend', handleSeatClick);
     });
 
-    // คลีนอัพ Event เก่าทิ้งเมื่อข้อมูลเปลี่ยน
     return () => {
       seats.forEach(seat => {
         seat.removeEventListener('click', handleSeatClick);
@@ -92,7 +83,6 @@ export default function InteractiveSeatMap({
     };
   }, [svgContent, configuredSeats, bookedSeats, selectedSeat, onSeatSelect]);
 
-  // --- 3. ระบบซูมแผนที่ ---
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -120,7 +110,6 @@ export default function InteractiveSeatMap({
     return () => container.removeEventListener('wheel', handleWheel);
   }, []);
 
-  // --- 4. ระบบลากและจัดการเมาส์ ---
   const handlePointerDown = (e) => {
     if (transform.current.scale <= 1) return;
     dragState.current = {
@@ -138,7 +127,6 @@ export default function InteractiveSeatMap({
     const dx = e.clientX - dragState.current.startX;
     const dy = e.clientY - dragState.current.startY;
 
-    // ต้องลากเกิน 5px เบราว์เซอร์ถึงจะมองว่า "ลาก" เพื่อป้องกันมือสั่นตอนคลิก
     if (!dragState.current.isDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
       dragState.current.isDragging = true;
     }
@@ -151,13 +139,11 @@ export default function InteractiveSeatMap({
   };
 
   const handlePointerUp = () => {
-    // หน่วงเวลาเคลียร์สถานะ 50ms ป้องกันคลิกเด้งซ้อนกัน
     setTimeout(() => {
       dragState.current.isDragging = false;
     }, 50);
   };
 
-  // ปุ่มคอนโทรล UI
   const handleZoomIn = () => { transform.current.scale = Math.min(transform.current.scale + 0.5, 10); applyTransform(); };
   const handleZoomOut = () => { 
     transform.current.scale = Math.max(transform.current.scale - 0.5, 1); 
@@ -196,9 +182,9 @@ export default function InteractiveSeatMap({
         ) : svgContent ? (
           <div 
             ref={transformWrapperRef}
-            className="w-full h-full origin-center will-change-transform flex items-center justify-center"
+            /* ลบ will-change-transform ออกจากบรรทัดนี้แล้ว ทำให้ไม่เบลอตอนซูม */
+            className="w-full h-full origin-center flex items-center justify-center"
           >
-            {/* โฟกัสตรงนี้: เอา onClick ออกจากกล่อง แล้วย้ายไปฝังใน DOM ของเก้าอี้โดยตรงด้านบน */}
             <div 
               ref={svgContainerRef}
               className="svg-container w-full h-full"
