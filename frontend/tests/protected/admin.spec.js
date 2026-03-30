@@ -40,9 +40,9 @@ test.describe('Admin Page Protection', () => {
     // 📌 4. ลองเข้าหน้า /admin
     await page.goto('/admin');
     
-    // ตรวจสอบคำที่มีอยู่จริงใน AdminPage.jsx
-    await expect(page.locator('text=จัดการระบบ (Admin Dashboard)')).toBeVisible();
-    await expect(page.locator('text=ผู้ใช้งานทั้งหมด')).toBeVisible();
-    await expect(page.locator('text=คอนเสิร์ตที่กำลังจะมาถึง')).toBeVisible();
+    // 📌 5. ตรวจสอบคำที่มีอยู่จริงใน AdminPage.jsx ปัจจุบัน
+    await expect(page.locator('h2:has-text("Admin Dashboard")')).toBeVisible();
+    await expect(page.locator('button:has-text("จัดการผู้ใช้")')).toBeVisible();
+    await expect(page.locator('button:has-text("2. จัดการคอนเสิร์ต/ผังที่นั่ง")')).toBeVisible();
   });
 });
