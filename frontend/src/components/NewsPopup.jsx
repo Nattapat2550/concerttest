@@ -7,23 +7,32 @@ export default function NewsPopup() {
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   useEffect(() => {
-    // เช็คทั้ง localStorage (ถ้าเคยกดไม่แสดงอีก) และ sessionStorage (ถ้าเคยดูไปแล้วใน session นี้)
-    const hasSeenLocal = localStorage.getItem('hasSeenNews');
-    const hasSeenSession = sessionStorage.getItem('hasSeenNews');
+    // ✅ ทำการดึงข่าวสารทุกครั้งที่เข้ามา เพื่อตรวจสอบว่ามีข่าวใหม่เข้ามาหรือไม่
+    fetchActiveNews();
     
-    if (!hasSeenLocal && !hasSeenSession) {
-      fetchActiveNews();
-    }
+    // เคลียร์ค่าเก่าของระบบเดิมทิ้ง (ถ้ามี)
+    localStorage.removeItem('hasSeenNews');
+    sessionStorage.removeItem('hasSeenNews');
   }, []);
 
   const fetchActiveNews = async () => {
     try {
-      // ✅ เปลี่ยนกลับมาใช้ /latest เพื่อให้ตรงกับ Backend เดิมที่มีอยู่
+      // ได้รับข้อมูลข่าวสารทั้งหมดที่เป็น Array แล้ว
       const { data } = await api.get('/api/concerts/news/latest'); 
-      if (data) {
-        // ✅ นำข่าวเดียวที่ได้มา ใส่เข้าไปใน Array เพื่อให้โค้ดเก่าใช้ .map() ได้โดยไม่พัง
-        setNewsList([data]);
-        setShowNewsModal(true);
+      
+      if (data && data.length > 0) {
+        // ✅ หารหัสข่าว (ID) ที่ล่าสุด/สูงสุดจากข้อมูลที่ดึงมา
+        const latestNewsIdFromDB = Math.max(...data.map(n => n.id));
+        
+        // ดึงรหัสข่าวล่าสุดที่ผู้ใช้เคยดูจาก Storage (ถ้าไม่เคยดูให้เป็น 0)
+        const seenLocalId = parseInt(localStorage.getItem('latestSeenNewsId'), 10) || 0;
+        const seenSessionId = parseInt(sessionStorage.getItem('latestSeenNewsId'), 10) || 0;
+
+        // ✅ เช็คว่ามีข่าวใหม่ (ID มากกว่าที่เคยดู) หรือไม่
+        if (latestNewsIdFromDB > seenLocalId && latestNewsIdFromDB > seenSessionId) {
+          setNewsList(data); // นำข้อมูลทั้งหมดไปเตรียมแสดงผล
+          setShowNewsModal(true);
+        }
       }
     } catch (error) {
       console.log("No active news");
@@ -32,10 +41,14 @@ export default function NewsPopup() {
 
   const closeNewsModal = () => {
     setShowNewsModal(false);
+    
+    // ✅ บันทึก ID ของข่าวล่าสุดที่ผู้ใช้ได้เห็นแล้ว เพื่อใช้เทียบในครั้งถัดไป
+    const latestId = Math.max(...newsList.map(n => n.id));
+    
     if (dontShowAgain) {
-      localStorage.setItem('hasSeenNews', 'true'); // จำถาวรจนกว่าจะล้างแคช
+      localStorage.setItem('latestSeenNewsId', latestId); // จำถาวรจนกว่าจะมีข่าวใหม่กว่านี้
     } else {
-      sessionStorage.setItem('hasSeenNews', 'true'); // จำแค่รอบเปิด Browser นี้
+      sessionStorage.setItem('latestSeenNewsId', latestId); // จำแค่รอบเปิด Browser นี้
     }
   };
 
@@ -53,10 +66,10 @@ export default function NewsPopup() {
         
         <h2 className="text-2xl font-bold mb-4 text-blue-800 border-b pb-2">ประกาศข่าวสาร</h2>
         
-        {/* คอนเทนต์ข่าว เลื่อนดูได้ถ้ามีหลายข่าว */}
+        {/* ✅ คอนเทนต์ข่าว เลื่อนดูได้ถ้ามีหลายข่าว */}
         <div className="overflow-y-auto pr-2 mb-4 space-y-8 flex-1">
-          {newsList.map((news, index) => (
-            <div key={index} className="pb-4">
+          {newsList.map((news) => (
+            <div key={news.id} className="pb-4">
               <h3 className="text-xl font-bold mb-2 text-gray-900">{news.title}</h3>
               <p className="text-gray-700 mb-4 leading-relaxed whitespace-pre-line">{news.content}</p>
               {news.image_url && (
@@ -74,7 +87,7 @@ export default function NewsPopup() {
               onChange={(e) => setDontShowAgain(e.target.checked)}
               className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
             />
-            <span className="text-gray-700 text-sm font-medium">รับทราบและไม่แสดงหน้านี้อีก</span>
+            <span className="text-gray-700 text-sm font-medium">รับทราบและไม่แสดงหน้านี้อีกจนกว่าจะมีข่าวใหม่</span>
           </label>
           
           <button 

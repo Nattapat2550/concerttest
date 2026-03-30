@@ -80,10 +80,30 @@ type MyBooking struct {
 // ===== USER FUNCTIONS =====
 func (h *Handler) GetLatestNews(w http.ResponseWriter, r *http.Request) {
 	if h.ConcertDB == nil { return }
-	var news News
-	err := h.ConcertDB.QueryRow(`SELECT id, title, content, COALESCE(image_url, '') FROM news WHERE is_active = true ORDER BY created_at DESC LIMIT 1`).Scan(&news.ID, &news.Title, &news.Content, &news.ImageURL)
-	if err != nil { h.writeError(w, http.StatusNotFound, "No news"); return }
-	WriteJSON(w, http.StatusOK, news)
+	
+	// ✅ ดึงข่าวสารทั้งหมดที่เปิดใช้งานอยู่ เรียงจากใหม่ไปเก่า
+	rows, err := h.ConcertDB.Query(`SELECT id, title, content, COALESCE(image_url, ''), created_at FROM news WHERE is_active = true ORDER BY created_at DESC`)
+	if err != nil { 
+		h.writeError(w, http.StatusInternalServerError, "DB Error")
+		return 
+	}
+	defer rows.Close()
+
+	var newsList []News
+	for rows.Next() {
+		var n News
+		if err := rows.Scan(&n.ID, &n.Title, &n.Content, &n.ImageURL, &n.CreatedAt); err == nil {
+			newsList = append(newsList, n)
+		}
+	}
+	
+	if len(newsList) == 0 { 
+		h.writeError(w, http.StatusNotFound, "No news")
+		return 
+	}
+	
+	// ✅ ส่งกลับไปเป็น Array
+	WriteJSON(w, http.StatusOK, newsList)
 }
 
 func (h *Handler) GetConcerts(w http.ResponseWriter, r *http.Request) {
