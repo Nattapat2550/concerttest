@@ -11,8 +11,8 @@ const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const CheckCodePage = lazy(() => import('./pages/CheckCodePage'));
 const CompleteProfilePage = lazy(() => import('./pages/CompleteProfilePage'));
 const HomePage = lazy(() => import('./pages/HomePage'));
-const ConcertBookPage = lazy(() => import('./pages/ConcertBookPage')); // หน้าจองที่นั่ง (เพิ่มใหม่)
-const MyBookingPage = lazy(() => import('./pages/MyBookingPage')); // หน้าประวัติการจอง (เพิ่มใหม่)
+const ConcertBookPage = lazy(() => import('./pages/ConcertBookPage')); 
+const MyBookingPage = lazy(() => import('./pages/MyBookingPage')); 
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
@@ -45,7 +45,10 @@ const App = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/check" element={<CheckCodePage />} />
-          <Route path="/form" element={<CompleteProfilePage />} />
+          
+          {/* ✅ แก้ไขตรงนี้ให้ตรงกับที่ Backend ส่งมา */}
+          <Route path="/complete-profile" element={<CompleteProfilePage />} />
+          
           <Route path="/reset" element={<ResetPasswordPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
