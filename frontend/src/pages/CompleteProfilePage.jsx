@@ -9,11 +9,13 @@ const CompleteProfilePage = () => {
   const dispatch = useDispatch();
   const [search] = useSearchParams();
   
-  // ✅ ดึงค่า Email และ Name จาก URL
+  // ✅ ดึงค่า Email, Name และข้อมูลเพิ่มเติมที่ได้จาก Google
   const emailFromQuery = search.get('email') || '';
   const nameFromQuery = search.get('name') || '';
+  const oauthIdFromQuery = search.get('oauthId') || '';
+  const pictureUrlFromQuery = search.get('pictureUrl') || '';
 
-  // ✅ ระบบแยกชื่อกับนามสกุลอัตโนมัติ (สมมติว่า Google ส่งมาเป็น "Somchai Jaidee")
+  // ระบบแยกชื่อกับนามสกุลอัตโนมัติ 
   const nameParts = nameFromQuery.trim().split(' ');
   const defaultFirstName = nameParts[0] || '';
   const defaultLastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
@@ -21,7 +23,6 @@ const CompleteProfilePage = () => {
   const [email, setEmail] = useState(emailFromQuery);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  // เซ็ตค่าเริ่มต้นให้ First Name และ Last Name ถ้ามีข้อมูลจาก Google
   const [firstName, setFirstName] = useState(defaultFirstName);
   const [lastName, setLastName] = useState(defaultLastName);
   const [tel, setTel] = useState('');
@@ -39,23 +40,25 @@ const CompleteProfilePage = () => {
     e.preventDefault();
     setMsg(null);
     try {
+      // ✅ ส่งพารามิเตอร์ OAuth เพิ่มเติมไปพร้อมกับการยืนยันตัวตนทีเดียว
       const { data } = await api.post('/api/auth/complete-profile', {
         email: email.trim(), 
         username: username.trim(), 
         password: password,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
-        tel: tel.trim()
+        tel: tel.trim(),
+        oauthId: oauthIdFromQuery,
+        pictureUrl: pictureUrlFromQuery
       });
       
-      // ✅ บังคับบันทึก Token และข้อมูล User ลง localStorage เพื่อให้เข้าสู่ระบบทันที
       localStorage.setItem('token', data.token);
       if (data.user) {
         localStorage.setItem('user', JSON.stringify(data.user));
       }
 
       await dispatch(checkAuthStatus());
-      window.location.href = '/home'; // ✅ ใช้ window.location.href เพื่อรีโหลดระบบ Auth 
+      window.location.href = '/home';
     } catch (err) {
       setMsg(err.response?.data?.error || 'Failed to complete profile');
     }

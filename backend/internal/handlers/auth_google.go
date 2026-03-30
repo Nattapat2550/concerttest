@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -36,13 +35,31 @@ func (h *Handler) AuthGoogleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := h.setOAuthUser(ctx, info)
-	if err != nil {
-		fmt.Println("Database setOAuthUser Error:", err)
-		http.Redirect(w, r, front+"/login?error=oauth_failed", http.StatusFound)
+	// ✅ เช็คก่อนว่ามี User ในระบบอยู่แล้วหรือไม่
+	var user userDTO
+	err = h.Pure.Post(ctx, "/api/internal/find-user", map[string]any{"email": info.Email}, &user)
+	
+	userExists := err == nil && user.ID != 0
+	isProfileIncomplete := true
+	if userExists {
+		// ถ้ามี User อยู่แล้ว ให้เช็คว่าข้อมูลครบไหม (เช็คจากเบอร์โทรศัพท์)
+		isProfileIncomplete = user.Tel == nil || strings.TrimSpace(*user.Tel) == ""
+	}
+
+	// ✅ ถ้ายังไม่มี User หรือโปรไฟล์ยังไม่ครบ -> ห้ามลงฐานข้อมูล ให้พาไปหน้า Complete Profile ทันที
+	if !userExists || isProfileIncomplete {
+		redirectURL := fmt.Sprintf("%s/complete-profile?email=%s&name=%s&oauthId=%s&pictureUrl=%s",
+			front,
+			url.QueryEscape(info.Email),
+			url.QueryEscape(info.Name),
+			url.QueryEscape(info.ID),
+			url.QueryEscape(info.Picture),
+		)
+		http.Redirect(w, r, redirectURL, http.StatusFound)
 		return
 	}
 
+	// ✅ ถ้ามีข้อมูลและกรอกครบแล้ว (ไอดีเก่า) ให้เข้าสู่ระบบได้เลย
 	token, err := h.signToken(user.ID, user.Role)
 	if err != nil {
 		http.Redirect(w, r, front+"/login?error=oauth_failed", http.StatusFound)
@@ -56,22 +73,6 @@ func (h *Handler) AuthGoogleCallback(w http.ResponseWriter, r *http.Request) {
 		role = "user"
 	}
 
-	// ✅ เปลี่ยนมาเช็คจาก 'เบอร์โทร' (Tel) แทน Username 
-	// เพราะ Google ไม่เคยส่งเบอร์โทรมา ถ้าไม่มีเบอร์โทร = ข้อมูลยังไม่ครบ (ต้องไปหน้า Complete Profile)
-	isProfileIncomplete := user.Tel == nil || strings.TrimSpace(*user.Tel) == ""
-
-	if isProfileIncomplete {
-		// พ่วงอีเมล และ ชื่อ(Name) จาก Google ไปกับ URL ให้ Frontend ไปแยกเป็น First/Last Name
-		redirectURL := fmt.Sprintf("%s/complete-profile?email=%s&name=%s",
-			front,
-			url.QueryEscape(user.Email),
-			url.QueryEscape(info.Name), // ส่ง Name ที่ได้จาก Google เข้าไปด้วย
-		)
-		http.Redirect(w, r, redirectURL, http.StatusFound)
-		return
-	}
-
-	// ✅ ถ้ามีข้อมูลครบแล้ว (ไอดีเก่าที่เคยกรอกเบอร์แล้ว) ให้พาเข้าหน้า Home หรือ Admin ตาม Role
 	frag := "token=" + url.QueryEscape(token) + "&role=" + url.QueryEscape(role)
 	if role == "admin" {
 		http.Redirect(w, r, front+"/admin#"+frag, http.StatusFound)
@@ -81,7 +82,7 @@ func (h *Handler) AuthGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, front+"/home#"+frag, http.StatusFound)
 }
 
-// GET /api/auth/google-mobile  (เอาไว้ให้เผื่อเรียกดู URL)
+// GET /api/auth/google-mobile
 func (h *Handler) AuthGoogleMobileStart(w http.ResponseWriter, r *http.Request) {
 	u, ok := h.Google.AuthURL("state")
 	if !ok {
@@ -116,9 +117,27 @@ func (h *Handler) AuthGoogleMobileCallback(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	user, err := h.setOAuthUser(ctx, info)
-	if err != nil {
-		h.writeError(w, http.StatusUnauthorized, "Failed to set OAuth user")
+	var user userDTO
+	err = h.Pure.Post(ctx, "/api/internal/find-user", map[string]any{"email": info.Email}, &user)
+	
+	userExists := err == nil && user.ID != 0
+	isProfileIncomplete := true
+	if userExists {
+		isProfileIncomplete = user.Tel == nil || strings.TrimSpace(*user.Tel) == ""
+	}
+
+	if !userExists || isProfileIncomplete {
+		// ส่งกลับไปให้ Mobile App ทราบว่าต้องพาผู้ใช้ไปหน้า Complete Profile (ไม่สร้าง JWT token ให้)
+		WriteJSON(w, http.StatusOK, map[string]any{
+			"isProfileIncomplete": true,
+			"needCompleteProfile": true,
+			"googleInfo": map[string]any{
+				"email":      info.Email,
+				"name":       info.Name,
+				"oauthId":    info.ID,
+				"pictureUrl": info.Picture,
+			},
+		})
 		return
 	}
 
@@ -130,41 +149,17 @@ func (h *Handler) AuthGoogleMobileCallback(w http.ResponseWriter, r *http.Reques
 
 	h.setAuthCookie(w, token, true)
 	
-	// คืนค่า User Data ครบชุด
 	WriteJSON(w, http.StatusOK, map[string]any{
 		"token": token,
 		"role":  user.Role,
-		// ✅ อัปเดตเงื่อนไขให้ Mobile ด้วย (เช็คจากเบอร์โทร)
-		"isProfileIncomplete": user.Tel == nil || strings.TrimSpace(*user.Tel) == "", 
+		"isProfileIncomplete": false, 
 		"user": map[string]any{
 			"id":                  user.ID,
 			"email":               user.Email,
 			"username":            user.Username,
-			"name":                info.Name, // ส่ง Name จาก Google ให้ Mobile ด้วยเผื่อต้องใช้
+			"name":                info.Name,
 			"role":                user.Role,
 			"profile_picture_url": user.ProfilePictureURL,
 		},
 	})
-}
-
-// ใช้ info.Name เพื่อส่งเข้าไปประกอบด้วย
-func (h *Handler) setOAuthUser(ctx context.Context, info *googleUserInfo) (userDTO, error) {
-	email := strings.ToLower(strings.TrimSpace(info.Email))
-	subject := strings.TrimSpace(info.ID) 
-	pic := strings.TrimSpace(info.Picture)
-	name := strings.TrimSpace(info.Name)
-
-	payload := map[string]any{
-		"provider":   "google",
-		"oauthId":    subject,
-		"email":      email,
-		"pictureUrl": pic,
-		"name":       name,
-	}
-
-	var user userDTO
-	if err := h.Pure.Post(ctx, "/api/internal/set-oauth-user", payload, &user); err != nil {
-		return userDTO{}, err
-	}
-	return user, nil
 }

@@ -15,16 +15,15 @@ import (
 
 var emailRe = regexp.MustCompile(`^\S+@\S+\.\S+$`)
 
-// ✅ เพิ่มฟิลด์ใหม่ๆ ตามที่ Backend (Rust/PureAPI) อัปเดตมา
 type userDTO struct {
 	ID                int64   `json:"id"`
-	UserID            *string `json:"user_id"` // UUID 
+	UserID            *string `json:"user_id"`
 	Email             string  `json:"email"`
 	Username          *string `json:"username"`
 	FirstName         *string `json:"first_name"`
 	LastName          *string `json:"last_name"`
 	Tel               *string `json:"tel"`
-	Status            *string `json:"status"` // 'active', 'suspended', 'banned', 'deleted'
+	Status            *string `json:"status"` 
 	Role              string  `json:"role"`
 	PasswordHash      *string `json:"password_hash"`
 	IsEmailVerified   bool    `json:"is_email_verified"`
@@ -41,16 +40,20 @@ type verifyReq struct {
 	Email string `json:"email"`
 	Code  string `json:"code"`
 }
-// ✅ เพิ่มฟิลด์ลงใน Complete Profile
+
+// ✅ รับค่า OAuthId และ PictureUrl สำหรับการสร้างไอดีในจังหวะนี้
 type completeProfileReq struct {
-	Email     string `json:"email"`
-	Username  string `json:"username"`
-	Password  string `json:"password"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Tel       string `json:"tel"`
-	Remember  bool   `json:"remember"`
+	Email      string `json:"email"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	FirstName  string `json:"first_name"`
+	LastName   string `json:"last_name"`
+	Tel        string `json:"tel"`
+	Remember   bool   `json:"remember"`
+	OAuthId    string `json:"oauthId"`
+	PictureUrl string `json:"pictureUrl"`
 }
+
 type loginReq struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -174,8 +177,34 @@ func (h *Handler) AuthCompleteProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var user userDTO
-	// ✅ ส่งข้อมูลส่วนตัวเพิ่มเข้าไปด้วย
-	payload := map[string]any{
+	
+	// ✅ 1. ตรวจสอบว่ามีข้อมูลผู้ใช้ในระบบแล้วหรือยัง
+	err := h.Pure.Post(ctx, "/api/internal/find-user", map[string]any{"email": email}, &user)
+	if err != nil || user.ID == 0 {
+		// ถ้าเป็น User ใหม่ที่มาจาก Google (มี OAuthId) ให้ทำการสร้างข้อมูลจังหวะนี้
+		if req.OAuthId != "" {
+			payloadOAuth := map[string]any{
+				"provider":   "google",
+				"oauthId":    req.OAuthId,
+				"email":      email,
+				"pictureUrl": req.PictureUrl,
+				"name":       strings.TrimSpace(req.FirstName + " " + req.LastName),
+			}
+			if errOAuth := h.Pure.Post(ctx, "/api/internal/set-oauth-user", payloadOAuth, &user); errOAuth != nil {
+				h.writeError(w, http.StatusInternalServerError, "Failed to create Google user account")
+				return
+			}
+		} else {
+			// เผื่อหลุดมาจากการสมัครปกติ
+			if errCreate := h.Pure.Post(ctx, "/api/internal/create-user-email", map[string]any{"email": email}, &user); errCreate != nil {
+				h.writeError(w, http.StatusInternalServerError, "Failed to create user account")
+				return
+			}
+		}
+	}
+
+	// ✅ 2. บันทึกข้อมูลโปรไฟล์ทั้งหมด
+	payloadUpdate := map[string]any{
 		"email":      email,
 		"username":   username,
 		"password":   password,
@@ -184,12 +213,12 @@ func (h *Handler) AuthCompleteProfile(w http.ResponseWriter, r *http.Request) {
 		"tel":        strings.TrimSpace(req.Tel),
 	}
 
-	if err := h.Pure.Post(ctx, "/api/internal/set-username-password", payload, &user); err != nil {
+	if err := h.Pure.Post(ctx, "/api/internal/set-username-password", payloadUpdate, &user); err != nil {
 		if isUsernameUniqueViolation(err) {
 			h.writeError(w, http.StatusConflict, "Username already taken")
 			return
 		}
-		h.writeError(w, http.StatusUnauthorized, "Email not verified")
+		h.writeError(w, http.StatusUnauthorized, "Email not verified or update failed")
 		return
 	}
 
@@ -250,7 +279,6 @@ func (h *Handler) AuthLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ✅ เช็คสถานะการแบน
 	currentStatus := "active"
 	if user.Status != nil {
 		currentStatus = *user.Status
@@ -260,7 +288,6 @@ func (h *Handler) AuthLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ✅ ระบบกู้คืนบัญชี (Auto-Reactivate) เมื่อ Status = deleted
 	reactivated := false
 	if currentStatus == "deleted" {
 		reactivatedPayload := map[string]any{
@@ -282,7 +309,6 @@ func (h *Handler) AuthLogin(w http.ResponseWriter, r *http.Request) {
 	
 	h.setAuthCookie(w, token, req.Remember)
 
-	// ✅ ส่งข้อมูล User แบบใหม่กลับไป (รวม first_name, last_name, tel, status)
 	WriteJSON(w, http.StatusOK, map[string]any{
 		"ok":          true,
 		"reactivated": reactivated,
@@ -324,7 +350,6 @@ func (h *Handler) AuthStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ดักไว้หากถูกแบนระหว่างใช้งาน
 	if user.Status != nil && *user.Status == "banned" {
 		h.clearAuthCookie(w)
 		WriteJSON(w, http.StatusOK, map[string]any{"authenticated": false, "reason": "banned"})
