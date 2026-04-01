@@ -154,44 +154,38 @@ export default function AdminPage() {
   // ฟังก์ชันรับค่าเมื่อ InteractiveSeatMap ตรวจจับการคลิก/ลากคลุมได้
   const handleAdminSeatSelect = (seats) => {
     const seatArray = Array.isArray(seats) ? seats : [seats];
+    if (seatArray.length === 0) return;
     
     setSeatConfigs(prevConfigs => {
-      let newConfigs = [...prevConfigs];
+      // 1. จำลอง Map เพื่อการค้นหา/ลบ/แก้ไข ระดับ O(1) (ป้องกันเครื่องค้าง)
+      const configMap = new Map();
+      for (const config of prevConfigs) {
+         configMap.set(config.seat_code, config);
+      }
       
-      // 1. ถ้าอยู่ในโหมดยางลบ -> ลบที่นั่งที่เลือกออกจากการเปิดขาย
-      if (isEraserMode) {
-        const codesToRemove = new Set(seatArray.map(s => s.seat_code));
-        return newConfigs.filter(c => !codesToRemove.has(c.seat_code));
-      }
-
-      // 2. ถ้าอยู่โหมดทาสี
       const activeChannel = channels.find(c => c.id === activeChannelId);
-      if (!activeChannel) return prevConfigs;
 
-      if (seatArray.length === 1) {
-        // 2.1 คลิกทีละตัว (มีระบบ Toggle เปิด/ปิด)
-        const seat = seatArray[0];
-        const existingIdx = newConfigs.findIndex(c => c.seat_code === seat.seat_code);
-        
-        if (existingIdx >= 0 && newConfigs[existingIdx].zone_name === activeChannel.name) {
-          // ถ้าคลิกสีเดิมซ้ำ ให้ลบออก
-          newConfigs.splice(existingIdx, 1); 
-        } else {
-          // ถ้าคลิกครั้งแรก หรือเปลี่ยนสี ให้ทาสีทับ
-          const newSeat = { seat_code: seat.seat_code, zone_name: activeChannel.name, price: Number(activeChannel.price), color: activeChannel.color };
-          if (existingIdx >= 0) newConfigs[existingIdx] = newSeat;
-          else newConfigs.push(newSeat);
+      // 2. จัดการข้อมูลทีละเก้าอี้
+      for (const seat of seatArray) {
+        if (isEraserMode) {
+          configMap.delete(seat.seat_code); // โหมดยางลบ: ลบออกจากการขาย
+        } else if (activeChannel) {
+          // ถ้าคลิกทีละ 1 ที่นั่ง แล้วสีนั้นถูกเลือกไว้อยู่แล้ว ให้ถือว่าเป็นการ "ยกเลิกสี (Toggle off)"
+          if (seatArray.length === 1 && configMap.has(seat.seat_code) && configMap.get(seat.seat_code).zone_name === activeChannel.name) {
+             configMap.delete(seat.seat_code);
+          } else {
+             // สาดสีใหม่ทับลงไป
+             configMap.set(seat.seat_code, {
+               seat_code: seat.seat_code,
+               zone_name: activeChannel.name,
+               price: Number(activeChannel.price),
+               color: activeChannel.color
+             });
+          }
         }
-      } else {
-        // 2.2 ลากคลุม (Lasso) หรือคลิกโซน (Zone) -> ทาสีทั้งหมด (Overwrite)
-        seatArray.forEach(seat => {
-          const existingIdx = newConfigs.findIndex(c => c.seat_code === seat.seat_code);
-          const newSeat = { seat_code: seat.seat_code, zone_name: activeChannel.name, price: Number(activeChannel.price), color: activeChannel.color };
-          if (existingIdx >= 0) newConfigs[existingIdx] = newSeat;
-          else newConfigs.push(newSeat);
-        });
       }
-      return newConfigs;
+      
+      return Array.from(configMap.values());
     });
   };
 
@@ -292,14 +286,13 @@ export default function AdminPage() {
             </p>
           </div>
 
-          <div className="w-full lg:w-3/4 bg-[#0f172a] shadow rounded border">
-             {/* เรียกใช้งาน InteractiveSeatMap ตัวใหม่ พร้อมส่ง prop mode="admin" */}
-             <InteractiveSeatMap 
-               svgContent={mapSvg}
-               configuredSeats={seatConfigs} // ส่งสีและโซนปัจจุบันเข้าไป Render
-               mode="admin"
-               onSeatSelect={handleAdminSeatSelect} // รับค่าเมื่อมีการคลิกหรือลากคลุมที่นั่ง
-             />
+          <div className="w-full lg:w-3/4 bg-[#0f172a] shadow rounded border h-175">
+            <InteractiveSeatMap 
+              svgContent={mapSvg}
+              configuredSeats={seatConfigs}
+              mode="admin"
+              onSeatSelect={handleAdminSeatSelect}
+            />
           </div>
         </div>
       </div>
