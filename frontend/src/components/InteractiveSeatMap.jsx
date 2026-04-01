@@ -13,7 +13,7 @@ export default function InteractiveSeatMap({
   const [showZoomHint, setShowZoomHint] = useState(false);
   const [lasso, setLasso] = useState(null); 
   
-  // Refs สำหรับการคำนวณพิกัดเพื่อป้องกัน Re-render
+  // Refs สำหรับป้องกัน Re-render และจัดการ Event
   const transform = useRef({ x: 0, y: 0, scale: 1 });
   const dragState = useRef({ isDragging: false, startX: 0, startY: 0, mapX: 0, mapY: 0 });
   const lassoRef = useRef({ active: false, startX: 0, startY: 0, clientStartX: 0, clientStartY: 0 });
@@ -22,10 +22,20 @@ export default function InteractiveSeatMap({
   const applyTransform = () => {
     if (transformWrapperRef.current) {
       transformWrapperRef.current.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
+      
+      const svgEl = transformWrapperRef.current.querySelector('svg');
+      if (svgEl) {
+        // [แก้บัคที่ 2: ระบบ LOD] ถ้าเป็น User และซูม < 1.5 ให้ใช้โหมด 'low' (ซ่อนเก้าอี้ โชว์แต่โซนดั้งเดิม)
+        if (mode === 'booking' && transform.current.scale < 1.5) {
+          svgEl.setAttribute('data-zoom', 'low');
+        } else {
+          svgEl.setAttribute('data-zoom', 'high'); // ซูมลึกแล้วให้เก้าอี้โผล่มา
+        }
+      }
     }
   };
 
-  // 1. โหลด SVG และทำการ Smart Scan ตรวจจับที่นั่งแบบอัตโนมัติ
+  // 1. โหลด SVG และทำการ Smart Scan ตรวจจับที่นั่ง
   useEffect(() => {
     const container = transformWrapperRef.current;
     if (!container || !svgContent) return;
@@ -41,13 +51,25 @@ export default function InteractiveSeatMap({
 
     seatElementsCache.current.clear();
 
-    // ดึงโหนดที่คาดว่าเป็น "ที่นั่ง" ทั้งหมด (ค้นหาคลาส .seat หรือ ดึงวงกลมทั้งหมด)
     let seats = Array.from(svgEl.querySelectorAll('.seat, .Seat'));
     if (seats.length === 0) {
-       // Fallback กรณีไม่มีคลาส: เลือกวงกลมที่ขนาดไม่ใหญ่เกินไป (กันไปติดพื้นหลัง)
-       seats = Array.from(svgEl.querySelectorAll('circle, rect')).filter(el => {
-           const size = el.getAttribute('width') || el.getAttribute('r') * 2;
-           if (size && parseFloat(size) > 200) return false;
+       // [แก้บัคที่ 2: การแยกแยะโซนและเก้าอี้] ตรวจจับเฉพาะสิ่งที่เป็นเก้าอี้จริงๆ ป้องกันการดูดกล่องโซนมาทำสีเพี้ยน
+       seats = Array.from(svgEl.querySelectorAll('circle, ellipse, rect')).filter(el => {
+           const w = el.getAttribute('width');
+           const h = el.getAttribute('height');
+           const r = el.getAttribute('r') || el.getAttribute('rx');
+           
+           let size = null;
+           if (w && h) size = Math.max(parseFloat(w), parseFloat(h));
+           else if (r) size = parseFloat(r) * 2;
+           else if (el.getBoundingClientRect) {
+               const rect = el.getBoundingClientRect();
+               size = Math.max(rect.width, rect.height);
+           }
+           
+           // ถ้าความกว้าง/ยาวเกิน 40px ให้ถือว่าเป็น "กรอบโซน" (พื้นหลัง) ไม่ใช่ "เก้าอี้"
+           if (size && size > 40) return false;
+           if (!size && el.tagName === 'rect') return false; 
            return true;
        });
     }
@@ -55,23 +77,27 @@ export default function InteractiveSeatMap({
     seats.forEach((seat, idx) => {
       let id = seat.getAttribute('id');
       if (!id) {
-        id = `seat-auto-${idx}`; // สร้าง ID ให้อัตโนมัติถ้าไม่มี
+        id = `seat-auto-${idx}`;
         seat.setAttribute('id', id);
       }
       seat.classList.add('smart-seat');
       seat.style.cursor = 'pointer';
-      seat.style.transition = 'filter 0.1s ease, stroke 0.1s ease';
       seat.style.transformBox = 'fill-box';
       seat.style.transformOrigin = 'center';
       
-      seatElementsCache.current.set(id, seat); // เก็บเข้า Cache เพื่อความเร็ว
+      seatElementsCache.current.set(id, seat);
     });
 
     const styleEl = document.createElement('style');
     styleEl.innerHTML = `
+      .smart-seat { transition: opacity 0.3s ease, filter 0.1s ease, stroke 0.1s ease; }
       .smart-seat:hover { filter: brightness(1.4) saturate(1.5) !important; stroke: #ffffff !important; stroke-width: 2px !important; z-index: 10; }
       g[id] { cursor: pointer; }
       g[id]:hover > .smart-seat { stroke: #3b82f6 !important; stroke-width: 1.5px !important; }
+      
+      /* Level of Detail (LOD) CSS */
+      svg[data-zoom="low"] .smart-seat { opacity: 0 !important; pointer-events: none !important; }
+      svg[data-zoom="high"] .smart-seat { opacity: 1; }
     `;
     svgEl.appendChild(styleEl);
 
@@ -79,7 +105,7 @@ export default function InteractiveSeatMap({
     applyTransform();
   }, [svgContent]);
 
-  // 2. การเทสีความเร็วสูง (Direct DOM Mutation) ป้องกันบราวเซอร์ค้าง
+  // 2. การเทสีความเร็วสูง
   useEffect(() => {
     if (seatElementsCache.current.size === 0) return;
 
@@ -103,14 +129,13 @@ export default function InteractiveSeatMap({
           seatNode.style.stroke = 'none';
         } else {
           seatNode.style.fill = config.color || '#3b82f6';
-          seatNode.style.opacity = '1';
+          seatNode.style.opacity = ''; // เคลียร์เพื่อใช้ opacity จาก LOD
           seatNode.style.pointerEvents = 'auto';
           seatNode.style.cursor = 'pointer';
           seatNode.style.stroke = 'none';
         }
       } else {
         if (mode === 'admin') {
-          // โชว์ที่นั่งเปล่าๆ ให้แอดมินเห็น
           seatNode.style.display = 'block';
           seatNode.style.fill = '#e2e8f0';
           seatNode.style.opacity = '0.8';
@@ -125,7 +150,7 @@ export default function InteractiveSeatMap({
     });
   }, [configuredSeats, bookedSeats, mode]);
 
-  // 3. Event Handling ตัดปัญหา Bubbling (คลิกทะลุกัน)
+  // 3. Event Handling ตัดปัญหา Bubbling
   useEffect(() => {
     const container = transformWrapperRef.current;
     if (!container) return;
@@ -145,7 +170,6 @@ export default function InteractiveSeatMap({
         return;
       }
 
-      // ตรวจสอบการคลิกเลือกโซน (Group)
       let node = target;
       while (node && node !== container && node.tagName !== 'svg') {
          if (node.tagName === 'g' || node.classList.contains('zone')) {
@@ -178,7 +202,7 @@ export default function InteractiveSeatMap({
     };
   }, [configuredSeats, bookedSeats, mode, onSeatSelect, onZoneSelect]);
 
-  // 4. ควบคุม Zoom, Pan, และ Lasso ลากคลุม
+  // 4. ควบคุม Zoom, Pan
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -261,9 +285,9 @@ export default function InteractiveSeatMap({
   };
 
   const handlePointerUp = (e) => {
+    // โพรเซสการลากคลุม
     if (lassoRef.current.active) {
       if (lasso && lasso.w > 5 && lasso.h > 5) {
-        // คำนวณขอบเขตหน้าจอจริง
         const lRect = {
           left: Math.min(lassoRef.current.clientStartX, e.clientX),
           top: Math.min(lassoRef.current.clientStartY, e.clientY),
@@ -275,7 +299,6 @@ export default function InteractiveSeatMap({
         seatElementsCache.current.forEach((seatNode, seatId) => {
           if (seatNode.style.display === 'none') return; 
           const sRect = seatNode.getBoundingClientRect();
-          // หา Intersection ของกล่อง (แก้บัคคลุมโดนพื้นหลัง)
           if (!(lRect.right < sRect.left || lRect.left > sRect.right || lRect.bottom < sRect.top || lRect.top > sRect.bottom)) {
             const conf = configuredSeats.find(c => c.seat_code === seatId);
             selectedGroup.push(conf || { seat_code: seatId, status: 'available' });
@@ -284,12 +307,11 @@ export default function InteractiveSeatMap({
 
         if (selectedGroup.length > 0 && onSeatSelect) onSeatSelect(selectedGroup);
       }
-      
-      setLasso(null);
-      setTimeout(() => { lassoRef.current.active = false; }, 50);
-      return;
     }
-
+    
+    // [แก้บัคที่ 1: ลากคลุมค้าง] เคลียร์ค่าตัวแปรทั้งหมดเสมอเพื่อล้าง UI กล่องสีฟ้าทิ้ง 100%
+    setLasso(null);
+    lassoRef.current.active = false;
     setTimeout(() => { dragState.current.isDragging = false; }, 50);
   };
 
@@ -297,7 +319,11 @@ export default function InteractiveSeatMap({
     transform.current.scale = Math.max(0.5, Math.min(transform.current.scale + factor, 15)); 
     applyTransform(); 
   };
-  const handleReset = () => { transform.current = { x: 0, y: 0, scale: 1 }; applyTransform(); };
+  
+  const handleReset = () => { 
+    transform.current = { x: 0, y: 0, scale: 1 }; 
+    applyTransform(); 
+  };
 
   return (
     <div className="relative select-none w-full h-full min-h-125">
@@ -324,8 +350,9 @@ export default function InteractiveSeatMap({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
+        onPointerLeave={handlePointerUp} // ดักกรณีเมาส์หลุดจอ
       >
+        {/* Render กล่องลากคลุม Lasso ตรงนี้ ซึ่งจะหายไปทันทีเมื่อ setLasso(null) */}
         {lasso && (
           <div 
             className="absolute border-2 border-blue-400 bg-blue-400/30 z-50 pointer-events-none shadow-[0_0_10px_rgba(96,165,250,0.5)]"
