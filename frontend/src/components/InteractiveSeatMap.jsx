@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { injectMapStyles, buildVectorZones } from './seatMapUtils'; // อิมพอร์ตเครื่องมือ
+import { injectMapStyles, buildVectorZones } from '../seatMapUtils'; // อิมพอร์ตเครื่องมือ
 
 export default function InteractiveSeatMap({
   svgContent,
