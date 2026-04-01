@@ -18,25 +18,27 @@ export default function InteractiveSeatMap({
   const lassoRef = useRef({ active: false, startX: 0, startY: 0, clientStartX: 0, clientStartY: 0 });
   const seatElementsCache = useRef(new Map());
 
-  const applyTransform = () => {
-    if (transformWrapperRef.current) {
-      transformWrapperRef.current.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
+  // ฟังก์ชันควบคุมการซูมและแพน (คมชัด 100% เพราะขยับที่ SVG ตรงๆ)
+  const applyTransform = (animate = false) => {
+    const svgEl = transformWrapperRef.current?.querySelector('svg');
+    if (svgEl) {
+      if (animate) {
+        svgEl.style.transition = 'transform 0.3s ease-in-out';
+        setTimeout(() => { if(svgEl) svgEl.style.transition = 'none'; }, 300);
+      }
       
-      const svgEl = transformWrapperRef.current.querySelector('svg');
-      if (svgEl) {
-        // [ระบบ LOD] ซูม < 1.5 ให้ซ่อนเก้าอี้ เพื่อโชว์ภาพ Master SVG แบบเพียวๆ
-        if (transform.current.scale < 1.5) {
-          svgEl.classList.add('zoom-low');
-          svgEl.classList.remove('zoom-high');
-        } else {
-          svgEl.classList.add('zoom-high');
-          svgEl.classList.remove('zoom-low');
-        }
+      svgEl.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
+      
+      // ระบบ Level of Detail (LOD) - ซูมเกิน 1.5 ถึงจะโชว์เก้าอี้
+      if (transform.current.scale < 1.5) {
+        svgEl.setAttribute('data-zoom', 'low');
+      } else {
+        svgEl.setAttribute('data-zoom', 'high');
       }
     }
   };
 
-  // 1. สแกน SVG แบบแม่นยำสูง (กรองเอาเฉพาะเก้าอี้จริงๆ ป้องกันโซนเพี้ยนเป็นสีดำ)
+  // 1. โหลดและสแกนเก้าอี้ (เข้มงวดสุดๆ เพื่อป้องกันการดูดกล่องโซนมาเปลี่ยนเป็นสีดำ)
   useEffect(() => {
     const container = transformWrapperRef.current;
     if (!container || !svgContent) return;
@@ -45,83 +47,59 @@ export default function InteractiveSeatMap({
     const svgEl = container.querySelector('svg');
     if (!svgEl) return;
 
+    // ตั้งค่า SVG ให้รองรับการซูมคมชัด
     svgEl.style.width = '100%';
     svgEl.style.height = '100%';
     svgEl.style.maxHeight = '650px';
+    svgEl.style.transformOrigin = '0 0';
+    svgEl.style.willChange = 'transform'; // บอกเบราว์เซอร์ล่วงหน้าเพื่อความลื่น
     svgEl.setAttribute('draggable', 'false');
-    svgEl.classList.add(`mode-${mode}`);
 
     seatElementsCache.current.clear();
 
-    // หากลุ่มเป้าหมายที่ "อาจจะ" เป็นเก้าอี้
-    let seats = Array.from(svgEl.querySelectorAll('.seat, .Seat, [id*="seat" i], [class*="seat" i]'));
+    // กวาดหาสิ่งที่ "น่าจะ" เป็นเก้าอี้ทั้งหมด (วงกลม, วงรี, สี่เหลี่ยม)
+    const allShapes = svgEl.querySelectorAll('circle, ellipse, rect, path');
     
-    // ถ้าไม่มี Class ระบุชัดเจน ให้ใช้ Native SVG getBBox() สแกนหา "รูปทรงขนาดเล็ก"
-    if (seats.length === 0) {
-        const candidates = svgEl.querySelectorAll('circle, ellipse, rect, polygon, path');
-        seats = Array.from(candidates).filter(el => {
-            try {
-                const box = el.getBBox();
-                // เงื่อนไขเหล็ก: ความกว้าง/ยาว ต้องไม่เกิน 60 หน่วย (ถ้าเกิน = โซน/ฉากหลัง ข้ามทันที!)
-                return box.width > 0 && box.width <= 60 && box.height > 0 && box.height <= 60;
-            } catch(e) { return false; }
-        });
-    }
-
-    seats.forEach((seat, idx) => {
-      let id = seat.getAttribute('id');
-      if (!id) {
-        id = `seat-auto-${idx}`;
-        seat.setAttribute('id', id);
-      }
-      seat.classList.add('smart-seat');
-      seat.style.cursor = 'pointer';
-      seatElementsCache.current.set(id, seat);
+    allShapes.forEach((el, idx) => {
+      try {
+        const box = el.getBBox();
+        // เงื่อนไขเหล็ก: ความกว้างและยาวต้องไม่เกิน 40px จึงจะถือว่าเป็น "เก้าอี้"
+        // ถ้าเกิน (เช่น กล่องโซนเวที หรือ พื้นหลัง) จะถูกข้ามไป ไม่โดนเปลี่ยนสี!
+        if (box.width > 0 && box.width <= 40 && box.height > 0 && box.height <= 40) {
+          
+          let id = el.getAttribute('id');
+          if (!id) {
+            id = `seat-auto-${idx}`;
+            el.setAttribute('id', id);
+          }
+          
+          el.classList.add('smart-seat');
+          el.style.cursor = 'pointer';
+          seatElementsCache.current.set(id, el);
+        }
+      } catch (e) { /* ข้ามตัวที่คำนวณขนาดไม่ได้ */ }
     });
 
+    // ล้าง CSS เก่าแล้วใส่ใหม่ (บังคับเฉพาะเก้าอี้ ไม่กวนโซน)
     const oldStyle = svgEl.querySelector('#seat-map-styles');
     if (oldStyle) oldStyle.remove();
 
-    // สร้าง CSS ฉบับทะลวงทะลวงบังคับสี (แก้บัคสีดำ 100%)
     const styleEl = document.createElement('style');
     styleEl.id = 'seat-map-styles';
     styleEl.innerHTML = `
-      .smart-seat { transition: opacity 0.3s ease, filter 0.1s ease; transform-box: fill-box; transform-origin: center; }
+      .smart-seat { transition: opacity 0.2s ease, filter 0.1s ease; transform-box: fill-box; transform-origin: center; }
       
-      /* บังคับยัดสีใส่ตัวเก้าอี้ และ "ลูก" ของมันทุกตัว (ทับสีดำเดิมของ SVG) */
-      .smart-seat, .smart-seat * {
-         fill: var(--seat-color) !important;
-         stroke: none !important;
-      }
+      /* บังคับสีเก้าอี้ */
+      .smart-seat { fill: var(--seat-color) !important; stroke: none !important; }
+      .smart-seat:hover { filter: brightness(1.5) saturate(2); stroke: white !important; stroke-width: 2px !important; z-index: 100; }
       
-      .smart-seat:hover, .smart-seat:hover * {
-         filter: brightness(1.4) saturate(1.5) !important;
-         stroke: #ffffff !important;
-         stroke-width: 2px !important;
-      }
+      /* ระบบ LOD: ซ่อนเก้าอี้ตอนซูมออก ให้เห็นแค่โซนต้นฉบับ */
+      svg[data-zoom="low"] .smart-seat { opacity: 0 !important; pointer-events: none !important; }
+      svg[data-zoom="high"] .smart-seat { opacity: 1; pointer-events: auto; }
       
-      g[id] { cursor: pointer; }
-      
-      /* ควบคุมการแสดงผล LOD */
-      svg.zoom-low .smart-seat { opacity: 0 !important; pointer-events: none !important; }
-      svg.zoom-high .smart-seat { opacity: 1; pointer-events: auto; }
-      
-      /* โหมด Admin: ให้เห็นเก้าอี้ที่ยังไม่ได้ตั้งค่าเป็นสีเทา */
-      svg.mode-admin .smart-seat.unconfigured, svg.mode-admin .smart-seat.unconfigured * {
-         fill: #cbd5e1 !important;
-         opacity: 0.6 !important;
-      }
-      
-      /* โหมด User Booking: ซ่อนเก้าอี้ที่แอดมินยังไม่เปิดขาย */
-      svg.mode-booking .smart-seat.unconfigured { display: none !important; }
-      
-      /* เก้าอี้ที่ถูกจองแล้ว */
-      .smart-seat.booked, .smart-seat.booked * {
-         fill: #475569 !important;
-         opacity: 0.4 !important;
-         pointer-events: none !important;
-         cursor: not-allowed !important;
-      }
+      /* สถานะเก้าอี้ */
+      .smart-seat.booked { fill: #475569 !important; opacity: 0.4 !important; pointer-events: none !important; cursor: not-allowed !important; }
+      .smart-seat.unconfigured { display: ${mode === 'booking' ? 'none' : 'block'} !important; fill: #cbd5e1 !important; opacity: 0.5 !important; }
     `;
     svgEl.appendChild(styleEl);
 
@@ -129,7 +107,7 @@ export default function InteractiveSeatMap({
     applyTransform();
   }, [svgContent, mode]);
 
-  // 2. การเทสีด้วย CSS Variables (เบาเครื่อง และแก้บัคสีดำ)
+  // 2. ระบายสีเก้าอี้
   useEffect(() => {
     if (seatElementsCache.current.size === 0) return;
 
@@ -138,17 +116,13 @@ export default function InteractiveSeatMap({
     configuredSeats.forEach(c => configuredMap.set(c.seat_code, c));
 
     seatElementsCache.current.forEach((seatNode, seatId) => {
-      const isConfigured = configuredMap.has(seatId);
-      const isBooked = bookedSet.has(seatId);
-
       seatNode.classList.remove('unconfigured', 'booked');
 
-      if (isConfigured) {
+      if (configuredMap.has(seatId)) {
         const config = configuredMap.get(seatId);
-        // ฝังตัวแปรสีไว้ที่ Node เพื่อให้ CSS ดึงไปใช้ (ชนะทุก Inline Style ของ SVG)
         seatNode.style.setProperty('--seat-color', config.color || '#3b82f6');
         
-        if (mode === 'booking' && isBooked) {
+        if (mode === 'booking' && bookedSet.has(seatId)) {
           seatNode.classList.add('booked');
         }
       } else {
@@ -157,59 +131,62 @@ export default function InteractiveSeatMap({
     });
   }, [configuredSeats, bookedSeats, mode]);
 
-  // 3. จัดการการคลิก (Click Handling)
-  useEffect(() => {
-    const container = transformWrapperRef.current;
-    if (!container) return;
-
-    const handleClick = (e) => {
-      if (dragState.current.isDragging || lassoRef.current.active) return;
-      const target = e.target;
+  // ================= 3. ระบบคลิกและซูม (รวมแก้บัค 1 และ 4) =================
+  const handleMapClick = (e) => {
+    const target = e.target;
+    
+    // 3.1 กรณีคลิกโดนเก้าอี้ (จอง/ทาสี)
+    const seat = target.closest('.smart-seat');
+    if (seat) {
+      e.stopPropagation();
+      const seatId = seat.getAttribute('id');
       
-      const seat = target.closest('.smart-seat');
-      if (seat) {
-        e.stopPropagation();
-        const seatId = seat.getAttribute('id');
-        if (mode === 'booking' && bookedSeats.includes(seatId)) return;
+      if (mode === 'booking' && bookedSeats.includes(seatId)) return;
+      
+      const config = configuredSeats.find(c => c.seat_code === seatId);
+      // ถ้าเป็น User และเก้าอี้นั้นไม่ได้เปิดขาย ให้คลิกไม่ได้
+      if (mode === 'booking' && !config) return;
 
-        const config = configuredSeats.find(c => c.seat_code === seatId);
-        if (onSeatSelect) onSeatSelect(config || { seat_code: seatId, status: 'available' });
-        return;
+      if (onSeatSelect) onSeatSelect(config || { seat_code: seatId, status: 'available' });
+      return;
+    }
+
+    // 3.2 กรณีคลิกโดนโซน หรือ พื้นที่ว่าง (ให้ซูมเข้า)
+    // ฟีเจอร์ที่ 4: ซูมเข้าไปตรงจุดที่คลิก
+    if (transform.current.scale < 2) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const clickY = e.clientY - rect.top;
+
+      const newScale = 2.5; // ระดับการซูมเมื่อกดโซน
+      const scaleRatio = newScale / transform.current.scale;
+      
+      transform.current.x = clickX - (clickX - transform.current.x) * scaleRatio;
+      transform.current.y = clickY - (clickY - transform.current.y) * scaleRatio;
+      transform.current.scale = newScale;
+
+      applyTransform(true); // true = มีแอนิเมชันสมูทๆ
+    }
+
+    // [แอดมินเท่านั้น] ถ้าคลิกโดนโซน ให้คลุมดำเก้าอี้ทั้งโซนให้ด้วย
+    if (mode === 'admin') {
+      let node = target.closest('g');
+      if (node) {
+        const seatsInZone = node.querySelectorAll('.smart-seat');
+        if (seatsInZone.length > 0) {
+          const selectedGroup = [];
+          seatsInZone.forEach(s => {
+            const sId = s.getAttribute('id');
+            const conf = configuredSeats.find(c => c.seat_code === sId);
+            selectedGroup.push(conf || { seat_code: sId, status: 'available' });
+          });
+          if (onSeatSelect) onSeatSelect(selectedGroup);
+        }
       }
+    }
+  };
 
-      let node = target;
-      while (node && node !== container && node.tagName !== 'svg') {
-         if (node.tagName === 'g' || node.classList.contains('zone')) {
-            e.stopPropagation();
-            if (onZoneSelect && node.getAttribute('id')) onZoneSelect(node.getAttribute('id'));
-            
-            if (mode === 'admin' && onSeatSelect) {
-               const seatsInZone = node.querySelectorAll('.smart-seat');
-               const selectedGroup = [];
-               seatsInZone.forEach(s => {
-                 const sId = s.getAttribute('id');
-                 if (sId) {
-                   const conf = configuredSeats.find(c => c.seat_code === sId);
-                   selectedGroup.push(conf || { seat_code: sId, status: 'available' });
-                 }
-               });
-               if (selectedGroup.length > 0) onSeatSelect(selectedGroup);
-            }
-            break;
-         }
-         node = node.parentNode;
-      }
-    };
-
-    container.addEventListener('click', handleClick);
-    container.addEventListener('touchend', handleClick);
-    return () => {
-      container.removeEventListener('click', handleClick);
-      container.removeEventListener('touchend', handleClick);
-    };
-  }, [configuredSeats, bookedSeats, mode, onSeatSelect, onZoneSelect]);
-
-  // 4. ควบคุม Zoom
+  // ================= 4. ระบบควบคุม (Wheel, Pan, Lasso) =================
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -241,10 +218,8 @@ export default function InteractiveSeatMap({
     return () => container.removeEventListener('wheel', handleWheel);
   }, []);
 
-  // ================= แก้บัค Lasso ค้างด้วย Pointer Capture =================
   const handlePointerDown = (e) => {
-    // ล็อคเมาส์ให้อยู่กับ Component นี้เท่านั้น (ปล่อยเมาส์นอกจอก็ไม่ค้าง!)
-    e.currentTarget.setPointerCapture(e.pointerId);
+    e.currentTarget.setPointerCapture(e.pointerId); // ล็อคเมาส์
 
     if (mode === 'admin' && e.shiftKey) {
       const rect = containerRef.current.getBoundingClientRect();
@@ -256,7 +231,7 @@ export default function InteractiveSeatMap({
     }
 
     dragState.current = {
-      isDragging: false,
+      isDragging: false, // รีเซ็ตการลาก
       startX: e.clientX,
       startY: e.clientY,
       mapX: transform.current.x,
@@ -281,10 +256,12 @@ export default function InteractiveSeatMap({
     }
 
     if (e.buttons !== 1) return;
+    
+    // ตรวจจับการลาก (ถ้าขยับเกิน 5px ถึงจะถือว่าเป็นการแพน ไม่ใช่การคลิกจองที่นั่ง)
     const dx = e.clientX - dragState.current.startX;
     const dy = e.clientY - dragState.current.startY;
 
-    if (!dragState.current.isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+    if (!dragState.current.isDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
       dragState.current.isDragging = true;
     }
 
@@ -296,9 +273,9 @@ export default function InteractiveSeatMap({
   };
 
   const handlePointerUp = (e) => {
-    // ปลดล็อคเมาส์เมื่อปล่อยคลิก
     e.currentTarget.releasePointerCapture(e.pointerId);
 
+    // ประมวลผล Lasso (ลากคลุม)
     if (lassoRef.current.active) {
       if (lasso && lasso.w > 5 && lasso.h > 5) {
         const lRect = {
@@ -320,22 +297,27 @@ export default function InteractiveSeatMap({
 
         if (selectedGroup.length > 0 && onSeatSelect) onSeatSelect(selectedGroup);
       }
+      setLasso(null);
+      lassoRef.current.active = false;
+      return;
+    }
+
+    // ถ้าไม่ได้ขยับเมาส์ลากแผนที่ ให้ถือว่าเป็นการ "คลิก (Click)"
+    if (!dragState.current.isDragging) {
+      handleMapClick(e);
     }
     
-    // เคลียร์กล่องฟ้าทิ้งแบบ 100%
-    setLasso(null);
-    lassoRef.current.active = false;
-    setTimeout(() => { dragState.current.isDragging = false; }, 50);
+    dragState.current.isDragging = false;
   };
 
   const handleZoom = (factor) => { 
     transform.current.scale = Math.max(0.5, Math.min(transform.current.scale + factor, 15)); 
-    applyTransform(); 
+    applyTransform(true); 
   };
   
   const handleReset = () => { 
     transform.current = { x: 0, y: 0, scale: 1 }; 
-    applyTransform(); 
+    applyTransform(true); 
   };
 
   return (
@@ -379,7 +361,7 @@ export default function InteractiveSeatMap({
         ) : svgContent ? (
           <div 
             ref={transformWrapperRef}
-            className="w-full h-full origin-top-left flex items-center justify-center will-change-transform"
+            className="w-full h-full flex items-center justify-center"
           />
         ) : (
           <div className="flex justify-center items-center w-full h-full absolute">
