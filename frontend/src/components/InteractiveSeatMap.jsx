@@ -18,22 +18,31 @@ export default function InteractiveSeatMap({
   const lassoRef = useRef({ active: false, startX: 0, startY: 0, clientStartX: 0, clientStartY: 0 });
   const seatElementsCache = useRef(new Map());
 
-  // 1. ฟังก์ชันควบคุมการซูมและแพน (ถอด will-change ออกแก้ภาพแตก)
+  const ZOOM_THRESHOLD = 1.2; // จุดเปลี่ยนระหว่างซูมดูโซน กับซูมดูที่นั่ง
+
+  // ฟังก์ชันควบคุมการซูมและแพน
   const applyTransform = (animate = false) => {
     const svgEl = transformWrapperRef.current?.querySelector('svg');
     if (svgEl) {
       if (animate) {
-        svgEl.style.transition = 'transform 0.2s ease-out';
-        setTimeout(() => { if(svgEl) svgEl.style.transition = 'none'; }, 200);
+        svgEl.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+        setTimeout(() => { if(svgEl) svgEl.style.transition = 'none'; }, 300);
       } else {
         svgEl.style.transition = 'none';
       }
       
       svgEl.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
+      
+      // อัปเดต State การซูมเพื่อควบคุมการแสดงผลของ Zone Box และ เก้าอี้
+      if (transform.current.scale < ZOOM_THRESHOLD) {
+        svgEl.setAttribute('data-zoom', 'low');
+      } else {
+        svgEl.setAttribute('data-zoom', 'high');
+      }
     }
   };
 
-  // 2. โหลดและสแกนเก้าอี้
+  // 1. โหลดแผนผังและสร้างกล่องคลุมโซน (Zone Box) อัตโนมัติ
   useEffect(() => {
     const container = transformWrapperRef.current;
     if (!container || !svgContent) return;
@@ -42,56 +51,102 @@ export default function InteractiveSeatMap({
     const svgEl = container.querySelector('svg');
     if (!svgEl) return;
 
-    // ตั้งค่า SVG ปกป้องความคมชัด (ไม่ใช้ will-change)
     svgEl.style.width = '100%';
     svgEl.style.height = '100%';
     svgEl.style.transformOrigin = '0 0';
     svgEl.setAttribute('draggable', 'false');
 
     seatElementsCache.current.clear();
+    const zoneGroups = new Set();
 
     // กวาดหาสิ่งที่เป็นเก้าอี้
     const allShapes = svgEl.querySelectorAll('circle, ellipse, rect, path');
-    
     allShapes.forEach((el, idx) => {
       try {
         const box = el.getBBox();
         if (box.width > 0 && box.width <= 60 && box.height > 0 && box.height <= 60) {
-          
-          let id = el.getAttribute('id');
-          if (!id) {
-            id = `seat-auto-${idx}`;
-            el.setAttribute('id', id);
-          }
-          
+          let id = el.getAttribute('id') || `seat-auto-${idx}`;
+          el.setAttribute('id', id);
           el.classList.add('smart-seat');
           seatElementsCache.current.set(id, el);
+
+          // หา Group แม่ เพื่อเอาไปสร้างกล่องโซน
+          const parentG = el.closest('g[id]');
+          if (parentG && parentG.id !== 'layer1' && parentG.id !== 'svg-root') {
+            zoneGroups.add(parentG);
+          }
         }
       } catch (e) { /* ข้าม */ }
     });
 
-    // ล้าง CSS เก่าแล้วใส่ใหม่ (ปล่อยให้รูปเหมือนไฟล์ต้นฉบับ 100%)
+    // สีสไตล์ Master Plan สำหรับแต่ละโซน
+    const masterColors = ['#a855f7', '#3b82f6', '#ec4899', '#f97316', '#eab308'];
+    let colorIndex = 0;
+
+    // สร้างกล่องคลุมทับแต่ละโซน (แก้บัคข้อ 2)
+    zoneGroups.forEach(g => {
+      try {
+        if (g.querySelector('.zone-overlay')) return; 
+        
+        const box = g.getBBox();
+        if (box.width > 0 && box.height > 0) {
+          const padding = 15;
+          const overlayG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+          overlayG.setAttribute('class', 'zone-overlay');
+          
+          // สร้างกล่องสี่เหลี่ยม
+          const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+          rect.setAttribute('x', box.x - padding);
+          rect.setAttribute('y', box.y - padding);
+          rect.setAttribute('width', box.width + padding * 2);
+          rect.setAttribute('height', box.height + padding * 2);
+          rect.setAttribute('rx', 8); // มุมโค้งมน
+          rect.setAttribute('class', 'zone-overlay-rect');
+          rect.style.fill = masterColors[colorIndex % masterColors.length];
+          rect.style.cursor = 'pointer';
+          colorIndex++;
+
+          // สร้างข้อความชื่อโซน
+          const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          text.textContent = g.id.replace(/[_-]/g, ' ').toUpperCase();
+          text.setAttribute('x', box.x + box.width / 2);
+          text.setAttribute('y', box.y + box.height / 2);
+          text.setAttribute('text-anchor', 'middle');
+          text.setAttribute('dominant-baseline', 'middle');
+          text.style.fill = '#ffffff';
+          text.style.fontSize = Math.min(box.width, box.height) * 0.25 + 'px'; // ขนาดตัวหนังสือสมดุลกับกล่อง
+          text.style.fontWeight = 'bold';
+          text.style.pointerEvents = 'none'; // ให้ทะลุไปโดนกล่องเวลาคลิก
+
+          overlayG.appendChild(rect);
+          overlayG.appendChild(text);
+          g.appendChild(overlayG);
+        }
+      } catch(e) {}
+    });
+
+    // สไตล์ CSS แบบแยก Layer ชัดเจน
     const oldStyle = svgEl.querySelector('#seat-map-styles');
     if (oldStyle) oldStyle.remove();
 
     const styleEl = document.createElement('style');
     styleEl.id = 'seat-map-styles';
     styleEl.innerHTML = `
-      .smart-seat { 
-        transition: opacity 0.2s ease, filter 0.1s ease; 
-        transform-box: fill-box; 
-        transform-origin: center; 
-        cursor: pointer;
-        pointer-events: auto !important; /* บังคับให้รับคลิกได้เสมอ */
-      }
-      
-      /* บังคับสีเก้าอี้ */
+      .smart-seat { transition: opacity 0.2s ease, filter 0.1s ease; transform-box: fill-box; transform-origin: center; cursor: pointer; }
       .smart-seat { fill: var(--seat-color) !important; stroke: none !important; }
-      .smart-seat:hover { filter: brightness(1.5) saturate(2); stroke: white !important; stroke-width: 2px !important; z-index: 100; }
-      
-      /* สถานะเก้าอี้ */
+      .smart-seat:hover { filter: brightness(1.5) saturate(2); stroke: white !important; stroke-width: 2px !important; }
       .smart-seat.booked { fill: #475569 !important; opacity: 0.4 !important; pointer-events: none !important; cursor: not-allowed !important; }
       .smart-seat.unconfigured { display: ${mode === 'booking' ? 'none' : 'block'} !important; fill: #cbd5e1 !important; opacity: 0.5 !important; }
+      
+      .zone-overlay { transition: opacity 0.3s ease; }
+      .zone-overlay-rect:hover { filter: brightness(1.1); stroke: white; stroke-width: 4px; }
+      
+      /* ระบบสลับเลเยอร์: ตอนซูมออกโชว์กล่อง ตอนซูมเข้าโชว์เก้าอี้ */
+      svg[data-zoom="low"] .smart-seat { opacity: 0 !important; pointer-events: none !important; }
+      svg[data-zoom="low"] .zone-overlay { opacity: 1 !important; pointer-events: auto !important; }
+      
+      svg[data-zoom="high"] .smart-seat { opacity: 1 !important; pointer-events: auto !important; }
+      svg[data-zoom="high"] .zone-overlay { opacity: 0 !important; pointer-events: none !important; }
     `;
     svgEl.appendChild(styleEl);
 
@@ -99,21 +154,18 @@ export default function InteractiveSeatMap({
     applyTransform();
   }, [svgContent, mode]);
 
-  // 3. ระบายสีเก้าอี้
+  // 2. ระบายสีเก้าอี้ตามสถานะ
   useEffect(() => {
     if (seatElementsCache.current.size === 0) return;
-
     const bookedSet = new Set(bookedSeats);
     const configuredMap = new Map();
     configuredSeats.forEach(c => configuredMap.set(c.seat_code, c));
 
     seatElementsCache.current.forEach((seatNode, seatId) => {
       seatNode.classList.remove('unconfigured', 'booked');
-
       if (configuredMap.has(seatId)) {
         const config = configuredMap.get(seatId);
         seatNode.style.setProperty('--seat-color', config.color || '#3b82f6');
-        
         if (mode === 'booking' && bookedSet.has(seatId)) {
           seatNode.classList.add('booked');
         }
@@ -123,16 +175,14 @@ export default function InteractiveSeatMap({
     });
   }, [configuredSeats, bookedSeats, mode]);
 
-  // ================= 4. ระบบคลิก (แก้บัคการกดไม่ติด) =================
-  const handleMapClick = (e) => {
-    const target = e.target;
-    
-    // 4.1 กรณีคลิกโดนเก้าอี้
+  // ================= 3. ระบบคลิกและซูมที่แก้บัคแล้ว (ข้อ 1) =================
+  const handleMapClick = (target, clientX, clientY) => {
+    if (!target) return;
+
+    // 3.1 กรณีซูมเข้าแล้ว และกดโดนเก้าอี้
     const seat = target.closest('.smart-seat');
-    if (seat) {
-      e.stopPropagation();
+    if (seat && transform.current.scale >= ZOOM_THRESHOLD) {
       const seatId = seat.getAttribute('id');
-      
       if (mode === 'booking' && bookedSeats.includes(seatId)) return;
       
       const config = configuredSeats.find(c => c.seat_code === seatId);
@@ -142,28 +192,42 @@ export default function InteractiveSeatMap({
       return;
     }
 
-    // 4.2 [แอดมิน] คลิกที่โซนเพื่อเลือกเก้าอี้ทั้งกลุ่ม
-    if (mode === 'admin') {
-      const group = target.closest('g');
-      if (group) {
-        const seatsInZone = group.querySelectorAll('.smart-seat');
-        if (seatsInZone.length > 0) {
-          const selectedGroup = Array.from(seatsInZone).map(s => {
-            const sId = s.getAttribute('id');
-            const conf = configuredSeats.find(c => c.seat_code === sId);
-            return conf || { seat_code: sId, status: 'available' };
-          });
-          if (onSeatSelect) onSeatSelect(selectedGroup);
-        }
+    // 3.2 กรณีซูมออกอยู่ หรือกดโดนกล่องโซน (ให้ซูมเข้าไปตรงที่คลิก)
+    const overlay = target.closest('.zone-overlay');
+    if (overlay || transform.current.scale < ZOOM_THRESHOLD) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const clickX = clientX - rect.left;
+      const clickY = clientY - rect.top;
+
+      const newScale = 2.5; 
+      const scaleRatio = newScale / transform.current.scale;
+      
+      transform.current.x = clickX - (clickX - transform.current.x) * scaleRatio;
+      transform.current.y = clickY - (clickY - transform.current.y) * scaleRatio;
+      transform.current.scale = newScale;
+
+      applyTransform(true);
+      
+      // แอดมิน: ถ้าต้องการให้คลิกโซนแล้วเลือกที่นั่งทั้งโซนได้เลยตอนซูมออก
+      if (mode === 'admin' && overlay) {
+          const group = overlay.closest('g');
+          if (group) {
+              const seatsInZone = group.querySelectorAll('.smart-seat');
+              const selectedGroup = Array.from(seatsInZone).map(s => {
+                  const sId = s.getAttribute('id');
+                  const conf = configuredSeats.find(c => c.seat_code === sId);
+                  return conf || { seat_code: sId, status: 'available' };
+              });
+              if (onSeatSelect && selectedGroup.length > 0) onSeatSelect(selectedGroup);
+          }
       }
     }
   };
 
-  // ================= 5. ระบบควบคุม (Wheel, Pan, Lasso) =================
+  // ================= 4. ระบบจัดการเมาส์และลากแผนที่ =================
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-
     const handleWheel = (e) => {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
@@ -186,13 +250,12 @@ export default function InteractiveSeatMap({
         setTimeout(() => setShowZoomHint(false), 2500);
       }
     };
-
     container.addEventListener('wheel', handleWheel, { passive: false });
     return () => container.removeEventListener('wheel', handleWheel);
   }, []);
 
   const handlePointerDown = (e) => {
-    e.currentTarget.setPointerCapture(e.pointerId);
+    e.target.setPointerCapture(e.pointerId);
 
     if (mode === 'admin' && e.shiftKey) {
       const rect = containerRef.current.getBoundingClientRect();
@@ -218,12 +281,9 @@ export default function InteractiveSeatMap({
       const currentX = e.clientX - rect.left;
       const currentY = e.clientY - rect.top;
       const { startX, startY } = lassoRef.current;
-      
       setLasso({
-        x: Math.min(currentX, startX),
-        y: Math.min(currentY, startY),
-        w: Math.abs(currentX - startX),
-        h: Math.abs(currentY - startY)
+        x: Math.min(currentX, startX), y: Math.min(currentY, startY),
+        w: Math.abs(currentX - startX), h: Math.abs(currentY - startY)
       });
       return;
     }
@@ -233,6 +293,7 @@ export default function InteractiveSeatMap({
     const dx = e.clientX - dragState.current.startX;
     const dy = e.clientY - dragState.current.startY;
 
+    // ถ้าลากเกิน 5px ถึงจะนับว่าเป็นการลาก ไม่ใช่การคลิก
     if (!dragState.current.isDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
       dragState.current.isDragging = true;
     }
@@ -245,27 +306,24 @@ export default function InteractiveSeatMap({
   };
 
   const handlePointerUp = (e) => {
-    e.currentTarget.releasePointerCapture(e.pointerId);
+    e.target.releasePointerCapture(e.pointerId);
 
     if (lassoRef.current.active) {
+      // ประมวลผล Lasso สำหรับ Admin
       if (lasso && lasso.w > 5 && lasso.h > 5) {
         const lRect = {
-          left: Math.min(lassoRef.current.clientStartX, e.clientX),
-          top: Math.min(lassoRef.current.clientStartY, e.clientY),
-          right: Math.max(lassoRef.current.clientStartX, e.clientX),
-          bottom: Math.max(lassoRef.current.clientStartY, e.clientY),
+          left: Math.min(lassoRef.current.clientStartX, e.clientX), top: Math.min(lassoRef.current.clientStartY, e.clientY),
+          right: Math.max(lassoRef.current.clientStartX, e.clientX), bottom: Math.max(lassoRef.current.clientStartY, e.clientY),
         };
-
         const selectedGroup = [];
         seatElementsCache.current.forEach((seatNode, seatId) => {
-          if (seatNode.style.display === 'none') return; 
+          if (seatNode.style.display === 'none' || transform.current.scale < ZOOM_THRESHOLD) return; 
           const sRect = seatNode.getBoundingClientRect();
           if (!(lRect.right < sRect.left || lRect.left > sRect.right || lRect.bottom < sRect.top || lRect.top > sRect.bottom)) {
             const conf = configuredSeats.find(c => c.seat_code === seatId);
             selectedGroup.push(conf || { seat_code: seatId, status: 'available' });
           }
         });
-
         if (selectedGroup.length > 0 && onSeatSelect) onSeatSelect(selectedGroup);
       }
       setLasso(null);
@@ -273,27 +331,18 @@ export default function InteractiveSeatMap({
       return;
     }
 
-    // Logic ใหม่: ตรวจสอบว่าเป็นแค่การคลิกหรือการลาก
-    const dx = Math.abs(e.clientX - dragState.current.startX);
-    const dy = Math.abs(e.clientY - dragState.current.startY);
-    
-    // ถ้าย้ายเมาส์น้อยกว่า 5px ให้ถือว่าเป็นการคลิก (แก้ปัญหาคลิกไม่ติด)
-    if (dx < 5 && dy < 5) {
-      handleMapClick(e);
+    // ตัดสินใจว่าเป็นการคลิกหรือไม่ (แก้อาการคลิกไม่ติด)
+    if (!dragState.current.isDragging) {
+      // ค้นหา Element จริงๆ ที่อยู่ใต้เมาส์ เพื่อป้องกันบัค pointerCapture
+      const actualTarget = document.elementFromPoint(e.clientX, e.clientY);
+      handleMapClick(actualTarget, e.clientX, e.clientY);
     }
     
     dragState.current.isDragging = false;
   };
 
-  const handleZoom = (factor) => { 
-    transform.current.scale = Math.max(0.5, Math.min(transform.current.scale + factor, 15)); 
-    applyTransform(true); 
-  };
-  
-  const handleReset = () => { 
-    transform.current = { x: 0, y: 0, scale: 1 }; 
-    applyTransform(true); 
-  };
+  const handleZoom = (factor) => { transform.current.scale = Math.max(0.5, Math.min(transform.current.scale + factor, 15)); applyTransform(true); };
+  const handleReset = () => { transform.current = { x: 0, y: 0, scale: 1 }; applyTransform(true); };
 
   return (
     <div className="relative select-none w-full h-full min-h-125">
@@ -334,10 +383,7 @@ export default function InteractiveSeatMap({
             <p className="text-gray-500 font-bold text-2xl text-center">แอดมินยังไม่ได้เปิดขายที่นั่ง</p>
           </div>
         ) : svgContent ? (
-          <div 
-            ref={transformWrapperRef}
-            className="w-full h-full flex items-center justify-center"
-          />
+          <div ref={transformWrapperRef} className="w-full h-full flex items-center justify-center" />
         ) : (
           <div className="flex justify-center items-center w-full h-full absolute">
              <p className="text-gray-400 font-bold text-xl pointer-events-none">ไม่มีแผนผัง Interactive</p>
