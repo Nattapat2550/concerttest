@@ -24,17 +24,19 @@ export default function InteractiveSeatMap({
       
       const svgEl = transformWrapperRef.current.querySelector('svg');
       if (svgEl) {
-        // [ระบบ LOD] ซ่อนเก้าอี้เมื่อซูมออก ให้เห็นแค่ภาพรวมโซน (ลดภาระเครื่อง)
+        // [ระบบ LOD] ซูม < 1.5 ให้ซ่อนเก้าอี้ เพื่อโชว์ภาพ Master SVG แบบเพียวๆ
         if (transform.current.scale < 1.5) {
-          svgEl.setAttribute('data-zoom', 'low');
+          svgEl.classList.add('zoom-low');
+          svgEl.classList.remove('zoom-high');
         } else {
-          svgEl.setAttribute('data-zoom', 'high');
+          svgEl.classList.add('zoom-high');
+          svgEl.classList.remove('zoom-low');
         }
       }
     }
   };
 
-  // 1. โหลด SVG และทำการสแกนหาเฉพาะ "เก้าอี้" เท่านั้น (ป้องกันโซน/พื้นหลังเปลี่ยนเป็นสีดำ)
+  // 1. สแกน SVG แบบแม่นยำสูง (กรองเอาเฉพาะเก้าอี้จริงๆ ป้องกันโซนเพี้ยนเป็นสีดำ)
   useEffect(() => {
     const container = transformWrapperRef.current;
     if (!container || !svgContent) return;
@@ -47,26 +49,22 @@ export default function InteractiveSeatMap({
     svgEl.style.height = '100%';
     svgEl.style.maxHeight = '650px';
     svgEl.setAttribute('draggable', 'false');
+    svgEl.classList.add(`mode-${mode}`);
 
     seatElementsCache.current.clear();
 
-    // ขั้นที่ 1: หาจาก Class หรือ ID ก่อน (ถ้ามี)
-    let seats = Array.from(svgEl.querySelectorAll('.seat, .Seat, [id*="seat"], [class*="seat"]'));
+    // หากลุ่มเป้าหมายที่ "อาจจะ" เป็นเก้าอี้
+    let seats = Array.from(svgEl.querySelectorAll('.seat, .Seat, [id*="seat" i], [class*="seat" i]'));
     
-    // ขั้นที่ 2: ถ้าไม่มีคลาส ให้หาจาก "รูปทรงวงกลมจิ๋ว" หรือ "สี่เหลี่ยมจิ๋ว" เท่านั้น (ขนาดไม่เกิน 30px)
+    // ถ้าไม่มี Class ระบุชัดเจน ให้ใช้ Native SVG getBBox() สแกนหา "รูปทรงขนาดเล็ก"
     if (seats.length === 0) {
-        seats = Array.from(svgEl.querySelectorAll('circle, ellipse, rect, path')).filter(el => {
-            // ดึงขนาดเพื่อเช็คว่าเป็นเก้าอี้หรือแค่ฉากหลัง
-            const rectBox = el.getBoundingClientRect && el.getBoundingClientRect();
-            let w = parseFloat(el.getAttribute('width') || (rectBox ? rectBox.width : 0));
-            let h = parseFloat(el.getAttribute('height') || (rectBox ? rectBox.height : 0));
-            let r = parseFloat(el.getAttribute('r') || el.getAttribute('rx') || 0);
-            
-            let size = Math.max(w, h, r * 2);
-
-            // เงื่อนไข: ถ้าเป็นวงกลม/สี่เหลี่ยมขนาดเล็ก (0 ถึง 30px) ให้นับเป็นเก้าอี้
-            // ถ้าใหญ่กว่านั้น ถือว่าเป็นกล่องโซน (Zone) จะไม่เข้าไปยุ่งสีมันเด็ดขาด!
-            return size > 0 && size <= 30;
+        const candidates = svgEl.querySelectorAll('circle, ellipse, rect, polygon, path');
+        seats = Array.from(candidates).filter(el => {
+            try {
+                const box = el.getBBox();
+                // เงื่อนไขเหล็ก: ความกว้าง/ยาว ต้องไม่เกิน 60 หน่วย (ถ้าเกิน = โซน/ฉากหลัง ข้ามทันที!)
+                return box.width > 0 && box.width <= 60 && box.height > 0 && box.height <= 60;
+            } catch(e) { return false; }
         });
     }
 
@@ -78,31 +76,60 @@ export default function InteractiveSeatMap({
       }
       seat.classList.add('smart-seat');
       seat.style.cursor = 'pointer';
-      seat.style.transformBox = 'fill-box';
-      seat.style.transformOrigin = 'center';
-      
       seatElementsCache.current.set(id, seat);
     });
 
+    const oldStyle = svgEl.querySelector('#seat-map-styles');
+    if (oldStyle) oldStyle.remove();
+
+    // สร้าง CSS ฉบับทะลวงทะลวงบังคับสี (แก้บัคสีดำ 100%)
     const styleEl = document.createElement('style');
+    styleEl.id = 'seat-map-styles';
     styleEl.innerHTML = `
-      .smart-seat { transition: opacity 0.3s ease, filter 0.1s ease, stroke 0.1s ease; }
-      .smart-seat:hover { filter: brightness(1.4) saturate(1.5) !important; stroke: #ffffff !important; stroke-width: 2px !important; z-index: 10; }
+      .smart-seat { transition: opacity 0.3s ease, filter 0.1s ease; transform-box: fill-box; transform-origin: center; }
       
-      /* ให้โซนดั้งเดิมคลิกได้ แต่ไม่เปลี่ยนสี */
+      /* บังคับยัดสีใส่ตัวเก้าอี้ และ "ลูก" ของมันทุกตัว (ทับสีดำเดิมของ SVG) */
+      .smart-seat, .smart-seat * {
+         fill: var(--seat-color) !important;
+         stroke: none !important;
+      }
+      
+      .smart-seat:hover, .smart-seat:hover * {
+         filter: brightness(1.4) saturate(1.5) !important;
+         stroke: #ffffff !important;
+         stroke-width: 2px !important;
+      }
+      
       g[id] { cursor: pointer; }
       
-      /* ควบคุมการซูมเข้า/ออก (LOD) */
-      svg[data-zoom="low"] .smart-seat { opacity: 0 !important; pointer-events: none !important; }
-      svg[data-zoom="high"] .smart-seat { opacity: 1; }
+      /* ควบคุมการแสดงผล LOD */
+      svg.zoom-low .smart-seat { opacity: 0 !important; pointer-events: none !important; }
+      svg.zoom-high .smart-seat { opacity: 1; pointer-events: auto; }
+      
+      /* โหมด Admin: ให้เห็นเก้าอี้ที่ยังไม่ได้ตั้งค่าเป็นสีเทา */
+      svg.mode-admin .smart-seat.unconfigured, svg.mode-admin .smart-seat.unconfigured * {
+         fill: #cbd5e1 !important;
+         opacity: 0.6 !important;
+      }
+      
+      /* โหมด User Booking: ซ่อนเก้าอี้ที่แอดมินยังไม่เปิดขาย */
+      svg.mode-booking .smart-seat.unconfigured { display: none !important; }
+      
+      /* เก้าอี้ที่ถูกจองแล้ว */
+      .smart-seat.booked, .smart-seat.booked * {
+         fill: #475569 !important;
+         opacity: 0.4 !important;
+         pointer-events: none !important;
+         cursor: not-allowed !important;
+      }
     `;
     svgEl.appendChild(styleEl);
 
     transform.current = { x: 0, y: 0, scale: 1 };
     applyTransform();
-  }, [svgContent]);
+  }, [svgContent, mode]);
 
-  // 2. การเทสีเก้าอี้แบบแก้บัค "สีดำ" (ใช้ทั้ง setAttribute และ inline style ผสมกัน)
+  // 2. การเทสีด้วย CSS Variables (เบาเครื่อง และแก้บัคสีดำ)
   useEffect(() => {
     if (seatElementsCache.current.size === 0) return;
 
@@ -114,44 +141,18 @@ export default function InteractiveSeatMap({
       const isConfigured = configuredMap.has(seatId);
       const isBooked = bookedSet.has(seatId);
 
-      // ฟังก์ชันช่วยยัดสี ป้องกันบัคสีดำจาก SVG
-      const applyColor = (colorCode) => {
-         seatNode.setAttribute('fill', colorCode);
-         seatNode.style.setProperty('fill', colorCode, 'important');
-      };
+      seatNode.classList.remove('unconfigured', 'booked');
 
       if (isConfigured) {
-        seatNode.style.display = 'block';
         const config = configuredMap.get(seatId);
+        // ฝังตัวแปรสีไว้ที่ Node เพื่อให้ CSS ดึงไปใช้ (ชนะทุก Inline Style ของ SVG)
+        seatNode.style.setProperty('--seat-color', config.color || '#3b82f6');
         
         if (mode === 'booking' && isBooked) {
-          applyColor('#475569'); // สีเทา (ที่นั่งถูกจองแล้ว)
-          seatNode.style.opacity = '0.4';
-          seatNode.style.pointerEvents = 'none';
-          seatNode.style.cursor = 'not-allowed';
-          seatNode.style.stroke = 'none';
-        } else {
-          // ใช้สีที่แอดมินเซ็ตไว้ หรือสีฟ้าเป็นค่าเริ่มต้น
-          applyColor(config.color || '#3b82f6');
-          seatNode.style.opacity = ''; 
-          seatNode.style.pointerEvents = 'auto';
-          seatNode.style.cursor = 'pointer';
-          seatNode.style.stroke = 'none';
+          seatNode.classList.add('booked');
         }
       } else {
-        if (mode === 'admin') {
-          // โหมดแอดมิน: โชว์ที่นั่งที่ยังไม่ได้ขายเป็นสีเทาจางๆ (ไม่ให้กลืนกับจอดำ)
-          applyColor('#cbd5e1'); 
-          seatNode.style.display = 'block';
-          seatNode.style.opacity = '0.5';
-          seatNode.style.pointerEvents = 'auto';
-          seatNode.style.cursor = 'pointer';
-          seatNode.style.stroke = 'none';
-        } else {
-          // โหมดผู้ใช้: ซ่อนที่นั่งที่แอดมินยังไม่ได้เปิดขาย
-          seatNode.style.display = 'none';
-          seatNode.style.pointerEvents = 'none';
-        }
+        seatNode.classList.add('unconfigured');
       }
     });
   }, [configuredSeats, bookedSeats, mode]);
@@ -208,7 +209,7 @@ export default function InteractiveSeatMap({
     };
   }, [configuredSeats, bookedSeats, mode, onSeatSelect, onZoneSelect]);
 
-  // 4. ควบคุม Zoom, Pan, Lasso (แก้บัคกล่องค้าง)
+  // 4. ควบคุม Zoom
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -240,7 +241,11 @@ export default function InteractiveSeatMap({
     return () => container.removeEventListener('wheel', handleWheel);
   }, []);
 
+  // ================= แก้บัค Lasso ค้างด้วย Pointer Capture =================
   const handlePointerDown = (e) => {
+    // ล็อคเมาส์ให้อยู่กับ Component นี้เท่านั้น (ปล่อยเมาส์นอกจอก็ไม่ค้าง!)
+    e.currentTarget.setPointerCapture(e.pointerId);
+
     if (mode === 'admin' && e.shiftKey) {
       const rect = containerRef.current.getBoundingClientRect();
       const startX = e.clientX - rect.left;
@@ -291,6 +296,9 @@ export default function InteractiveSeatMap({
   };
 
   const handlePointerUp = (e) => {
+    // ปลดล็อคเมาส์เมื่อปล่อยคลิก
+    e.currentTarget.releasePointerCapture(e.pointerId);
+
     if (lassoRef.current.active) {
       if (lasso && lasso.w > 5 && lasso.h > 5) {
         const lRect = {
@@ -314,6 +322,7 @@ export default function InteractiveSeatMap({
       }
     }
     
+    // เคลียร์กล่องฟ้าทิ้งแบบ 100%
     setLasso(null);
     lassoRef.current.active = false;
     setTimeout(() => { dragState.current.isDragging = false; }, 50);
@@ -354,7 +363,6 @@ export default function InteractiveSeatMap({
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp} 
       >
         {lasso && (
           <div 
