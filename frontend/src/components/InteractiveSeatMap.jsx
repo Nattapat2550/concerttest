@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
+import RBush from 'rbush';
 
 export default function InteractiveSeatMap({
-  svgContent,
-  configuredSeats = [],
+  svgContent, // แนะนำให้เป็นไฟล์ SVG ที่มีแค่โซน (ดึงโหนดที่นั่งนับหมื่นออกไปก่อนเพื่อลดขนาด DOM)
+  configuredSeats = [], // ข้อมูลที่นั่ง (จำเป็นต้องมี property x และ y เพิ่มเติมจาก backend)
   bookedSeats = [],
   selectedSeat = null,
   onSeatSelect
@@ -10,78 +11,68 @@ export default function InteractiveSeatMap({
   const containerRef = useRef(null);
   const transformWrapperRef = useRef(null);
   const svgContainerRef = useRef(null);
+  
   const [showZoomHint, setShowZoomHint] = useState(false);
+  const [visibleSeats, setVisibleSeats] = useState([]); // เก็บเฉพาะที่นั่งที่อยู่ในหน้าจอ
 
   const transform = useRef({ x: 0, y: 0, scale: 1 });
   const dragState = useRef({ isDragging: false, startX: 0, startY: 0, mapStartX: 0, mapStartY: 0 });
+  
+  // 1. สร้าง R-Tree Instance สำหรับทำ Spatial Indexing
+  const rbushIndex = useRef(new RBush());
+
+  // 2. สร้าง Index เมื่อข้อมูล configuredSeats เปลี่ยนแปลง
+  useEffect(() => {
+    if (configuredSeats.length === 0) return;
+
+    rbushIndex.current.clear();
+    
+    // แปลงข้อมูลให้อยู่ในรูปแบบที่ rbush ต้องการ (minX, minY, maxX, maxY)
+    // สมมติว่าที่นั่งมีขนาด 10x10 หน่วย (ปรับตัวเลขตาม scale จริงของ SVG)
+    const seatItems = configuredSeats.map(seat => ({
+      minX: seat.x - 5,
+      minY: seat.y - 5,
+      maxX: seat.x + 5,
+      maxY: seat.y + 5,
+      seatData: seat
+    }));
+
+    rbushIndex.current.load(seatItems);
+    updateVisibleSeats(); // อัปเดตที่นั่งทันทีที่โหลดเสร็จ
+  }, [configuredSeats]);
+
+  // 3. ฟังก์ชันคำนวณว่าที่นั่งไหนอยู่ใน Viewport (หน้าจอที่มองเห็น)
+  const updateVisibleSeats = useCallback(() => {
+    if (!containerRef.current) return;
+
+    const { width, height } = containerRef.current.getBoundingClientRect();
+    const { x: tx, y: ty, scale } = transform.current;
+
+    // คำนวณ Bounding Box ของหน้าจอปัจจุบัน เทียบกับพิกัดดั้งเดิมของ SVG
+    // การหารด้วย scale และลบค่า translate จะทำให้ได้พื้นที่จริงที่กำลังโฟกัส
+    const minX = -tx / scale;
+    const minY = -ty / scale;
+    const maxX = (width - tx) / scale;
+    const maxY = (height - ty) / scale;
+
+    // ค้นหาเฉพาะที่นั่งที่อยู่ในกรอบหน้าจอ
+    const results = rbushIndex.current.search({ minX, minY, maxX, maxY });
+
+    // Level of Detail (LOD) - ซูมเกิน 1.5 ถึงจะเริ่ม Render ที่นั่ง
+    if (scale >= 1.5) {
+      setVisibleSeats(results.map(item => item.seatData));
+    } else {
+      setVisibleSeats([]); // ซูมออกกว้างๆ ไม่ต้อง Render ที่นั่ง (โชว์แค่โซน)
+    }
+  }, []);
 
   const applyTransform = () => {
     if (transformWrapperRef.current) {
       transformWrapperRef.current.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
     }
+    // อัปเดต Viewport Culling ทุกครั้งที่มีการขยับหรือซูม
+    updateVisibleSeats();
   };
-
-  const generatedStyles = useMemo(() => {
-    let css = `
-      .svg-container svg { width: 100% !important; height: 100% !important; object-fit: contain; max-height: 650px; }
-      .seat { transition: filter 0.1s ease, stroke 0.1s ease; cursor: pointer; transform-box: fill-box; }
-      .seat:hover { filter: brightness(1.4); stroke: #ffffff; stroke-width: 2px; }
-      .seat { display: none !important; }
-    `;
-
-    configuredSeats.forEach(seat => {
-      const safeId = CSS.escape(seat.seat_code);
-      const isBooked = bookedSeats.includes(seat.seat_code);
-      const isSelected = selectedSeat?.seat_code === seat.seat_code;
-
-      css += `\n#${safeId} { display: block !important; }`;
-
-      if (isBooked) {
-        css += `\n#${safeId} { fill: #475569 !important; opacity: 0.5 !important; pointer-events: none !important; cursor: not-allowed !important; stroke: none !important; }`;
-      } else {
-        if (seat.color) css += `\n#${safeId} { fill: ${seat.color} !important; }`;
-        if (isSelected) {
-          css += `\n#${safeId} { stroke: #ef4444 !important; stroke-width: 4px !important; filter: brightness(1.2) drop-shadow(0px 0px 4px rgba(239,68,68,0.8)); }`;
-        }
-      }
-    });
-    return css;
-  }, [configuredSeats, bookedSeats, selectedSeat]);
-
-  useEffect(() => {
-    if (!svgContainerRef.current || !svgContent) return;
-    const seats = svgContainerRef.current.querySelectorAll('.seat');
-
-    const handleSeatClick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (dragState.current.isDragging) return;
-
-      const seatId = e.currentTarget.getAttribute('id');
-      if (!seatId || bookedSeats.includes(seatId)) return;
-
-      const config = configuredSeats.find(s => s.seat_code === seatId);
-      if (config) {
-        if (selectedSeat?.seat_code === seatId) {
-          onSeatSelect(null);
-        } else {
-          onSeatSelect(config);
-        }
-      }
-    };
-
-    seats.forEach(seat => {
-      seat.addEventListener('click', handleSeatClick);
-      seat.addEventListener('touchend', handleSeatClick);
-    });
-
-    return () => {
-      seats.forEach(seat => {
-        seat.removeEventListener('click', handleSeatClick);
-        seat.removeEventListener('touchend', handleSeatClick);
-      });
-    };
-  }, [svgContent, configuredSeats, bookedSeats, selectedSeat, onSeatSelect]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -96,7 +87,17 @@ export default function InteractiveSeatMap({
         if (newScale === 1) {
           transform.current.x = 0;
           transform.current.y = 0;
+        } else {
+          // คำนวณการซูมให้พุ่งเป้าไปที่จุดที่เมาส์ชี้ (Zoom to pointer)
+          const rect = container.getBoundingClientRect();
+          const mouseX = e.clientX - rect.left;
+          const mouseY = e.clientY - rect.top;
+          
+          const scaleRatio = newScale / transform.current.scale;
+          transform.current.x = mouseX - (mouseX - transform.current.x) * scaleRatio;
+          transform.current.y = mouseY - (mouseY - transform.current.y) * scaleRatio;
         }
+        
         transform.current.scale = newScale;
         applyTransform();
         setShowZoomHint(false);
@@ -108,7 +109,7 @@ export default function InteractiveSeatMap({
 
     container.addEventListener('wheel', handleWheel, { passive: false });
     return () => container.removeEventListener('wheel', handleWheel);
-  }, []);
+  }, [updateVisibleSeats]);
 
   const handlePointerDown = (e) => {
     if (transform.current.scale <= 1) return;
@@ -144,18 +145,31 @@ export default function InteractiveSeatMap({
     }, 50);
   };
 
-  const handleZoomIn = () => { transform.current.scale = Math.min(transform.current.scale + 0.5, 10); applyTransform(); };
+  const handleZoomIn = () => { 
+    transform.current.scale = Math.min(transform.current.scale + 0.5, 10); 
+    applyTransform(); 
+  };
   const handleZoomOut = () => { 
     transform.current.scale = Math.max(transform.current.scale - 0.5, 1); 
     if (transform.current.scale === 1) { transform.current.x = 0; transform.current.y = 0; }
     applyTransform(); 
   };
-  const handleReset = () => { transform.current.scale = 1; transform.current.x = 0; transform.current.y = 0; applyTransform(); };
+  const handleReset = () => { 
+    transform.current.scale = 1; transform.current.x = 0; transform.current.y = 0; 
+    applyTransform(); 
+  };
+
+  const handleSeatClick = (seat) => {
+    if (dragState.current.isDragging || bookedSeats.includes(seat.seat_code)) return;
+    if (selectedSeat?.seat_code === seat.seat_code) {
+      onSeatSelect(null);
+    } else {
+      onSeatSelect(seat);
+    }
+  };
 
   return (
     <div className="relative select-none w-full">
-      <style>{generatedStyles}</style>
-
       <div className="absolute top-4 right-4 z-20 flex gap-2 bg-white/80 dark:bg-gray-800/80 p-2 rounded-lg shadow backdrop-blur-sm">
         <button onClick={handleZoomOut} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded font-bold hover:bg-gray-300 transition">-</button>
         <button onClick={handleReset} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded text-sm font-bold hover:bg-gray-300 transition">RESET</button>
@@ -168,7 +182,7 @@ export default function InteractiveSeatMap({
 
       <div 
         ref={containerRef}
-        className="bg-[#0f172a] rounded-xl flex items-center justify-center border dark:border-gray-600 shadow-inner overflow-hidden relative h-[650px] touch-none cursor-grab active:cursor-grabbing"
+        className="bg-[#0f172a] rounded-xl flex items-center justify-center border dark:border-gray-600 shadow-inner overflow-hidden relative h-162.5 touch-none cursor-grab active:cursor-grabbing"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -182,14 +196,55 @@ export default function InteractiveSeatMap({
         ) : svgContent ? (
           <div 
             ref={transformWrapperRef}
-            /* ลบ will-change-transform ออกจากบรรทัดนี้แล้ว ทำให้ไม่เบลอตอนซูม */
-            className="w-full h-full origin-center flex items-center justify-center"
+            className="w-full h-full origin-top-left flex items-center justify-center relative"
           >
+            {/* Layer 1: ภาพรวมโซนดั้งเดิม */}
             <div 
               ref={svgContainerRef}
-              className="svg-container w-full h-full"
+              className="svg-container w-full h-full absolute inset-0 pointer-events-none"
               dangerouslySetInnerHTML={{ __html: svgContent }} 
             />
+
+            {/* Layer 2: On-Demand Seats วาดเฉพาะที่อยู่ใน Viewport */}
+            <svg 
+              className="absolute inset-0 w-full h-full z-10"
+              style={{ overflow: 'visible' }}
+            >
+              {visibleSeats.map(seat => {
+                const isBooked = bookedSeats.includes(seat.seat_code);
+                const isSelected = selectedSeat?.seat_code === seat.seat_code;
+                
+                let fill = seat.color || '#3b82f6';
+                let stroke = 'none';
+                let opacity = 1;
+                let cursor = 'pointer';
+
+                if (isBooked) {
+                  fill = '#475569';
+                  opacity = 0.5;
+                  cursor = 'not-allowed';
+                } else if (isSelected) {
+                  stroke = '#ef4444'; // Red stroke for selected
+                }
+
+                return (
+                  <circle
+                    key={seat.seat_code}
+                    cx={seat.x}
+                    cy={seat.y}
+                    r={4} // รัศมีที่นั่ง (ปรับตามสัดส่วน SVG ของคุณ)
+                    fill={fill}
+                    opacity={opacity}
+                    stroke={stroke}
+                    strokeWidth={isSelected ? 2 : 0}
+                    cursor={cursor}
+                    onClick={() => handleSeatClick(seat)}
+                    onTouchEnd={(e) => { e.preventDefault(); handleSeatClick(seat); }}
+                    className="transition-all duration-100 hover:brightness-125 hover:stroke-white hover:stroke-[1.5px]"
+                  />
+                );
+              })}
+            </svg>
           </div>
         ) : (
           <p className="text-gray-400 font-bold text-xl absolute z-10 pointer-events-none">ไม่มีแผนผัง Interactive สำหรับคอนเสิร์ตนี้</p>
