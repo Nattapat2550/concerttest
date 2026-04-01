@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { injectMapStyles, buildVectorZones } from '../seatMapUtils';
 
 export default function InteractiveSeatMap({
   svgContent,
   configuredSeats = [],
   bookedSeats = [],
-  mode = 'booking', // 'booking' หรือ 'admin'
+  mode = 'booking',
   onSeatSelect,
   onZoneSelect,
 }) {
@@ -31,12 +32,7 @@ export default function InteractiveSeatMap({
       }
       
       svgEl.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
-      
-      if (transform.current.scale < ZOOM_THRESHOLD) {
-        svgEl.setAttribute('data-zoom', 'low');
-      } else {
-        svgEl.setAttribute('data-zoom', 'high');
-      }
+      svgEl.setAttribute('data-zoom', transform.current.scale < ZOOM_THRESHOLD ? 'low' : 'high');
     }
   };
 
@@ -69,210 +65,27 @@ export default function InteractiveSeatMap({
       } catch (e) { /* ข้าม */ }
     });
 
-    const oldStyle = svgEl.querySelector('#seat-map-styles');
-    if (oldStyle) oldStyle.remove();
-
-    const styleEl = document.createElement('style');
-    styleEl.id = 'seat-map-styles';
-    styleEl.innerHTML = `
-      .smart-seat { transition: opacity 0.2s ease, filter 0.1s ease; transform-box: fill-box; transform-origin: center; cursor: pointer; }
-      .smart-seat { fill: var(--seat-color) !important; stroke: none !important; }
-      .smart-seat:hover { filter: brightness(1.5) saturate(2); stroke: white !important; stroke-width: 2px !important; }
-      .smart-seat.booked { fill: #475569 !important; opacity: 0.4 !important; pointer-events: none !important; cursor: not-allowed !important; }
-      .smart-seat.unconfigured { display: ${mode === 'booking' ? 'none' : 'block'} !important; fill: #cbd5e1 !important; opacity: 0.5 !important; }
-      
-      .zone-overlay { transition: opacity 0.3s ease; }
-      .zone-overlay-rect { stroke: rgba(255,255,255,0.2); stroke-width: 2px; transition: filter 0.2s ease; }
-      .zone-overlay:hover .zone-overlay-rect { filter: brightness(1.15); stroke: white; stroke-width: 4px; }
-      
-      svg[data-zoom="low"] .smart-seat { opacity: 0 !important; pointer-events: none !important; }
-      svg[data-zoom="low"] .zone-overlay { opacity: 1 !important; pointer-events: auto !important; }
-      
-      svg[data-zoom="high"] .smart-seat { opacity: 1 !important; pointer-events: auto !important; }
-      svg[data-zoom="high"] .zone-overlay { opacity: 0 !important; pointer-events: none !important; }
-    `;
-    svgEl.appendChild(styleEl);
-
+    injectMapStyles(svgEl, mode);
+    
     transform.current = { x: 0, y: 0, scale: 1 };
     applyTransform();
   }, [svgContent, mode]);
 
-  // 2. ระบายสีเก้าอี้ & สร้าง Zone Box แบบอิงตำแหน่งสีจริง
+  // 2. เรียกใช้ Vector Engine เพื่อสร้างโซนรัดรูป
   useEffect(() => {
-    if (seatElementsCache.current.size === 0) return;
-
     const svgEl = transformWrapperRef.current?.querySelector('svg');
-    if (!svgEl) return;
+    if (!svgEl || seatElementsCache.current.size === 0) return;
 
     const bookedSet = new Set(bookedSeats);
     const configuredMap = new Map();
     configuredSeats.forEach(c => configuredMap.set(c.seat_code, c));
 
-    const zoneGroupsMap = new Map();
-
-    const oldOverlays = svgEl.querySelectorAll('.zone-overlay');
-    oldOverlays.forEach(o => o.remove());
-
-    seatElementsCache.current.forEach((seatNode, seatId) => {
-      seatNode.classList.remove('unconfigured', 'booked');
-      
-      if (configuredMap.has(seatId)) {
-        const config = configuredMap.get(seatId);
-        const seatColor = config.color || '#3b82f6';
-        seatNode.style.setProperty('--seat-color', seatColor);
-        
-        if (mode === 'booking' && bookedSet.has(seatId)) {
-          seatNode.classList.add('booked');
-        }
-
-        const parentG = seatNode.closest('g[id]');
-        if (parentG && parentG.id !== 'layer1' && parentG.id !== 'svg-root') {
-          if (!zoneGroupsMap.has(parentG.id)) {
-            zoneGroupsMap.set(parentG.id, { groupNode: parentG, seats: [] });
-          }
-          zoneGroupsMap.get(parentG.id).seats.push({ node: seatNode, color: seatColor });
-        }
-      } else {
-        seatNode.classList.add('unconfigured');
-      }
-    });
-
-    zoneGroupsMap.forEach((zoneData, zoneId) => {
-      const { groupNode, seats } = zoneData;
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      
-      // จัดกลุ่มที่นั่งตามสี เพื่อหาจุดศูนย์กลางของแต่ละสี
-      const colorGroups = new Map();
-
-      seats.forEach(s => {
-        const box = s.node.getBBox();
-        const centerX = box.x + box.width / 2;
-        const centerY = box.y + box.height / 2;
-
-        if (box.x < minX) minX = box.x;
-        if (box.y < minY) minY = box.y;
-        if (box.x + box.width > maxX) maxX = box.x + box.width;
-        if (box.y + box.height > maxY) maxY = box.y + box.height;
-
-        if (!colorGroups.has(s.color)) colorGroups.set(s.color, { sumX: 0, sumY: 0, count: 0 });
-        const cStat = colorGroups.get(s.color);
-        cStat.sumX += centerX;
-        cStat.sumY += centerY;
-        cStat.count += 1;
-      });
-
-      const padding = 25;
-      const x = minX - padding;
-      const y = minY - padding;
-      const width = (maxX - minX) + (padding * 2);
-      const height = (maxY - minY) + (padding * 2);
-
-      // คำนวณหาค่าเฉลี่ยตำแหน่ง (Center of Mass) ของแต่ละสี
-      const colorStats = [];
-      colorGroups.forEach((stat, color) => {
-        colorStats.push({
-          color: color,
-          avgX: stat.sumX / stat.count,
-          avgY: stat.sumY / stat.count
-        });
-      });
-
-      let fillStyle = colorStats[0].color;
-
-      // ถ้ามีมากกว่า 1 สี ให้คำนวณทิศทางการแบ่งตามตำแหน่งจริง
-      if (colorStats.length > 1) {
-        let defs = svgEl.querySelector('defs');
-        if (!defs) {
-          defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
-          svgEl.prepend(defs);
-        }
-
-        // เช็คว่าสีต่างๆ กระจายตัวไปทางแกน X หรือแกน Y มากกว่ากัน
-        const minAvgX = Math.min(...colorStats.map(c => c.avgX));
-        const maxAvgX = Math.max(...colorStats.map(c => c.avgX));
-        const minAvgY = Math.min(...colorStats.map(c => c.avgY));
-        const maxAvgY = Math.max(...colorStats.map(c => c.avgY));
-
-        const diffX = maxAvgX - minAvgX;
-        const diffY = maxAvgY - minAvgY;
-
-        const isHorizontalDistribution = diffX >= diffY;
-
-        // เรียงลำดับสีตามตำแหน่งจริงในแผนผัง
-        if (isHorizontalDistribution) {
-          colorStats.sort((a, b) => a.avgX - b.avgX);
-        } else {
-          colorStats.sort((a, b) => a.avgY - b.avgY);
-        }
-
-        const cleanColorsStr = colorStats.map(c => c.color.replace(/[^a-zA-Z0-9]/g, '')).join('-');
-        const gradId = `grad-${zoneId.replace(/[^a-zA-Z0-9]/g, '')}-${cleanColorsStr}`;
-        
-        if (!defs.querySelector(`#${gradId}`)) {
-          const grad = document.createElementNS('http://www.w3.org/2000/svg', 'linearGradient');
-          grad.setAttribute('id', gradId);
-          
-          // กำหนดแกนการแบ่งสี
-          if (isHorizontalDistribution) {
-            grad.setAttribute('x1', '0%'); grad.setAttribute('y1', '0%');
-            grad.setAttribute('x2', '100%'); grad.setAttribute('y2', '0%');
-          } else {
-            grad.setAttribute('x1', '0%'); grad.setAttribute('y1', '0%');
-            grad.setAttribute('x2', '0%'); grad.setAttribute('y2', '100%');
-          }
-
-          // สร้างรอยต่อแบบเส้นตรงเฉียบคม (Hard Stop) ตามสัดส่วนสี
-          const step = 100 / colorStats.length;
-          colorStats.forEach((cStat, i) => {
-            const stop1 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-            stop1.setAttribute('offset', `${i * step}%`);
-            stop1.setAttribute('stop-color', cStat.color);
-            
-            const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
-            stop2.setAttribute('offset', `${(i + 1) * step}%`);
-            stop2.setAttribute('stop-color', cStat.color);
-            
-            grad.appendChild(stop1);
-            grad.appendChild(stop2);
-          });
-          defs.appendChild(grad);
-        }
-        fillStyle = `url(#${gradId})`;
-      }
-
-      const overlayG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      overlayG.setAttribute('class', 'zone-overlay');
-      overlayG.style.cursor = 'pointer';
-
-      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      rect.setAttribute('x', x);
-      rect.setAttribute('y', y);
-      rect.setAttribute('width', width);
-      rect.setAttribute('height', height);
-      rect.setAttribute('rx', 12);
-      rect.setAttribute('class', 'zone-overlay-rect');
-      rect.style.fill = fillStyle;
-
-      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      text.textContent = zoneId.replace(/[_-]/g, ' ').toUpperCase();
-      text.setAttribute('x', x + width / 2);
-      text.setAttribute('y', y + height / 2);
-      text.setAttribute('text-anchor', 'middle');
-      text.setAttribute('dominant-baseline', 'middle');
-      text.style.fill = '#ffffff';
-      text.style.fontSize = Math.min(width, height) * 0.3 + 'px';
-      text.style.fontWeight = 'bold';
-      text.style.pointerEvents = 'none';
-      text.style.textShadow = '0px 2px 4px rgba(0,0,0,0.8), 0px 0px 10px rgba(0,0,0,0.4)';
-
-      overlayG.appendChild(rect);
-      overlayG.appendChild(text);
-      groupNode.appendChild(overlayG);
-    });
+    // ส่งข้อมูลไปวาด Vector Blob ในไฟล์ seatMapUtils.js
+    buildVectorZones(svgEl, seatElementsCache.current, configuredMap, bookedSet, mode);
 
   }, [configuredSeats, bookedSeats, mode]);
 
-  // ================= 3. ระบบคลิกและซูม =================
+  // ================= ระบบคลิกและซูม =================
   const handleMapClick = (target, clientX, clientY) => {
     if (!target) return;
 
@@ -318,7 +131,7 @@ export default function InteractiveSeatMap({
     }
   };
 
-  // ================= 4. ระบบควบคุมเมาส์ ลาก และซูม =================
+  // ================= ระบบควบคุมเมาส์ ลาก และซูม =================
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
