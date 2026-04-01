@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '../services/api';
+import InteractiveSeatMap from '../components/InteractiveSeatMap'; // นำเข้าแผนที่ตัวใหม่
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('bookings'); 
@@ -17,20 +18,10 @@ export default function AdminPage() {
   const [mapSvg, setMapSvg] = useState('');
   const [channels, setChannels] = useState([{ id: 1, name: 'VIP', price: 5000, color: '#ef4444' }]);
   const [activeChannelId, setActiveChannelId] = useState(1);
-  
-  const seatConfigRef = useRef({}); 
-  const activeChannelRef = useRef(null); // ใช้ Ref ช่วยเก็บค่า Channel ป้องกัน Closure Stale
-  const svgContainerRef = useRef(null);
-
-  // Marquee Selection States
-  const [selectionBox, setSelectionBox] = useState(null);
+  const [isEraserMode, setIsEraserMode] = useState(false); // โหมดยางลบ
+  const [seatConfigs, setSeatConfigs] = useState([]); // เก็บที่นั่งทั้งหมดที่แอดมินเซ็ตไว้
 
   useEffect(() => { fetchData(); }, [activeTab]);
-
-  // อัปเดต activeChannelRef ทันทีที่เปลี่ยน Channel
-  useEffect(() => {
-    activeChannelRef.current = channels.find(c => c.id === activeChannelId);
-  }, [activeChannelId, channels]);
 
   const fetchData = async () => {
     try {
@@ -134,22 +125,22 @@ export default function AdminPage() {
   // ================= MAP BUILDER LOGIC =================
   const openMapBuilder = async (c) => {
     setMapConcert(c);
-    seatConfigRef.current = {}; 
+    setSeatConfigs([]); 
+    setIsEraserMode(false);
     try {
       const { data } = await api.get(`/api/concerts/${c.id}`);
       setMapSvg(data.svg_content || '');
       
       if (data.configured_seats && data.configured_seats.length > 0) {
+        setSeatConfigs(data.configured_seats); // โหลดที่นั่งดั้งเดิมใส่ State
+        
+        // ดึงช่องสีราคาออกมาใส่ Channel
         const loadedChannels = new Map();
         data.configured_seats.forEach(s => {
           const chKey = `${s.zone_name}-${s.price}`;
-          let chId;
           if (!loadedChannels.has(chKey)) {
-            chId = Date.now() + Math.random();
-            loadedChannels.set(chKey, { id: chId, name: s.zone_name, price: s.price, color: s.color });
-          } else { chId = loadedChannels.get(chKey).id; }
-          
-          seatConfigRef.current[s.seat_code] = loadedChannels.get(chKey);
+            loadedChannels.set(chKey, { id: Date.now() + Math.random(), name: s.zone_name, price: s.price, color: s.color });
+          }
         });
         const chArray = Array.from(loadedChannels.values());
         if(chArray.length > 0) {
@@ -160,113 +151,55 @@ export default function AdminPage() {
     } catch (e) { alert("Error loading map"); }
   };
 
-  // ฟังก์ชันทาสีใหม่ทั้งหมด เพื่อใช้บังคับ Render สีเก้าอี้
-  const repaintSeats = () => {
-    if (!svgContainerRef.current) return;
-    const seats = svgContainerRef.current.querySelectorAll('.seat');
-    seats.forEach(seat => {
-      const seatId = seat.getAttribute('id');
-      const config = seatConfigRef.current[seatId];
-      seat.style.fill = config ? config.color : '#334155';
-    });
-  };
-
-  // ผูก Event ให้เก้าอี้ *ทำครั้งเดียวเมื่อ SVG โหลด*
-  useEffect(() => {
-    if (mapConcert && mapSvg && svgContainerRef.current) {
-      let isMouseDown = false;
-      const seats = svgContainerRef.current.querySelectorAll('.seat');
-
-      seats.forEach(seat => {
-        seat.style.cursor = 'crosshair';
-        seat.style.transition = 'none';
-
-        const paintSeat = () => {
-          const activeChannel = activeChannelRef.current;
-          if (!activeChannel) return;
-          const seatId = seat.getAttribute('id');
-          if (seatConfigRef.current[seatId]?.id === activeChannel.id) {
-            delete seatConfigRef.current[seatId]; // ยกเลิกสี
-          } else {
-            seatConfigRef.current[seatId] = activeChannel; // เทสี
-          }
-          repaintSeats();
-        };
-
-        // ใช้ Event Listeners แบบ Raw DOM ป้องกัน React แทรกแซง
-        seat.onmousedown = (e) => { 
-          isMouseDown = true; 
-          paintSeat(); 
-          e.preventDefault(); 
-          e.stopPropagation(); // หยุดไม่ให้ Event ทะลุไปหา Marquee พื้นหลัง
-        };
-        seat.onmouseenter = () => { if (isMouseDown) paintSeat(); };
-      });
-
-      document.onmouseup = () => { isMouseDown = false; };
-      repaintSeats(); // โหลดสีตั้งต้นตอนเปิดแผนที่
-      return () => { document.onmouseup = null; };
-    }
-  }, [mapConcert, mapSvg]);
-
-  // คอยเติมสีทุกครั้งที่มีการ Re-render (เช่น กล่อง Marquee ขยับ)
-  useEffect(() => {
-    if (mapConcert) repaintSeats();
-  });
-
-  // ระบบลากคลุมพื้นที่ (Marquee Selection)
-  const handleMapMouseDown = (e) => {
-    // ถ้าคลิกโดนเก้าอี้ ปล่อยให้ฟังก์ชันเก้าอี้จัดการเอง
-    if (e.target.classList.contains('seat')) return; 
-    setSelectionBox({
-      startX: e.clientX, startY: e.clientY,
-      currentX: e.clientX, currentY: e.clientY,
-    });
-  };
-
-  const handleMapMouseMove = (e) => {
-    if (!selectionBox) return;
-    setSelectionBox(prev => ({ ...prev, currentX: e.clientX, currentY: e.clientY }));
-  };
-
-  const handleMapMouseUp = () => {
-    if (!selectionBox) return;
+  // ฟังก์ชันรับค่าเมื่อ InteractiveSeatMap ตรวจจับการคลิก/ลากคลุมได้
+  const handleAdminSeatSelect = (seats) => {
+    const seatArray = Array.isArray(seats) ? seats : [seats];
     
-    const left = Math.min(selectionBox.startX, selectionBox.currentX);
-    const right = Math.max(selectionBox.startX, selectionBox.currentX);
-    const top = Math.min(selectionBox.startY, selectionBox.currentY);
-    const bottom = Math.max(selectionBox.startY, selectionBox.currentY);
-
-    if (right - left > 5 || bottom - top > 5) {
-      const activeChannel = activeChannelRef.current;
-      if (activeChannel && svgContainerRef.current) {
-        const seats = svgContainerRef.current.querySelectorAll('.seat');
-        seats.forEach(seat => {
-          const seatRect = seat.getBoundingClientRect();
-          const seatCenterX = seatRect.left + seatRect.width / 2;
-          const seatCenterY = seatRect.top + seatRect.height / 2;
-
-          // ถ้าจุดกึ่งกลางเก้าอี้อยู่ในกล่องลากคลุม ให้เทสีใส่ Config ทันที
-          if (seatCenterX >= left && seatCenterX <= right && seatCenterY >= top && seatCenterY <= bottom) {
-            const seatId = seat.getAttribute('id');
-            seatConfigRef.current[seatId] = activeChannel;
-          }
-        });
-        repaintSeats(); // บังคับให้เปลี่ยนสีให้เห็นทันที
+    setSeatConfigs(prevConfigs => {
+      let newConfigs = [...prevConfigs];
+      
+      // 1. ถ้าอยู่ในโหมดยางลบ -> ลบที่นั่งที่เลือกออกจากการเปิดขาย
+      if (isEraserMode) {
+        const codesToRemove = new Set(seatArray.map(s => s.seat_code));
+        return newConfigs.filter(c => !codesToRemove.has(c.seat_code));
       }
-    }
-    setSelectionBox(null);
+
+      // 2. ถ้าอยู่โหมดทาสี
+      const activeChannel = channels.find(c => c.id === activeChannelId);
+      if (!activeChannel) return prevConfigs;
+
+      if (seatArray.length === 1) {
+        // 2.1 คลิกทีละตัว (มีระบบ Toggle เปิด/ปิด)
+        const seat = seatArray[0];
+        const existingIdx = newConfigs.findIndex(c => c.seat_code === seat.seat_code);
+        
+        if (existingIdx >= 0 && newConfigs[existingIdx].zone_name === activeChannel.name) {
+          // ถ้าคลิกสีเดิมซ้ำ ให้ลบออก
+          newConfigs.splice(existingIdx, 1); 
+        } else {
+          // ถ้าคลิกครั้งแรก หรือเปลี่ยนสี ให้ทาสีทับ
+          const newSeat = { seat_code: seat.seat_code, zone_name: activeChannel.name, price: Number(activeChannel.price), color: activeChannel.color };
+          if (existingIdx >= 0) newConfigs[existingIdx] = newSeat;
+          else newConfigs.push(newSeat);
+        }
+      } else {
+        // 2.2 ลากคลุม (Lasso) หรือคลิกโซน (Zone) -> ทาสีทั้งหมด (Overwrite)
+        seatArray.forEach(seat => {
+          const existingIdx = newConfigs.findIndex(c => c.seat_code === seat.seat_code);
+          const newSeat = { seat_code: seat.seat_code, zone_name: activeChannel.name, price: Number(activeChannel.price), color: activeChannel.color };
+          if (existingIdx >= 0) newConfigs[existingIdx] = newSeat;
+          else newConfigs.push(newSeat);
+        });
+      }
+      return newConfigs;
+    });
   };
 
   const handleSaveMap = async () => {
     if (!window.confirm("ยืนยันการตั้งค่าผัง? (ที่นั่งที่ไม่ได้ระบายสีจะไม่ถูกเปิดขาย)")) return;
-    const seatsToSave = Object.keys(seatConfigRef.current).map(seatId => {
-      const ch = seatConfigRef.current[seatId];
-      return { seat_code: seatId, zone_name: ch.name, price: Number(ch.price), color: ch.color };
-    });
 
     try {
-      await api.post(`/api/admin/concerts/${mapConcert.id}/seats`, { seats: seatsToSave });
+      await api.post(`/api/admin/concerts/${mapConcert.id}/seats`, { seats: seatConfigs });
       alert("บันทึกผังสำเร็จ!");
       setMapConcert(null);
     } catch(e) { alert("เกิดข้อผิดพลาดในการบันทึก"); }
@@ -320,57 +253,53 @@ export default function AdminPage() {
 
         <div className="flex flex-col lg:flex-row gap-6">
           <div className="w-full lg:w-1/4 bg-white p-4 shadow rounded border h-fit">
-            <h3 className="text-lg font-bold mb-4 border-b pb-2">🎨 สร้างโซน/ราคา</h3>
+            <h3 className="text-lg font-bold mb-4 border-b pb-2">🎨 เครื่องมือจัดการโซน</h3>
+            
+            {/* ปุ่มโหมดยางลบ */}
+            <button 
+              onClick={() => setIsEraserMode(true)} 
+              className={`w-full py-2 mb-4 font-bold rounded border transition-all ${isEraserMode ? 'bg-red-500 text-white border-red-600 shadow-inner' : 'bg-white text-red-500 border-red-200 hover:bg-red-50'}`}
+            >
+              🧹 ยางลบ (ใช้ลบที่นั่งที่คลุมผิด)
+            </button>
+
             <div className="space-y-4 mb-6">
               {channels.map((ch, idx) => (
-                <div key={ch.id} onClick={() => setActiveChannelId(ch.id)} className={`p-3 border rounded cursor-pointer transition-all ${activeChannelId === ch.id ? 'border-blue-500 ring-2 ring-blue-200 shadow-md' : 'border-gray-300'}`}>
+                <div 
+                  key={ch.id} 
+                  onClick={() => { setActiveChannelId(ch.id); setIsEraserMode(false); }} 
+                  className={`p-3 border rounded cursor-pointer transition-all ${!isEraserMode && activeChannelId === ch.id ? 'border-blue-500 ring-2 ring-blue-200 shadow-md bg-blue-50' : 'border-gray-300'}`}
+                >
                   <div className="flex flex-col space-y-2">
-                    <input type="text" value={ch.name} placeholder="ชื่อโซน" onChange={(e) => { const newCh = [...channels]; newCh[idx].name = e.target.value; setChannels(newCh); }} className="p-1 border rounded w-full font-bold" />
+                    <input type="text" value={ch.name} placeholder="ชื่อโซน" onChange={(e) => { const newCh = [...channels]; newCh[idx].name = e.target.value; setChannels(newCh); }} className="p-1 border rounded w-full font-bold bg-white" />
                     <div className="flex gap-2">
-                      <input type="number" value={ch.price} placeholder="ราคา" onChange={(e) => { const newCh = [...channels]; newCh[idx].price = e.target.value; setChannels(newCh); }} className="p-1 border rounded w-full" />
-                      <input type="color" value={ch.color} onChange={(e) => { const newCh = [...channels]; newCh[idx].color = e.target.value; setChannels(newCh); }} className="h-8 w-12 cursor-pointer" />
+                      <input type="number" value={ch.price} placeholder="ราคา" onChange={(e) => { const newCh = [...channels]; newCh[idx].price = e.target.value; setChannels(newCh); }} className="p-1 border rounded w-full bg-white" />
+                      <input type="color" value={ch.color} onChange={(e) => { const newCh = [...channels]; newCh[idx].color = e.target.value; setChannels(newCh); }} className="h-8 w-12 cursor-pointer bg-white" />
                     </div>
                   </div>
                 </div>
               ))}
             </div>
             <button onClick={() => setChannels([...channels, { id: Date.now(), name: 'โซนใหม่', price: 1000, color: '#3b82f6' }])} className="w-full py-2 bg-blue-100 text-blue-700 font-bold rounded hover:bg-blue-200 border border-blue-300 border-dashed">
-              + เพิ่มสีโซน (Channel)
+              + เพิ่มสีโซนใหม่
             </button>
+            
             <p className="text-sm text-gray-500 mt-6 bg-gray-100 p-3 rounded">
-              💡 <b>วิธีใช้:</b> เลือกสีโซนด้านบน จากนั้น <b>"คลิกที่เก้าอี้"</b> หรือ <b>"ลากคลุมเก้าอี้หลายตัว"</b> บนแผนที่เพื่อเปิดขาย (คลิกซ้ำเพื่อยกเลิก)
+              💡 <b>ทิปส์การใช้งาน:</b> <br/>
+              • <b>ลากคลุม:</b> กด <kbd className="bg-gray-300 px-1 rounded text-black">Shift</kbd> ค้างไว้แล้วลากเมาส์<br/>
+              • <b>เลือกทั้งโซน:</b> คลิกที่กรอบเส้นโซนบนแผนที่<br/>
+              • <b>ซูมเข้า/ออก:</b> กด <kbd className="bg-gray-300 px-1 rounded text-black">Ctrl</kbd> ค้าง + เลื่อนลูกกลิ้ง
             </p>
           </div>
 
-          <div 
-            className="relative w-full lg:w-3/4 bg-[#0f172a] p-6 shadow rounded border overflow-auto h-[700px] flex justify-center items-start cursor-crosshair"
-            onMouseDown={handleMapMouseDown}
-            onMouseMove={handleMapMouseMove}
-            onMouseUp={handleMapMouseUp}
-            onMouseLeave={handleMapMouseUp}
-          >
-            {mapSvg ? (
-              <div ref={svgContainerRef} className="w-full max-w-[1200px] pointer-events-auto" dangerouslySetInnerHTML={{ __html: mapSvg }} />
-            ) : (
-              <p className="py-20 text-gray-400 font-bold text-xl">คอนเสิร์ตนี้ยังไม่มีการตั้งค่า Venue SVG</p>
-            )}
-
-            {/* กล่องแสดงพื้นที่ลากคลุม (Marquee Visualizer) */}
-            {selectionBox && (
-              <div 
-                style={{
-                  position: 'fixed',
-                  border: '2px dashed #3b82f6',
-                  backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                  left: Math.min(selectionBox.startX, selectionBox.currentX),
-                  top: Math.min(selectionBox.startY, selectionBox.currentY),
-                  width: Math.abs(selectionBox.startX - selectionBox.currentX),
-                  height: Math.abs(selectionBox.startY - selectionBox.currentY),
-                  pointerEvents: 'none',
-                  zIndex: 50
-                }}
-              />
-            )}
+          <div className="w-full lg:w-3/4 bg-[#0f172a] shadow rounded border">
+             {/* เรียกใช้งาน InteractiveSeatMap ตัวใหม่ พร้อมส่ง prop mode="admin" */}
+             <InteractiveSeatMap 
+               svgContent={mapSvg}
+               configuredSeats={seatConfigs} // ส่งสีและโซนปัจจุบันเข้าไป Render
+               mode="admin"
+               onSeatSelect={handleAdminSeatSelect} // รับค่าเมื่อมีการคลิกหรือลากคลุมที่นั่ง
+             />
           </div>
         </div>
       </div>
@@ -479,7 +408,6 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* --- TAB: USERS --- */}
       {activeTab === 'users' && (
         <div className="overflow-x-auto">
           <table className="min-w-full bg-white dark:bg-gray-900 rounded shadow">
@@ -509,7 +437,6 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* --- TAB: NEWS --- */}
       {activeTab === 'news' && (
         <div className="space-y-8">
           <form onSubmit={handleCreateNews} className="bg-gray-50 dark:bg-gray-900 p-6 rounded border dark:border-gray-700">
