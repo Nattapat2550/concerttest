@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { injectMapStyles, buildVectorZones } from '../seatMapUtils';
+import { injectMapStyles, buildVectorZones } from './seatMapUtils'; // อิมพอร์ตเครื่องมือ
 
 export default function InteractiveSeatMap({
   svgContent,
@@ -7,7 +7,6 @@ export default function InteractiveSeatMap({
   bookedSeats = [],
   mode = 'booking',
   onSeatSelect,
-  onZoneSelect,
 }) {
   const containerRef = useRef(null);
   const transformWrapperRef = useRef(null);
@@ -36,7 +35,6 @@ export default function InteractiveSeatMap({
     }
   };
 
-  // 1. โหลดแผนผังและจัดเก็บเก้าอี้
   useEffect(() => {
     const container = transformWrapperRef.current;
     if (!container || !svgContent) return;
@@ -71,7 +69,6 @@ export default function InteractiveSeatMap({
     applyTransform();
   }, [svgContent, mode]);
 
-  // 2. เรียกใช้ Vector Engine เพื่อสร้างโซนรัดรูป
   useEffect(() => {
     const svgEl = transformWrapperRef.current?.querySelector('svg');
     if (!svgEl || seatElementsCache.current.size === 0) return;
@@ -80,12 +77,11 @@ export default function InteractiveSeatMap({
     const configuredMap = new Map();
     configuredSeats.forEach(c => configuredMap.set(c.seat_code, c));
 
-    // ส่งข้อมูลไปวาด Vector Blob ในไฟล์ seatMapUtils.js
+    // เรียกฟังก์ชันสร้างกล่องโซนขอบตรงจากไฟล์ Utils
     buildVectorZones(svgEl, seatElementsCache.current, configuredMap, bookedSet, mode);
 
   }, [configuredSeats, bookedSeats, mode]);
 
-  // ================= ระบบคลิกและซูม =================
   const handleMapClick = (target, clientX, clientY) => {
     if (!target) return;
 
@@ -131,7 +127,6 @@ export default function InteractiveSeatMap({
     }
   };
 
-  // ================= ระบบควบคุมเมาส์ ลาก และซูม =================
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;

@@ -1,6 +1,5 @@
 // seatMapUtils.js
 
-// ฟังก์ชันสร้างสไตล์ CSS สำหรับแผนผัง
 export const injectMapStyles = (svgEl, mode) => {
   const oldStyle = svgEl.querySelector('#seat-map-styles');
   if (oldStyle) oldStyle.remove();
@@ -16,17 +15,15 @@ export const injectMapStyles = (svgEl, mode) => {
     
     .zone-overlay { transition: opacity 0.3s ease; cursor: pointer; }
     
-    /* สไตล์ของ Vector Blob ที่หุ้มที่นั่ง */
-    .zone-blob-element {
-      transition: filter 0.2s ease, stroke-width 0.2s ease;
-      paint-order: stroke fill; /* ให้เส้นขยายออกด้านนอก */
+    /* สไตล์ของกล่องย่อยที่รวมร่างกันเป็นโซน (ขอบตรง) */
+    .zone-sub-rect {
       pointer-events: auto;
+      transition: filter 0.2s ease;
     }
     
-    /* เวลาโฮเวอร์ ให้สว่างขึ้นและขยายขนาดขึ้นนิดหน่อย */
-    .zone-overlay:hover .zone-blob-element {
+    /* โฮเวอร์แล้วสว่างขึ้นทั้งโซน */
+    .zone-overlay:hover .zone-sub-rect {
       filter: brightness(1.15);
-      stroke-width: 45px !important; 
     }
     
     .zone-blob-text {
@@ -38,7 +35,6 @@ export const injectMapStyles = (svgEl, mode) => {
       text-shadow: 0px 4px 6px rgba(0,0,0,0.8), 0px 0px 8px rgba(0,0,0,0.5);
     }
     
-    /* ระบบสลับเลเยอร์ตอนซูม */
     svg[data-zoom="low"] .smart-seat { opacity: 0 !important; pointer-events: none !important; }
     svg[data-zoom="low"] .zone-overlay { opacity: 1 !important; pointer-events: auto !important; }
     
@@ -48,7 +44,6 @@ export const injectMapStyles = (svgEl, mode) => {
   svgEl.appendChild(styleEl);
 };
 
-// ฟังก์ชันสร้างรูปทรงโซนรัดรูป (Vector Blobs)
 export const buildVectorZones = (svgEl, seatElementsCache, configuredMap, bookedSet, mode) => {
   const zoneGroupsMap = new Map();
 
@@ -81,44 +76,53 @@ export const buildVectorZones = (svgEl, seatElementsCache, configuredMap, booked
     }
   });
 
-  // 2. สร้าง Vector Blob อิงตามรูปทรงและสีที่นั่งเป๊ะๆ
+  // 2. สร้างกล่องเหลี่ยมรัดรูป (Overlapping Orthogonal Rects)
+  const PADDING = 10; // ระยะเหลื่อมที่พอดีๆ (ถ้าเกินระยะนี้ โซนจะถูกตัดขาดจากกันอัตโนมัติ)
+
   zoneGroupsMap.forEach((zoneData, zoneId) => {
     const overlayG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     overlayG.setAttribute('class', 'zone-overlay');
 
     let sumX = 0, sumY = 0, count = 0;
 
-    // จำลอง (Clone) ที่นั่งทุกตัวในโซน แล้วขยายเส้นขอบให้เชื่อมติดกัน
+    // สร้างกล่องสี่เหลี่ยมคลุมที่นั่งทีละตัวให้มันทับกันจนเกิดเป็นรูปร่างโซน
     zoneData.seats.forEach(s => {
-      const clone = s.node.cloneNode(true);
-      clone.removeAttribute('id');
-      clone.setAttribute('class', 'zone-blob-element');
-      
-      // ดึงสีจากเก้าอี้ตัวนั้นๆ มาทาลงเวกเตอร์เลย
-      clone.style.fill = s.color;
-      clone.style.stroke = s.color;
-      clone.style.strokeWidth = '35px'; // ระดับความหนาที่ทำให้จุดเก้าอี้หลอมรวมกัน
-      clone.style.strokeLinejoin = 'round';
-      clone.style.strokeLinecap = 'round';
-      
-      overlayG.appendChild(clone);
-
       const box = s.node.getBBox();
-      sumX += box.x + box.width / 2;
-      sumY += box.y + box.height / 2;
+      const cx = box.x + box.width / 2;
+      const cy = box.y + box.height / 2;
+
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', box.x - PADDING);
+      rect.setAttribute('y', box.y - PADDING);
+      rect.setAttribute('width', box.width + PADDING * 2);
+      rect.setAttribute('height', box.height + PADDING * 2);
+      rect.setAttribute('rx', 4); // ทำมุมมนนิดเดียวให้ดูดี แต่ภาพรวมคือขอบตรง
+      rect.setAttribute('class', 'zone-sub-rect');
+      
+      // ให้สีของกล่องเหมือนเก้าอี้เป๊ะๆ (ถ้ามีหลายสีก็จะแบ่งสีตามที่นั่งจริง)
+      rect.style.fill = s.color;
+      rect.style.stroke = s.color;
+      rect.style.strokeWidth = '1px'; // ปิดรอยต่อระหว่างกล่องให้เนียน
+      
+      overlayG.appendChild(rect);
+
+      sumX += cx;
+      sumY += cy;
       count++;
     });
 
-    // วางข้อความตรงจุดศูนย์กลางของมวลเก้าอี้
-    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.textContent = zoneId.replace(/[_-]/g, ' ').toUpperCase();
-    text.setAttribute('x', sumX / count);
-    text.setAttribute('y', sumY / count);
-    text.setAttribute('text-anchor', 'middle');
-    text.setAttribute('dominant-baseline', 'middle');
-    text.setAttribute('class', 'zone-blob-text');
+    // วางข้อความชื่อโซนไว้ที่จุดศูนย์กลางมวลรวม
+    if (count > 0) {
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.textContent = zoneId.replace(/[_-]/g, ' ').toUpperCase();
+      text.setAttribute('x', sumX / count);
+      text.setAttribute('y', sumY / count);
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('dominant-baseline', 'middle');
+      text.setAttribute('class', 'zone-blob-text');
+      overlayG.appendChild(text);
+    }
 
-    overlayG.appendChild(text);
     zoneData.groupNode.appendChild(overlayG);
   });
 };
