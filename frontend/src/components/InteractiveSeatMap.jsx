@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { injectMapStyles, buildVectorZones } from './seatMapUtils'; // อิมพอร์ตเครื่องมือ
+import { injectMapStyles, buildVectorZones } from './seatMapUtils'; 
 
 export default function InteractiveSeatMap({
   svgContent,
@@ -14,7 +14,7 @@ export default function InteractiveSeatMap({
   const [lasso, setLasso] = useState(null); 
   
   const transform = useRef({ x: 0, y: 0, scale: 1 });
-  const dragState = useRef({ isDragging: false, startX: 0, startY: 0, mapX: 0, mapY: 0 });
+  const dragState = useRef({ isDragging: false, startX: 0, startY: 0, mapX: 0, mapY: 0, target: null });
   const lassoRef = useRef({ active: false, startX: 0, startY: 0, clientStartX: 0, clientStartY: 0 });
   const seatElementsCache = useRef(new Map());
 
@@ -31,7 +31,11 @@ export default function InteractiveSeatMap({
       }
       
       svgEl.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
-      svgEl.setAttribute('data-zoom', transform.current.scale < ZOOM_THRESHOLD ? 'low' : 'high');
+      
+      const currentZoom = transform.current.scale < ZOOM_THRESHOLD ? 'low' : 'high';
+      if (svgEl.getAttribute('data-zoom') !== currentZoom) {
+        svgEl.setAttribute('data-zoom', currentZoom);
+      }
     }
   };
 
@@ -58,7 +62,11 @@ export default function InteractiveSeatMap({
           let id = el.getAttribute('id') || `seat-auto-${idx}`;
           el.setAttribute('id', id);
           el.classList.add('smart-seat');
-          seatElementsCache.current.set(id, el);
+          
+          seatElementsCache.current.set(id, { 
+            node: el, 
+            box: { x: box.x, y: box.y, width: box.width, height: box.height } 
+          });
         }
       } catch (e) { /* ข้าม */ }
     });
@@ -77,7 +85,6 @@ export default function InteractiveSeatMap({
     const configuredMap = new Map();
     configuredSeats.forEach(c => configuredMap.set(c.seat_code, c));
 
-    // เรียกฟังก์ชันสร้างกล่องโซนขอบตรงจากไฟล์ Utils
     buildVectorZones(svgEl, seatElementsCache.current, configuredMap, bookedSet, mode);
 
   }, [configuredSeats, bookedSeats, mode]);
@@ -157,7 +164,7 @@ export default function InteractiveSeatMap({
   }, []);
 
   const handlePointerDown = (e) => {
-    e.target.setPointerCapture(e.pointerId);
+    e.currentTarget.setPointerCapture(e.pointerId);
     if (mode === 'admin' && e.shiftKey) {
       const rect = containerRef.current.getBoundingClientRect();
       const startX = e.clientX - rect.left;
@@ -166,7 +173,11 @@ export default function InteractiveSeatMap({
       setLasso({ x: startX, y: startY, w: 0, h: 0 });
       return;
     }
-    dragState.current = { isDragging: false, startX: e.clientX, startY: e.clientY, mapX: transform.current.x, mapY: transform.current.y };
+    dragState.current = { 
+      isDragging: false, startX: e.clientX, startY: e.clientY, 
+      mapX: transform.current.x, mapY: transform.current.y,
+      target: e.target // ล็อกเป้าหมายตั้งแต่ตอนคลิกลง ป้องกันบัคคลิกไม่ติด
+    };
   };
 
   const handlePointerMove = (e) => {
@@ -194,7 +205,7 @@ export default function InteractiveSeatMap({
   };
 
   const handlePointerUp = (e) => {
-    e.target.releasePointerCapture(e.pointerId);
+    e.currentTarget.releasePointerCapture(e.pointerId);
     if (lassoRef.current.active) {
       if (lasso && lasso.w > 5 && lasso.h > 5) {
         const lRect = {
@@ -202,9 +213,9 @@ export default function InteractiveSeatMap({
           right: Math.max(lassoRef.current.clientStartX, e.clientX), bottom: Math.max(lassoRef.current.clientStartY, e.clientY),
         };
         const selectedGroup = [];
-        seatElementsCache.current.forEach((seatNode, seatId) => {
-          if (seatNode.style.display === 'none' || transform.current.scale < ZOOM_THRESHOLD) return; 
-          const sRect = seatNode.getBoundingClientRect();
+        seatElementsCache.current.forEach((seatData, seatId) => {
+          if (transform.current.scale < ZOOM_THRESHOLD) return; 
+          const sRect = seatData.node.getBoundingClientRect();
           if (!(lRect.right < sRect.left || lRect.left > sRect.right || lRect.bottom < sRect.top || lRect.top > sRect.bottom)) {
             const conf = configuredSeats.find(c => c.seat_code === seatId);
             selectedGroup.push(conf || { seat_code: seatId, status: 'available' });
@@ -218,8 +229,7 @@ export default function InteractiveSeatMap({
     }
 
     if (!dragState.current.isDragging) {
-      const actualTarget = document.elementFromPoint(e.clientX, e.clientY);
-      handleMapClick(actualTarget, e.clientX, e.clientY);
+      handleMapClick(dragState.current.target, e.clientX, e.clientY);
     }
     dragState.current.isDragging = false;
   };
