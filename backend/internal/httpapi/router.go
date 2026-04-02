@@ -74,7 +74,8 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 		cr.Get("/list", h.GetConcerts)
 		cr.Get("/{id}/seats", h.GetConcertSeats) // ระบบเก่า
 		cr.Get("/{id}", h.GetConcertDetails)     // ระบบใหม่ (SVG)
-		
+		r.Get("/api/concerts/queue/join", h.JoinQueue)
+		r.Get("/api/concerts/queue/status", h.CheckQueueStatus)
 		cr.With(h.RequireAuth).Post("/book", h.BookSeat)
 		cr.With(h.RequireAuth).Get("/my-bookings", h.GetMyBookings)
 		cr.With(h.RequireAuth).Put("/bookings/{id}/cancel", h.CancelMyBooking)

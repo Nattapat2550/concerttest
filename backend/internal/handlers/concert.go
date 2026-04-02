@@ -1,13 +1,72 @@
 package handlers
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 )
+
+// 🌟🌟🌟 VIRTUAL WAITING ROOM (IN-MEMORY QUEUE) 🌟🌟🌟
+var (
+	globalQueueTicket int64 = 0
+	currentServing    int64 = 1
+)
+
+// Background Worker: ปล่อยคิวเข้าหน้าจองทีละ 10 คน ทุกๆ 2 วินาที
+func init() {
+	go func() {
+		for {
+			time.Sleep(2 * time.Second)
+			curr := atomic.LoadInt64(&currentServing)
+			max := atomic.LoadInt64(&globalQueueTicket)
+			
+			if curr < max {
+				atomic.AddInt64(&currentServing, 10)
+			} else if curr > max {
+				atomic.StoreInt64(&currentServing, max)
+			}
+		}
+	}()
+}
+
+type QueueJoinResp struct {
+	Ticket int64 `json:"ticket"`
+}
+
+type QueueStatusResp struct {
+	Status        string `json:"status"` // "waiting" or "ready"
+	MyTicket      int64  `json:"my_ticket"`
+	CurrentTicket int64  `json:"current_ticket"`
+}
+
+func (h *Handler) JoinQueue(w http.ResponseWriter, r *http.Request) {
+	ticket := atomic.AddInt64(&globalQueueTicket, 1)
+	WriteJSON(w, http.StatusOK, QueueJoinResp{Ticket: ticket})
+}
+
+func (h *Handler) CheckQueueStatus(w http.ResponseWriter, r *http.Request) {
+	t := r.URL.Query().Get("ticket")
+	myTicket, _ := strconv.ParseInt(t, 10, 64)
+	serving := atomic.LoadInt64(&currentServing)
+
+	status := "waiting"
+	if myTicket <= serving {
+		status = "ready"
+	}
+
+	WriteJSON(w, http.StatusOK, QueueStatusResp{
+		Status:        status,
+		MyTicket:      myTicket,
+		CurrentTicket: serving,
+	})
+}
+// 🌟🌟🌟 สิ้นสุดระบบ QUEUE 🌟🌟🌟
 
 // ===== Models =====
 type News struct {
@@ -64,8 +123,8 @@ type Seat struct {
 
 type BookSeatRequest struct {
 	ConcertID int     `json:"concert_id"`
-	SeatID    int     `json:"seat_id"`   // เผื่อระบบเก่า
-	SeatCode  string  `json:"seat_code"` // ระบบใหม่
+	SeatID    int     `json:"seat_id"`   
+	SeatCode  string  `json:"seat_code"` 
 	Price     float64 `json:"price"`
 }
 
@@ -81,8 +140,10 @@ type MyBooking struct {
 func (h *Handler) GetLatestNews(w http.ResponseWriter, r *http.Request) {
 	if h.ConcertDB == nil { return }
 	
-	// ✅ ดึงข่าวสารทั้งหมดที่เปิดใช้งานอยู่ เรียงจากใหม่ไปเก่า
-	rows, err := h.ConcertDB.Query(`SELECT id, title, content, COALESCE(image_url, ''), created_at FROM news WHERE is_active = true ORDER BY created_at DESC`)
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	rows, err := h.ConcertDB.QueryContext(ctx, `SELECT id, title, content, COALESCE(image_url, ''), created_at FROM news WHERE is_active = true ORDER BY created_at DESC`)
 	if err != nil { 
 		h.writeError(w, http.StatusInternalServerError, "DB Error")
 		return 
@@ -101,17 +162,19 @@ func (h *Handler) GetLatestNews(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, http.StatusNotFound, "No news")
 		return 
 	}
-	
-	// ✅ ส่งกลับไปเป็น Array
 	WriteJSON(w, http.StatusOK, newsList)
 }
 
 func (h *Handler) GetConcerts(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.ConcertDB.Query(`
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	rows, err := h.ConcertDB.QueryContext(ctx, `
 		SELECT c.id, c.name, c.show_date, COALESCE(c.venue, ''), c.venue_id, COALESCE(v.name, ''), c.ticket_price, COALESCE(c.layout_image_url, '') 
 		FROM concerts c LEFT JOIN venues v ON c.venue_id = v.id ORDER BY c.show_date ASC`)
 	if err != nil { h.writeError(w, http.StatusInternalServerError, "DB Error"); return }
 	defer rows.Close()
+	
 	var concerts []Concert
 	for rows.Next() {
 		var c Concert
@@ -122,10 +185,14 @@ func (h *Handler) GetConcerts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetConcertSeats(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
 	concertID := chi.URLParam(r, "id")
-	rows, err := h.ConcertDB.Query(`SELECT id, concert_id, seat_code, price, is_booked FROM seats WHERE concert_id = $1 ORDER BY seat_code ASC`, concertID)
+	rows, err := h.ConcertDB.QueryContext(ctx, `SELECT id, concert_id, seat_code, price, is_booked FROM seats WHERE concert_id = $1 ORDER BY seat_code ASC`, concertID)
 	if err != nil { return }
 	defer rows.Close()
+	
 	var seats []Seat
 	for rows.Next() {
 		var s Seat
@@ -135,19 +202,20 @@ func (h *Handler) GetConcertSeats(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, seats)
 }
 
-// ระบบใหม่ (SVG ไฟล์เดียว)
 func (h *Handler) GetConcertDetails(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+
 	concertID := chi.URLParam(r, "id")
 	var res ConcertDetailsResponse
 	
-	err := h.ConcertDB.QueryRow(`
+	err := h.ConcertDB.QueryRowContext(ctx, `
 		SELECT c.id, c.name, c.show_date, c.venue_id, COALESCE(v.name, ''), c.ticket_price, COALESCE(v.svg_content, ''), COALESCE(c.layout_image_url, '')
 		FROM concerts c LEFT JOIN venues v ON c.venue_id = v.id WHERE c.id = $1`, concertID).
 		Scan(&res.Concert.ID, &res.Concert.Name, &res.Concert.ShowDate, &res.Concert.VenueID, &res.Concert.VenueName, &res.Concert.TicketPrice, &res.SVGContent, &res.Concert.LayoutImageURL)
 	if err != nil { h.writeError(w, http.StatusNotFound, "Concert not found"); return }
 
-	// ดึงเก้าอี้ที่ Admin จัดการโซนแล้ว
-	rows, _ := h.ConcertDB.Query(`SELECT seat_code, zone_name, price, color FROM concert_seats WHERE concert_id = $1`, concertID)
+	rows, _ := h.ConcertDB.QueryContext(ctx, `SELECT seat_code, zone_name, price, color FROM concert_seats WHERE concert_id = $1`, concertID)
 	for rows.Next() {
 		var s ConcertSeatConfig
 		if err := rows.Scan(&s.SeatCode, &s.ZoneName, &s.Price, &s.Color); err == nil { res.ConfiguredSeats = append(res.ConfiguredSeats, s) }
@@ -155,8 +223,7 @@ func (h *Handler) GetConcertDetails(w http.ResponseWriter, r *http.Request) {
 	rows.Close()
 	if res.ConfiguredSeats == nil { res.ConfiguredSeats = []ConcertSeatConfig{} }
 
-	// ดึงรหัสเก้าอี้ที่ถูกจองแล้ว
-	rows2, _ := h.ConcertDB.Query(`SELECT seat_code FROM bookings WHERE concert_id = $1 AND status = 'confirmed'`, concertID)
+	rows2, _ := h.ConcertDB.QueryContext(ctx, `SELECT seat_code FROM bookings WHERE concert_id = $1 AND status = 'confirmed'`, concertID)
 	for rows2.Next() {
 		var sc string
 		if err := rows2.Scan(&sc); err == nil { res.BookedSeats = append(res.BookedSeats, sc) }
@@ -168,37 +235,69 @@ func (h *Handler) GetConcertDetails(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 7*time.Second)
+	defer cancel()
+
 	var req BookSeatRequest
 	if err := ReadJSON(r, &req); err != nil { return }
 	u := GetUser(r)
 	if u == nil { return }
 
-	tx, _ := h.ConcertDB.Begin()
+	tx, err := h.ConcertDB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "System busy")
+		return
+	}
 	defer tx.Rollback()
 
 	if req.SeatCode != "" {
-		_, err := tx.Exec(`INSERT INTO bookings (user_id, concert_id, seat_code, price, status) VALUES ($1, $2, $3, $4, 'confirmed')`, fmt.Sprint(u.ID), req.ConcertID, req.SeatCode, req.Price)
-		if err != nil { h.writeError(w, http.StatusConflict, "ที่นั่งนี้ถูกจองไปแล้ว กรุณาเลือกใหม่"); return }
+		var existingID int
+		err := tx.QueryRowContext(ctx, `
+			SELECT id FROM bookings 
+			WHERE concert_id = $1 AND seat_code = $2 AND status = 'confirmed' 
+			FOR UPDATE`, req.ConcertID, req.SeatCode).Scan(&existingID)
+			
+		if err == nil {
+			h.writeError(w, http.StatusConflict, "ที่นั่งนี้ถูกจองไปแล้วโดยผู้ใช้อื่น กรุณาเลือกใหม่")
+			return
+		} else if err != sql.ErrNoRows {
+			h.writeError(w, http.StatusInternalServerError, "Database error")
+			return
+		}
+
+		_, err = tx.ExecContext(ctx, `INSERT INTO bookings (user_id, concert_id, seat_code, price, status) VALUES ($1, $2, $3, $4, 'confirmed')`, fmt.Sprint(u.ID), req.ConcertID, req.SeatCode, req.Price)
+		if err != nil { 
+			h.writeError(w, http.StatusConflict, "ที่นั่งนี้เพิ่งถูกจองไป กรุณาเลือกใหม่")
+			return 
+		}
 	} else {
 		var isBooked bool
-		err := tx.QueryRow(`SELECT is_booked FROM seats WHERE id = $1 AND concert_id = $2 FOR UPDATE`, req.SeatID, req.ConcertID).Scan(&isBooked)
+		err := tx.QueryRowContext(ctx, `SELECT is_booked FROM seats WHERE id = $1 AND concert_id = $2 FOR UPDATE`, req.SeatID, req.ConcertID).Scan(&isBooked)
 		if err != nil || isBooked { h.writeError(w, http.StatusConflict, "Seat unavailable"); return }
 		
 		var sCode string; var sPrice float64
-		tx.QueryRow(`SELECT seat_code, price FROM seats WHERE id = $1`, req.SeatID).Scan(&sCode, &sPrice)
-		
-		tx.Exec("UPDATE seats SET is_booked = true WHERE id = $1", req.SeatID)
-		tx.Exec(`INSERT INTO bookings (user_id, concert_id, seat_id, seat_code, price, status) VALUES ($1, $2, $3, $4, $5, 'confirmed')`, fmt.Sprint(u.ID), req.ConcertID, req.SeatID, sCode, sPrice)
+		err = tx.QueryRowContext(ctx, `SELECT seat_code, price FROM seats WHERE id = $1`, req.SeatID).Scan(&sCode, &sPrice)
+		if err != nil { h.writeError(w, http.StatusInternalServerError, "Seat error"); return }
+
+		tx.ExecContext(ctx, "UPDATE seats SET is_booked = true WHERE id = $1", req.SeatID)
+		tx.ExecContext(ctx, `INSERT INTO bookings (user_id, concert_id, seat_id, seat_code, price, status) VALUES ($1, $2, $3, $4, $5, 'confirmed')`, fmt.Sprint(u.ID), req.ConcertID, req.SeatID, sCode, sPrice)
 	}
 
-	tx.Commit()
+	if err := tx.Commit(); err != nil {
+		h.writeError(w, http.StatusInternalServerError, "Transaction commit failed")
+		return
+	}
+	
 	WriteJSON(w, http.StatusCreated, map[string]string{"message": "success"})
 }
 
 func (h *Handler) GetMyBookings(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
 	u := GetUser(r)
 	if u == nil { return }
-	rows, _ := h.ConcertDB.Query(`
+	rows, _ := h.ConcertDB.QueryContext(ctx, `
 		SELECT b.id, c.name, COALESCE(b.seat_code, ''), COALESCE(b.price, 0), b.status 
 		FROM bookings b JOIN concerts c ON b.concert_id = c.id 
 		WHERE b.user_id = $1 ORDER BY b.booked_at DESC`, fmt.Sprint(u.ID))
@@ -213,20 +312,23 @@ func (h *Handler) GetMyBookings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) CancelMyBooking(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
 	bookingID := chi.URLParam(r, "id")
 	u := GetUser(r)
 	if u == nil { return }
 
-	tx, _ := h.ConcertDB.Begin()
+	tx, _ := h.ConcertDB.BeginTx(ctx, nil)
 	defer tx.Rollback()
 
 	var seatID sql.NullInt64
-	err := tx.QueryRow(`SELECT seat_id FROM bookings WHERE id = $1 AND user_id = $2 AND status = 'confirmed' FOR UPDATE`, bookingID, fmt.Sprint(u.ID)).Scan(&seatID)
+	err := tx.QueryRowContext(ctx, `SELECT seat_id FROM bookings WHERE id = $1 AND user_id = $2 AND status = 'confirmed' FOR UPDATE`, bookingID, fmt.Sprint(u.ID)).Scan(&seatID)
 	if err != nil { h.writeError(w, http.StatusNotFound, "Booking not found"); return }
 
-	tx.Exec("UPDATE bookings SET status = 'cancelled' WHERE id = $1", bookingID)
+	tx.ExecContext(ctx, "UPDATE bookings SET status = 'cancelled' WHERE id = $1", bookingID)
 	if seatID.Valid {
-		tx.Exec("UPDATE seats SET is_booked = false WHERE id = $1", seatID.Int64)
+		tx.ExecContext(ctx, "UPDATE seats SET is_booked = false WHERE id = $1", seatID.Int64)
 	}
 	tx.Commit()
 
@@ -234,7 +336,6 @@ func (h *Handler) CancelMyBooking(w http.ResponseWriter, r *http.Request) {
 }
 
 // ===== ADMIN FUNCTIONS =====
-
 type AdminBookingView struct {
 	ID          int       `json:"id"`
 	UserID      string    `json:"user_id"`
@@ -246,7 +347,10 @@ type AdminBookingView struct {
 }
 
 func (h *Handler) AdminGetAllBookings(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.ConcertDB.Query(`
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	rows, err := h.ConcertDB.QueryContext(ctx, `
 		SELECT b.id, b.user_id, c.name, COALESCE(b.seat_code, ''), COALESCE(b.price, 0), b.status, b.booked_at
 		FROM bookings b JOIN concerts c ON b.concert_id = c.id ORDER BY b.booked_at DESC
 	`)
@@ -265,22 +369,27 @@ func (h *Handler) AdminGetAllBookings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AdminCancelBooking(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
 	bookingID := chi.URLParam(r, "id")
-	tx, _ := h.ConcertDB.Begin()
+	tx, _ := h.ConcertDB.BeginTx(ctx, nil)
 	defer tx.Rollback()
 
 	var seatID sql.NullInt64
-	err := tx.QueryRow(`SELECT seat_id FROM bookings WHERE id = $1 AND status = 'confirmed' FOR UPDATE`, bookingID).Scan(&seatID)
+	err := tx.QueryRowContext(ctx, `SELECT seat_id FROM bookings WHERE id = $1 AND status = 'confirmed' FOR UPDATE`, bookingID).Scan(&seatID)
 	if err == nil {
-		tx.Exec("UPDATE bookings SET status = 'cancelled' WHERE id = $1", bookingID)
-		if seatID.Valid { tx.Exec("UPDATE seats SET is_booked = false WHERE id = $1", seatID.Int64) }
+		tx.ExecContext(ctx, "UPDATE bookings SET status = 'cancelled' WHERE id = $1", bookingID)
+		if seatID.Valid { tx.ExecContext(ctx, "UPDATE seats SET is_booked = false WHERE id = $1", seatID.Int64) }
 		tx.Commit()
 	}
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "Booking cancelled by admin"})
 }
 
 func (h *Handler) AdminGetVenues(w http.ResponseWriter, r *http.Request) {
-	rows, _ := h.ConcertDB.Query(`SELECT id, name, svg_content FROM venues ORDER BY id DESC`)
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	rows, _ := h.ConcertDB.QueryContext(ctx, `SELECT id, name, svg_content FROM venues ORDER BY id DESC`)
 	defer rows.Close()
 	var list []Venue
 	for rows.Next() {
@@ -317,17 +426,10 @@ func (h *Handler) AdminCreateConcert(w http.ResponseWriter, r *http.Request) {
 	imageURL, _ := tryReadImageDataURL(r, "image", 5*1024*1024)
 
 	var vID interface{}
-	if venueID == "" {
-		vID = nil
-	} else {
-		vID = venueID
-	}
+	if venueID == "" { vID = nil } else { vID = venueID }
 
 	_, err := h.ConcertDB.Exec(`INSERT INTO concerts (name, venue, venue_id, ticket_price, show_date, layout_image_url) VALUES ($1, $2, $3, $4, $5, $6)`, name, venue, vID, price, showDate, imageURL)
-	if err != nil { 
-		h.writeError(w, http.StatusInternalServerError, "Failed to create concert: " + err.Error())
-		return 
-	}
+	if err != nil { h.writeError(w, http.StatusInternalServerError, "Failed to create concert"); return }
 
 	WriteJSON(w, http.StatusCreated, map[string]string{"message": "Success"})
 }
@@ -343,13 +445,8 @@ func (h *Handler) AdminUpdateConcert(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	
 	imageURL, _ := tryReadImageDataURL(r, "image", 5*1024*1024)
-
 	var vID interface{}
-	if venueID == "" {
-		vID = nil
-	} else {
-		vID = venueID
-	}
+	if venueID == "" { vID = nil } else { vID = venueID }
 
 	var err error
 	if imageURL != "" {
@@ -357,11 +454,7 @@ func (h *Handler) AdminUpdateConcert(w http.ResponseWriter, r *http.Request) {
 	} else {
 		_, err = h.ConcertDB.Exec(`UPDATE concerts SET name=$1, venue=$2, venue_id=$3, ticket_price=$4, show_date=$5 WHERE id=$6`, name, venue, vID, price, showDate, id)
 	}
-
-	if err != nil {
-		h.writeError(w, http.StatusInternalServerError, "Failed to update concert: " + err.Error())
-		return
-	}
+	if err != nil { h.writeError(w, http.StatusInternalServerError, "Failed to update concert"); return }
 
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "Updated"})
 }
@@ -400,12 +493,14 @@ func (h *Handler) AdminGetNewsList(w http.ResponseWriter, r *http.Request) {
 	if list == nil { list = []News{} }
 	WriteJSON(w, http.StatusOK, list)
 }
+
 func (h *Handler) AdminCreateNews(w http.ResponseWriter, r *http.Request) {
 	r.ParseMultipartForm(4 * 1024 * 1024)
 	imageURL, _ := tryReadImageDataURL(r, "image", 4*1024*1024)
 	h.ConcertDB.Exec(`INSERT INTO news (title, content, image_url, is_active) VALUES ($1, $2, $3, true)`, r.FormValue("title"), r.FormValue("content"), imageURL)
 	WriteJSON(w, http.StatusCreated, map[string]string{"message": "Success"})
 }
+
 func (h *Handler) AdminUpdateNews(w http.ResponseWriter, r *http.Request) {
 	r.ParseMultipartForm(4 * 1024 * 1024)
 	imageURL, _ := tryReadImageDataURL(r, "image", 4*1024*1024)
@@ -416,6 +511,7 @@ func (h *Handler) AdminUpdateNews(w http.ResponseWriter, r *http.Request) {
 	}
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "Updated"})
 }
+
 func (h *Handler) AdminDeleteNews(w http.ResponseWriter, r *http.Request) {
 	h.ConcertDB.Exec(`DELETE FROM news WHERE id=$1`, chi.URLParam(r, "id"))
 	w.WriteHeader(http.StatusNoContent)
