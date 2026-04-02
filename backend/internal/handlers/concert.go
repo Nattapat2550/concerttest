@@ -15,10 +15,10 @@ import (
 // 🌟🌟🌟 VIRTUAL WAITING ROOM (IN-MEMORY QUEUE) 🌟🌟🌟
 var (
 	globalQueueTicket int64 = 0
-	currentServing    int64 = 1
+	currentServing    int64 = 100
 )
 
-// Background Worker: ปล่อยคิวเข้าหน้าจองทีละ 10 คน ทุกๆ 2 วินาที
+// Background Worker: บริหารจัดการคิวเข้าหน้าจอง
 func init() {
 	go func() {
 		for {
@@ -27,27 +27,40 @@ func init() {
 			max := atomic.LoadInt64(&globalQueueTicket)
 			
 			if curr < max {
-				atomic.AddInt64(&currentServing, 10)
-			} else if curr > max {
-				atomic.StoreInt64(&currentServing, max)
+				// ถ้าระบบติดคิว (คนเข้าเกินโควต้า) ปล่อยคนเข้าเพิ่มทีละ 20 คน ต่อ 2 วินาที
+				atomic.AddInt64(&currentServing, 20)
+			} else if curr < max+100 {
+				// ถ้าระบบว่าง ค่อยๆ เติมโควต้า "เข้าได้ทันที" ให้กลับมาเต็ม 100 เหมือนเดิม
+				atomic.AddInt64(&currentServing, 20)
 			}
 		}
 	}()
 }
 
 type QueueJoinResp struct {
-	Ticket int64 `json:"ticket"`
+	Ticket int64  `json:"ticket"`
+	Status string `json:"status"` // ✅ แนบ Status กลับไปเลย Frontend จะได้ข้ามคิวได้ทันที
 }
 
 type QueueStatusResp struct {
-	Status        string `json:"status"` // "waiting" or "ready"
+	Status        string `json:"status"`
 	MyTicket      int64  `json:"my_ticket"`
 	CurrentTicket int64  `json:"current_ticket"`
 }
 
 func (h *Handler) JoinQueue(w http.ResponseWriter, r *http.Request) {
 	ticket := atomic.AddInt64(&globalQueueTicket, 1)
-	WriteJSON(w, http.StatusOK, QueueJoinResp{Ticket: ticket})
+	serving := atomic.LoadInt64(&currentServing)
+	
+	status := "waiting"
+	if ticket <= serving {
+		status = "ready"
+	}
+
+	WriteJSON(w, http.StatusOK, QueueJoinResp{
+		Ticket: ticket, 
+		Status: status, // ถ้าคนไม่ล้น จะส่ง "ready" กลับไปทันที
+	})
 }
 
 func (h *Handler) CheckQueueStatus(w http.ResponseWriter, r *http.Request) {

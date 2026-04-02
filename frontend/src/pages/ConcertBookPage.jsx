@@ -16,45 +16,13 @@ export default function ConcertBookPage() {
   const [isBooking, setIsBooking] = useState(false);
   
   // 🌟 State จัดการหน้ารอคิว
-  const [queueState, setQueueState] = useState('joining'); // 'joining', 'waiting', 'ready'
+  const [queueState, setQueueState] = useState('joining');
   const [myTicket, setMyTicket] = useState(0);
   const [currentTicket, setCurrentTicket] = useState(0);
 
   useEffect(() => {
     let queueInterval;
     let seatUpdateInterval;
-
-    // 1. ทันทีที่เข้าหน้าเว็บ ให้รับบัตรคิวจาก Backend ก่อน
-    const joinQueue = async () => {
-      try {
-        const { data } = await api.get('/api/concerts/queue/join');
-        setMyTicket(data.ticket);
-        setQueueState('waiting');
-        checkStatus(data.ticket);
-        
-        // เช็คคิวตัวเองทุกๆ 3 วินาที
-        queueInterval = setInterval(() => checkStatus(data.ticket), 3000);
-      } catch (err) {
-        alert("ไม่สามารถเข้าร่วมคิวได้ ระบบอาจจะเต็ม");
-      }
-    };
-
-    // 2. ฟังก์ชันเช็คว่าถึงคิวหรือยัง
-    const checkStatus = async (ticket) => {
-      try {
-        const { data } = await api.get(`/api/concerts/queue/status?ticket=${ticket}`);
-        setCurrentTicket(data.current_ticket);
-        
-        if (data.status === 'ready') {
-          setQueueState('ready');
-          clearInterval(queueInterval);
-          fetchSeatMapDetails(); // ถึงคิวแล้วค่อยโหลดแผนผังที่นั่ง!
-          
-          // เมื่อถึงคิวและโหลดแผนผังแล้ว ให้อัปเดตที่นั่งที่โดนแย่งทุกๆ 5 วินาที
-          seatUpdateInterval = setInterval(fetchSeatMapDetails, 5000);
-        }
-      } catch (err) {}
-    };
 
     const fetchSeatMapDetails = async () => {
       try {
@@ -65,6 +33,43 @@ export default function ConcertBookPage() {
         setBookedSeats(data.booked_seats || []);
       } catch (err) { 
         console.error("Error loading concert map"); 
+      }
+    };
+
+    // ฟังก์ชันเช็คสถานะคิว
+    const checkStatus = async (ticket) => {
+      try {
+        const { data } = await api.get(`/api/concerts/queue/status?ticket=${ticket}`);
+        setCurrentTicket(data.current_ticket);
+        
+        if (data.status === 'ready') {
+          setQueueState('ready');
+          clearInterval(queueInterval);
+          fetchSeatMapDetails();
+          seatUpdateInterval = setInterval(fetchSeatMapDetails, 5000);
+        }
+      } catch (err) {}
+    };
+
+    // เข้าร่วมคิวทันทีที่เปิดหน้า
+    const joinQueue = async () => {
+      try {
+        const { data } = await api.get('/api/concerts/queue/join');
+        setMyTicket(data.ticket);
+        
+        // ✅ ถ้าระบบคนไม่เยอะ ข้ามหน้ารอไปเลย (Smart Bypass)
+        if (data.status === 'ready') {
+          setQueueState('ready');
+          fetchSeatMapDetails();
+          seatUpdateInterval = setInterval(fetchSeatMapDetails, 5000);
+        } else {
+          // ถ้าระบบคนล้น ถึงจะแสดงหน้ารอคิว
+          setQueueState('waiting');
+          checkStatus(data.ticket);
+          queueInterval = setInterval(() => checkStatus(data.ticket), 3000);
+        }
+      } catch (err) {
+        alert("ไม่สามารถเข้าร่วมคิวได้ ระบบอาจจะเต็ม");
       }
     };
 
@@ -84,7 +89,8 @@ export default function ConcertBookPage() {
       await api.post('/api/concerts/book', { 
         concert_id: parseInt(id), 
         seat_code: selectedSeat.seat_code, 
-        price: selectedSeat.price 
+        price: selectedSeat.price,
+        queue_ticket: myTicket // ✅ แก้บัค 403: แนบตั๋วคิวไปให้ Backend ยืนยันว่าเราไม่ได้ลัดคิว
       });
       alert("🎉 จองที่นั่งสำเร็จ!");
       navigate('/my-bookings');
@@ -92,12 +98,15 @@ export default function ConcertBookPage() {
       const status = err.response?.status;
       if (status === 409) {
         alert("❌ ที่นั่งนี้เพิ่งถูกจองตัดหน้าไป กรุณาเลือกที่นั่งอื่น");
+      } else if (status === 403) {
+        alert("❌ ไม่อนุญาตให้จอง: คิวของคุณไม่ถูกต้อง หรือขาดการเชื่อมต่อ (Bot Prevention)");
       } else if (status === 500 || status === 503) {
         alert("⏳ ระบบกำลังมีผู้ใช้งานจำนวนมาก กรุณารอสักครู่แล้วลองใหม่อีกครั้ง");
       } else {
         alert("❌ เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
       }
 
+      // โหลดแผนผังใหม่หลังจองพลาด
       try {
         const { data } = await api.get(`/api/concerts/${id}`);
         setBookedSeats(data.booked_seats || []);
@@ -108,7 +117,7 @@ export default function ConcertBookPage() {
     }
   };
 
-  // 🌟 UI หน้ารอคิว (Waiting Room) จะขึ้นบังไว้จนกว่าจะถึงคิว
+  // 🌟 UI หน้ารอคิว (แสดงเฉพาะตอนคนแห่เข้าจองเยอะๆ จนโควต้าหมด)
   if (queueState === 'joining' || queueState === 'waiting') {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
@@ -137,7 +146,6 @@ export default function ConcertBookPage() {
 
   if (!concert) return <div className="text-center p-20 text-xl font-bold dark:text-white">กำลังโหลดข้อมูลแผนผังที่นั่ง...</div>;
 
-  // UI หน้าจองตั๋วปกติ (จะแสดงก็ต่อเมื่อถึงคิวแล้ว)
   return (
     <div className="max-w-7xl mx-auto p-4 md:p-6 mt-6 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border dark:border-gray-700 select-none animate-fade-in">
       <div className="flex justify-between items-center mb-6 border-b dark:border-gray-700 pb-4">
