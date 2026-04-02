@@ -122,10 +122,11 @@ type Seat struct {
 }
 
 type BookSeatRequest struct {
-	ConcertID int     `json:"concert_id"`
-	SeatID    int     `json:"seat_id"`   
-	SeatCode  string  `json:"seat_code"` 
-	Price     float64 `json:"price"`
+	ConcertID   int     `json:"concert_id"`
+	SeatID      int     `json:"seat_id"`   
+	SeatCode    string  `json:"seat_code"` 
+	Price       float64 `json:"price"`
+	QueueTicket int64   `json:"queue_ticket"` // ✅ ป้องกันบอท: บังคับแนบเลขคิวมาด้วยตอนจอง
 }
 
 type MyBooking struct {
@@ -242,6 +243,13 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 	if err := ReadJSON(r, &req); err != nil { return }
 	u := GetUser(r)
 	if u == nil { return }
+
+	// ✅ ป้องกันบอท: เช็คว่ามีบัตรคิวไหม และถึงคิวหรือยัง
+	serving := atomic.LoadInt64(&currentServing)
+	if req.QueueTicket <= 0 || req.QueueTicket > serving {
+		h.writeError(w, http.StatusForbidden, "คุณยังไม่มีสิทธิ์ในการจอง หรือยังไม่ถึงคิวของคุณ (Bot Prevention)")
+		return
+	}
 
 	tx, err := h.ConcertDB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
 	if err != nil {
