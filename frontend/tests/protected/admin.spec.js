@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Admin Page Protection', () => {
+  test.beforeEach(async ({ page }) => {
+    // 🌟 ดักปิดแค่ News Popup อย่างเดียว เพราะเทสต์ข้างในมีการจัดการ Status แยกกัน
+    await page.route('**/api/concerts/news/latest', route => route.fulfill({ status: 200, json: [] }));
+  });
+
   test('ไม่ได้ล็อกอินพยายามเข้า /admin จะโดนเตะกลับไปหน้า login', async ({ page }) => {
     // 📌 Mock Status ว่ายังไม่ล็อกอิน
     await page.route('**/api/auth/status', route => {
