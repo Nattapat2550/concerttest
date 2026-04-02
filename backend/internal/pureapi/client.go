@@ -134,7 +134,7 @@ func (c *Client) request(ctx context.Context, method, path string, body any, out
 
 			if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 				// retry transient statuses
-				if (resp.StatusCode == 502 || resp.StatusCode == 503 || resp.StatusCode == 504 || resp.StatusCode == 429) && attempt < maxAttempts {
+				if (resp.StatusCode == 502 || resp.StatusCode == 503 || resp.StatusCode == 504) && attempt < maxAttempts {
 					lastErr = &Error{Status: resp.StatusCode, Message: "Pure API temporary error"}
 					time.Sleep(backoff(attempt))
 					continue
