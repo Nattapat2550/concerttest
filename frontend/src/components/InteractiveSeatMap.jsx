@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { injectMapStyles, buildVectorZones } from './seatMapUtils'; 
 
 export default function InteractiveSeatMap({
@@ -14,53 +14,11 @@ export default function InteractiveSeatMap({
   const [lasso, setLasso] = useState(null); 
   
   const transform = useRef({ x: 0, y: 0, scale: 1 });
-  const dragState = useRef({ isDragging: false, startX: 0, startY: 0, mapX: 0, mapY: 0, target: null, time: 0 });
+  const dragState = useRef({ isDragging: false, startX: 0, startY: 0, mapX: 0, mapY: 0, target: null });
   const lassoRef = useRef({ active: false, startX: 0, startY: 0, clientStartX: 0, clientStartY: 0 });
   const seatElementsCache = useRef(new Map());
-  const requestRef = useRef(); 
 
   const ZOOM_THRESHOLD = 1.2; 
-
-  // ระบบ Culling: คำนวณแบบ Math ล้วน (ลื่นกว่าการดึง DOM ทีละตัว 100 เท่า)
-  const updateCulling = useCallback(() => {
-    if (!containerRef.current) return;
-
-    const containerWidth = containerRef.current.clientWidth;
-    const containerHeight = containerRef.current.clientHeight;
-    const { x: tx, y: ty, scale } = transform.current;
-
-    // คำนวณขอบเขตที่มองเห็นในหน่วยของ SVG (เผื่อขอบไว้ 50px กันภาพแหว่ง)
-    const padding = 50; 
-    const viewMinX = -tx / scale - padding;
-    const viewMinY = -ty / scale - padding;
-    const viewMaxX = (containerWidth - tx) / scale + padding;
-    const viewMaxY = (containerHeight - ty) / scale + padding;
-    
-    seatElementsCache.current.forEach((data) => {
-      const el = data.node;
-      
-      // ถ้าเป็นที่นั่งที่ไม่ได้จัด บังคับซ่อน 100% ไม่ต้องคำนวณต่อ
-      if (el.getAttribute('data-unconfigured') === 'true') {
-        el.style.visibility = 'hidden';
-        el.style.opacity = '0';
-        return;
-      }
-
-      if (scale >= ZOOM_THRESHOLD) {
-        const { x, y, width, height } = data.box;
-        // เช็คว่าตำแหน่งของที่นั่งอยู่ในกรอบหน้าจอหรือไม่ (เร็วกว่า getBoundingClientRect มาก)
-        const isVisible = (
-          x < viewMaxX &&
-          (x + width) > viewMinX &&
-          y < viewMaxY &&
-          (y + height) > viewMinY
-        );
-        el.style.visibility = isVisible ? 'visible' : 'hidden';
-      } else {
-        el.style.visibility = 'visible';
-      }
-    });
-  }, []);
 
   const applyTransform = (animate = false) => {
     const svgEl = transformWrapperRef.current?.querySelector('svg');
@@ -72,14 +30,12 @@ export default function InteractiveSeatMap({
         svgEl.style.transition = 'none';
       }
       
-      svgEl.style.transform = `translate3d(${transform.current.x}px, ${transform.current.y}px, 0) scale(${transform.current.scale})`;
+      svgEl.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
       
       const currentZoom = transform.current.scale < ZOOM_THRESHOLD ? 'low' : 'high';
       if (svgEl.getAttribute('data-zoom') !== currentZoom) {
         svgEl.setAttribute('data-zoom', currentZoom);
       }
-      
-      updateCulling();
     }
   };
 
@@ -94,7 +50,6 @@ export default function InteractiveSeatMap({
     svgEl.style.width = '100%';
     svgEl.style.height = '100%';
     svgEl.style.transformOrigin = '0 0';
-    svgEl.style.willChange = 'transform'; 
     svgEl.setAttribute('draggable', 'false');
 
     seatElementsCache.current.clear();
@@ -113,10 +68,11 @@ export default function InteractiveSeatMap({
             box: { x: box.x, y: box.y, width: box.width, height: box.height } 
           });
         }
-      } catch (e) {}
+      } catch (e) { /* ข้าม */ }
     });
 
     injectMapStyles(svgEl, mode);
+    
     transform.current = { x: 0, y: 0, scale: 1 };
     applyTransform();
   }, [svgContent, mode]);
@@ -130,9 +86,8 @@ export default function InteractiveSeatMap({
     configuredSeats.forEach(c => configuredMap.set(c.seat_code, c));
 
     buildVectorZones(svgEl, seatElementsCache.current, configuredMap, bookedSet, mode);
-    updateCulling(); // เรียกให้เช็คซ่อนหลังสร้างเสร็จ
 
-  }, [configuredSeats, bookedSeats, mode, updateCulling]);
+  }, [configuredSeats, bookedSeats, mode]);
 
   const handleMapClick = (target, clientX, clientY) => {
     if (!target) return;
@@ -219,13 +174,9 @@ export default function InteractiveSeatMap({
       return;
     }
     dragState.current = { 
-      isDragging: false, 
-      startX: e.clientX, 
-      startY: e.clientY, 
-      mapX: transform.current.x, 
-      mapY: transform.current.y,
-      target: e.target,
-      time: Date.now()
+      isDragging: false, startX: e.clientX, startY: e.clientY, 
+      mapX: transform.current.x, mapY: transform.current.y,
+      target: e.target // ล็อกเป้าหมายตั้งแต่ตอนคลิกลง ป้องกันบัคคลิกไม่ติด
     };
   };
 
@@ -245,17 +196,11 @@ export default function InteractiveSeatMap({
     const dx = e.clientX - dragState.current.startX;
     const dy = e.clientY - dragState.current.startY;
 
-    if (!dragState.current.isDragging && (Math.abs(dx) > 15 || Math.abs(dy) > 15)) {
-      dragState.current.isDragging = true;
-    }
-
+    if (!dragState.current.isDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) dragState.current.isDragging = true;
     if (dragState.current.isDragging) {
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
-      requestRef.current = requestAnimationFrame(() => {
-        transform.current.x = dragState.current.mapX + dx;
-        transform.current.y = dragState.current.mapY + dy;
-        applyTransform();
-      });
+      transform.current.x = dragState.current.mapX + dx;
+      transform.current.y = dragState.current.mapY + dy;
+      applyTransform();
     }
   };
 
@@ -283,8 +228,7 @@ export default function InteractiveSeatMap({
       return;
     }
 
-    const timeDiff = Date.now() - dragState.current.time;
-    if (!dragState.current.isDragging || timeDiff < 300) {
+    if (!dragState.current.isDragging) {
       handleMapClick(dragState.current.target, e.clientX, e.clientY);
     }
     dragState.current.isDragging = false;
@@ -294,7 +238,7 @@ export default function InteractiveSeatMap({
   const handleReset = () => { transform.current = { x: 0, y: 0, scale: 1 }; applyTransform(true); };
 
   return (
-    <div className="relative select-none w-full h-full min-h-125 md:min-h-150">
+    <div className="relative select-none w-full h-full min-h-125">
       <div className="absolute top-4 right-4 z-20 flex flex-col gap-2 items-end pointer-events-none">
         <div className="flex gap-2 bg-white/90 dark:bg-gray-800/90 p-2 rounded-lg shadow-lg backdrop-blur-sm pointer-events-auto border dark:border-gray-600">
           <button onClick={() => handleZoom(-0.5)} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded font-bold hover:bg-gray-300 transition">-</button>
@@ -314,7 +258,7 @@ export default function InteractiveSeatMap({
 
       <div 
         ref={containerRef}
-        className="bg-[#0f172a] rounded-xl border dark:border-gray-600 shadow-inner overflow-hidden relative w-full h-full min-h-125 md:min-h-150 touch-none cursor-grab active:cursor-grabbing"
+        className="bg-[#0f172a] rounded-xl border dark:border-gray-600 shadow-inner overflow-hidden relative w-full h-full min-h-150 touch-none cursor-grab active:cursor-grabbing"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
