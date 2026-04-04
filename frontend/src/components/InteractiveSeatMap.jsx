@@ -21,25 +21,44 @@ export default function InteractiveSeatMap({
 
   const ZOOM_THRESHOLD = 1.2; 
 
-  // ระบบ Culling: ซ่อนที่นั่งที่อยู่นอกจอเพื่อลดภาระเครื่อง (แก้หน่วง)
+  // ระบบ Culling: คำนวณแบบ Math ล้วน (ลื่นกว่าการดึง DOM ทีละตัว 100 เท่า)
   const updateCulling = useCallback(() => {
-    if (!containerRef.current || transform.current.scale < ZOOM_THRESHOLD) return;
+    if (!containerRef.current) return;
 
-    const containerRect = containerRef.current.getBoundingClientRect();
+    const containerWidth = containerRef.current.clientWidth;
+    const containerHeight = containerRef.current.clientHeight;
+    const { x: tx, y: ty, scale } = transform.current;
+
+    // คำนวณขอบเขตที่มองเห็นในหน่วยของ SVG (เผื่อขอบไว้ 50px กันภาพแหว่ง)
+    const padding = 50; 
+    const viewMinX = -tx / scale - padding;
+    const viewMinY = -ty / scale - padding;
+    const viewMaxX = (containerWidth - tx) / scale + padding;
+    const viewMaxY = (containerHeight - ty) / scale + padding;
     
     seatElementsCache.current.forEach((data) => {
       const el = data.node;
-      if (el.getAttribute('data-unconfigured') === 'true') return;
+      
+      // ถ้าเป็นที่นั่งที่ไม่ได้จัด บังคับซ่อน 100% ไม่ต้องคำนวณต่อ
+      if (el.getAttribute('data-unconfigured') === 'true') {
+        el.style.visibility = 'hidden';
+        el.style.opacity = '0';
+        return;
+      }
 
-      const rect = el.getBoundingClientRect();
-      const isVisible = (
-        rect.top < containerRect.bottom &&
-        rect.bottom > containerRect.top &&
-        rect.left < containerRect.right &&
-        rect.right > containerRect.left
-      );
-
-      el.style.visibility = isVisible ? 'visible' : 'hidden';
+      if (scale >= ZOOM_THRESHOLD) {
+        const { x, y, width, height } = data.box;
+        // เช็คว่าตำแหน่งของที่นั่งอยู่ในกรอบหน้าจอหรือไม่ (เร็วกว่า getBoundingClientRect มาก)
+        const isVisible = (
+          x < viewMaxX &&
+          (x + width) > viewMinX &&
+          y < viewMaxY &&
+          (y + height) > viewMinY
+        );
+        el.style.visibility = isVisible ? 'visible' : 'hidden';
+      } else {
+        el.style.visibility = 'visible';
+      }
     });
   }, []);
 
@@ -53,7 +72,6 @@ export default function InteractiveSeatMap({
         svgEl.style.transition = 'none';
       }
       
-      // ใช้ translate3d เพื่อใช้ GPU ช่วยเร่งความเร็ว
       svgEl.style.transform = `translate3d(${transform.current.x}px, ${transform.current.y}px, 0) scale(${transform.current.scale})`;
       
       const currentZoom = transform.current.scale < ZOOM_THRESHOLD ? 'low' : 'high';
@@ -95,7 +113,7 @@ export default function InteractiveSeatMap({
             box: { x: box.x, y: box.y, width: box.width, height: box.height } 
           });
         }
-      } catch (e) { /* ข้าม */ }
+      } catch (e) {}
     });
 
     injectMapStyles(svgEl, mode);
@@ -112,8 +130,9 @@ export default function InteractiveSeatMap({
     configuredSeats.forEach(c => configuredMap.set(c.seat_code, c));
 
     buildVectorZones(svgEl, seatElementsCache.current, configuredMap, bookedSet, mode);
+    updateCulling(); // เรียกให้เช็คซ่อนหลังสร้างเสร็จ
 
-  }, [configuredSeats, bookedSeats, mode]);
+  }, [configuredSeats, bookedSeats, mode, updateCulling]);
 
   const handleMapClick = (target, clientX, clientY) => {
     if (!target) return;
@@ -206,7 +225,7 @@ export default function InteractiveSeatMap({
       mapX: transform.current.x, 
       mapY: transform.current.y,
       target: e.target,
-      time: Date.now() // ล็อกเวลาเพื่อแยกแยะระหว่าง Tap กับ Drag
+      time: Date.now()
     };
   };
 
@@ -226,13 +245,11 @@ export default function InteractiveSeatMap({
     const dx = e.clientX - dragState.current.startX;
     const dy = e.clientY - dragState.current.startY;
 
-    // ระยะ Threshold สำหรับมือถือ ป้องกันคลิกพลาดเป็นเลื่อน
     if (!dragState.current.isDragging && (Math.abs(dx) > 15 || Math.abs(dy) > 15)) {
       dragState.current.isDragging = true;
     }
 
     if (dragState.current.isDragging) {
-      // ใช้ RequestAnimationFrame เพื่อความลื่นไหล
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
       requestRef.current = requestAnimationFrame(() => {
         transform.current.x = dragState.current.mapX + dx;
@@ -267,7 +284,6 @@ export default function InteractiveSeatMap({
     }
 
     const timeDiff = Date.now() - dragState.current.time;
-    // ถ้าระยะเวลาแตะน้อยกว่า 300ms ให้นับว่าเป็นการคลิกแน่นอนแม้ลากนิ้วไปนิดเดียว
     if (!dragState.current.isDragging || timeDiff < 300) {
       handleMapClick(dragState.current.target, e.clientX, e.clientY);
     }

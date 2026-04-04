@@ -18,37 +18,50 @@ export const injectMapStyles = (svgEl, mode) => {
 };
 
 export const buildVectorZones = (svgEl, seatElementsMap, configuredMap, bookedSet, mode) => {
-    // 1. จัดการการแสดงผลที่นั่ง (ซ่อนที่นั่งที่ไม่ได้ตั้งค่า)
+    // 1. จัดการการแสดงผลที่นั่ง
     seatElementsMap.forEach((data, seatId) => {
         const el = data.node;
         const config = configuredMap.get(seatId);
 
-        // ถ้าไม่มี Config (Admin ไม่ได้จัด) ให้ซ่อนทันที (display: none ป้องกันการเรนเดอร์)
+        // --- สำหรับฝั่ง User: ถ้าไม่มี Config (Admin ไม่ได้จัด) ให้ซ่อนแบบเด็ดขาด ---
         if (!config && mode !== 'admin') {
-            el.style.display = 'none'; 
+            el.style.display = 'none';
+            el.style.opacity = '0';
+            el.style.visibility = 'hidden';
+            el.style.pointerEvents = 'none';
             el.setAttribute('data-unconfigured', 'true');
             return;
         }
 
+        // รีเซ็ตค่ากลับมา (กรณีแอดมินเพิ่งบันทึก หรือดึงข้อมูลใหม่)
+        el.removeAttribute('data-unconfigured');
+        el.style.display = '';
+        el.style.visibility = 'visible';
+        el.style.pointerEvents = 'auto';
+
         // ตั้งค่าสีตามสถานะ
         if (bookedSet.has(seatId)) {
-            el.style.fill = '#4b5563'; // Gray-600
+            el.style.fill = '#4b5563'; // สีเทาเข้ม (จองแล้ว)
             el.style.opacity = '0.4';
             el.style.cursor = 'not-allowed';
+        } else if (!config && mode === 'admin') {
+            // สำหรับฝั่ง Admin: ที่นั่งที่ยังไม่ได้จัดให้เป็นสีเทาอ่อน จะได้รู้ว่าคลุมได้
+            el.style.fill = '#e5e7eb';
+            el.style.stroke = '#d1d5db';
+            el.style.opacity = '0.7';
         } else {
-            el.style.fill = config?.color || '#3b82f6'; // สีตามโซนหรือสีฟ้า
+            el.style.fill = config?.color || '#3b82f6'; // สีตามโซน
             el.style.opacity = '1';
         }
     });
 
-    // 2. สร้าง Zone Overlays สำหรับตอน Zoom Out (ช่วยเรื่อง Performance)
+    // 2. สร้าง Zone Overlays สำหรับตอน Zoom Out
     const zones = new Map();
     configuredMap.forEach((conf) => {
         if (!zones.has(conf.zone_name)) zones.set(conf.zone_name, []);
         zones.get(conf.zone_name).push(conf.seat_code);
     });
 
-    // ล้าง Overlay เก่า
     svgEl.querySelectorAll('.zone-group').forEach(g => g.remove());
 
     zones.forEach((seatIds, zoneName) => {
