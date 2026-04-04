@@ -1,6 +1,7 @@
 // src/App.jsx
-import React, { Suspense, lazy, useEffect } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import api from './services/api';
 
 import Layout from './layouts/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -21,6 +22,30 @@ const ContactPage = lazy(() => import('./pages/ContactPage'));
 const DownloadPage = lazy(() => import('./pages/DownloadPage'));
 
 const App = () => {
+  const [serverReady, setServerReady] = useState(false);
+  const [wakingUp, setWakingUp] = useState(false);
+
+  // ระบบปลุก Server (Backend & PureAPI)
+  useEffect(() => {
+    let isMounted = true;
+    const wakeUpServers = async () => {
+      try {
+        // ยิงไปที่ homepage เพื่อบังคับให้ Backend ต้องไปเรียก PureAPI ด้วย (ตื่นพร้อมกัน 2 เด้ง)
+        await api.get('/api/homepage');
+        if (isMounted) setServerReady(true);
+      } catch (err) {
+        if (isMounted) {
+          setWakingUp(true);
+          // วนลูปยิงเช็คทุกๆ 3 วินาทีจนกว่าเซิร์ฟเวอร์จะตื่น
+          setTimeout(wakeUpServers, 3000);
+        }
+      }
+    };
+    
+    wakeUpServers();
+    return () => { isMounted = false; };
+  }, []);
+
   useEffect(() => {
     const hash = window.location.hash;
     if (hash && hash.includes('token=')) {
@@ -37,18 +62,33 @@ const App = () => {
     }
   }, []);
 
+  // หน้าจอรอโหลดระหว่างปลุก Server
+  if (!serverReady) {
+    return (
+      <div className="flex flex-col justify-center items-center min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-6 text-center transition-colors duration-300">
+        <div className="relative flex justify-center items-center mb-8">
+          <div className="absolute animate-ping inline-flex h-20 w-20 rounded-full bg-blue-400 opacity-20"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600"></div>
+        </div>
+        <h1 className="text-2xl md:text-3xl font-black mb-3">กำลังเชื่อมต่อกับเซิร์ฟเวอร์...</h1>
+        <p className="text-gray-500 dark:text-gray-400 max-w-md text-sm md:text-base font-medium">
+          {wakingUp 
+            ? "กำลังปลุกระบบฐานข้อมูลและเซิร์ฟเวอร์ (อาจใช้เวลา 30-50 วินาทีในครั้งแรกเนื่องจากระบบประหยัดพลังงาน) กรุณารอสักครู่ ⏳" 
+            : "ระบบกำลังเตรียมความพร้อม..."}
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <Suspense fallback={<div className="flex justify-center items-center min-h-screen text-xl dark:text-white">กำลังโหลด...</div>}>
+    <Suspense fallback={<div className="flex justify-center items-center min-h-screen text-xl dark:text-white bg-gray-50 dark:bg-gray-900">กำลังโหลดข้อมูล...</div>}>
       <Routes>
         <Route element={<Layout />}>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/check" element={<CheckCodePage />} />
-          
-          {/* ✅ แก้ไขตรงนี้ให้ตรงกับที่ Backend ส่งมา */}
           <Route path="/complete-profile" element={<CompleteProfilePage />} />
-          
           <Route path="/reset" element={<ResetPasswordPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
