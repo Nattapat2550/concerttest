@@ -1,111 +1,82 @@
-// seatMapUtils.js
+// src/components/seatMapUtils.js
 
 export const injectMapStyles = (svgEl, mode) => {
-  const oldStyle = svgEl.querySelector('#seat-map-styles');
-  if (oldStyle) oldStyle.remove();
-
-  const styleEl = document.createElement('style');
-  styleEl.id = 'seat-map-styles';
-  styleEl.innerHTML = `
-    .smart-seat { transform-box: fill-box; transform-origin: center; cursor: pointer; }
-    .smart-seat { fill: var(--seat-color) !important; stroke: none !important; }
-    .smart-seat:hover { filter: brightness(1.5) saturate(2); stroke: white !important; stroke-width: 2px !important; }
-    .smart-seat.booked { fill: #475569 !important; opacity: 0.4 !important; pointer-events: none !important; cursor: not-allowed !important; }
-    .smart-seat.unconfigured { display: ${mode === 'booking' ? 'none' : 'block'} !important; fill: #cbd5e1 !important; opacity: 0.5 !important; }
-    
-    .zone-overlay { transition: filter 0.2s ease; cursor: pointer; }
-    .zone-sub-rect { pointer-events: auto; }
-    .zone-overlay:hover .zone-sub-rect { filter: brightness(1.15); }
-    
-    .zone-blob-text {
-      pointer-events: none; fill: #ffffff; font-family: ui-sans-serif, system-ui, sans-serif;
-      font-size: 32px; font-weight: 900; text-shadow: 0px 4px 6px rgba(0,0,0,0.8), 0px 0px 8px rgba(0,0,0,0.5);
+    const styleId = 'seat-map-dynamic-styles';
+    if (!document.getElementById(styleId)) {
+        const style = document.createElement('style');
+        style.id = styleId;
+        style.innerHTML = `
+            .smart-seat { transition: fill 0.2s, stroke 0.2s; cursor: pointer; }
+            .smart-seat:hover { filter: brightness(1.2); }
+            .zone-overlay { fill: transparent; transition: fill 0.3s; cursor: pointer; pointer-events: all; }
+            .zone-overlay:hover { fill: rgba(255,255,255,0.1); }
+            [data-zoom="low"] .smart-seat { pointer-events: none; }
+            [data-zoom="high"] .zone-overlay { pointer-events: none; display: none; }
+        `;
+        document.head.appendChild(style);
     }
-    
-    /* CULLING: ปิดการมองเห็นและหยุดคำนวณกราฟิก 100% (ลดอาการแลคได้มหาศาล) */
-    svg[data-zoom="low"] .smart-seat { display: none !important; pointer-events: none !important; }
-    svg[data-zoom="low"] .zone-overlay { display: block !important; pointer-events: auto !important; }
-    
-    svg[data-zoom="high"] .smart-seat { display: block !important; pointer-events: auto !important; }
-    svg[data-zoom="high"] .zone-overlay { display: none !important; pointer-events: none !important; }
-  `;
-  svgEl.appendChild(styleEl);
 };
 
-export const buildVectorZones = (svgEl, seatElementsCache, configuredMap, bookedSet, mode) => {
-  const zoneGroupsMap = new Map();
+export const buildVectorZones = (svgEl, seatElementsMap, configuredMap, bookedSet, mode) => {
+    // 1. จัดการการแสดงผลที่นั่ง (ซ่อนที่นั่งที่ไม่ได้ตั้งค่า)
+    seatElementsMap.forEach((data, seatId) => {
+        const el = data.node;
+        const config = configuredMap.get(seatId);
 
-  // ล้าง Overlay เก่าออก
-  const oldOverlays = svgEl.querySelectorAll('.zone-overlay');
-  oldOverlays.forEach(o => o.remove());
-
-  // 1. จัดกลุ่มเก้าอี้ที่เปิดขายแยกตามโซน
-  seatElementsCache.forEach((seatData, seatId) => {
-    const seatNode = seatData.node;
-    seatNode.classList.remove('unconfigured', 'booked');
-    
-    if (configuredMap.has(seatId)) {
-      const config = configuredMap.get(seatId);
-      const seatColor = config.color || '#3b82f6';
-      seatNode.style.setProperty('--seat-color', seatColor);
-      
-      if (mode === 'booking' && bookedSet.has(seatId)) {
-        seatNode.classList.add('booked');
-      }
-
-      const parentG = seatNode.closest('g[id]');
-      if (parentG && parentG.id !== 'layer1' && parentG.id !== 'svg-root') {
-        if (!zoneGroupsMap.has(parentG.id)) {
-          zoneGroupsMap.set(parentG.id, { groupNode: parentG, seats: [] });
+        // ถ้าไม่มี Config (Admin ไม่ได้จัด) ให้ซ่อนทันที (display: none ป้องกันการเรนเดอร์)
+        if (!config && mode !== 'admin') {
+            el.style.display = 'none'; 
+            el.setAttribute('data-unconfigured', 'true');
+            return;
         }
-        // ใช้กล่องพิกัดที่เก็บไว้ใน Cache เลย จะได้ไม่ต้องดึงใหม่ตอนมันโดนซ่อน
-        zoneGroupsMap.get(parentG.id).seats.push({ box: seatData.box, color: seatColor });
-      }
-    } else {
-      seatNode.classList.add('unconfigured');
-    }
-  });
 
-  // 2. สร้างกล่องเหลี่ยมรัดรูป (Overlapping Orthogonal Rects)
-  const PADDING = 10; 
-
-  zoneGroupsMap.forEach((zoneData, zoneId) => {
-    const overlayG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    overlayG.setAttribute('class', 'zone-overlay');
-
-    let sumX = 0, sumY = 0, count = 0;
-
-    zoneData.seats.forEach(s => {
-      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      rect.setAttribute('x', s.box.x - PADDING);
-      rect.setAttribute('y', s.box.y - PADDING);
-      rect.setAttribute('width', s.box.width + PADDING * 2);
-      rect.setAttribute('height', s.box.height + PADDING * 2);
-      rect.setAttribute('rx', 4); 
-      rect.setAttribute('class', 'zone-sub-rect');
-      
-      rect.style.fill = s.color;
-      rect.style.stroke = s.color;
-      rect.style.strokeWidth = '1px';
-      
-      overlayG.appendChild(rect);
-
-      sumX += (s.box.x + s.box.width / 2);
-      sumY += (s.box.y + s.box.height / 2);
-      count++;
+        // ตั้งค่าสีตามสถานะ
+        if (bookedSet.has(seatId)) {
+            el.style.fill = '#4b5563'; // Gray-600
+            el.style.opacity = '0.4';
+            el.style.cursor = 'not-allowed';
+        } else {
+            el.style.fill = config?.color || '#3b82f6'; // สีตามโซนหรือสีฟ้า
+            el.style.opacity = '1';
+        }
     });
 
-    if (count > 0) {
-      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      text.textContent = zoneId.replace(/[_-]/g, ' ').toUpperCase();
-      text.setAttribute('x', sumX / count);
-      text.setAttribute('y', sumY / count);
-      text.setAttribute('text-anchor', 'middle');
-      text.setAttribute('dominant-baseline', 'middle');
-      text.setAttribute('class', 'zone-blob-text');
-      overlayG.appendChild(text);
-    }
+    // 2. สร้าง Zone Overlays สำหรับตอน Zoom Out (ช่วยเรื่อง Performance)
+    const zones = new Map();
+    configuredMap.forEach((conf) => {
+        if (!zones.has(conf.zone_name)) zones.set(conf.zone_name, []);
+        zones.get(conf.zone_name).push(conf.seat_code);
+    });
 
-    zoneData.groupNode.appendChild(overlayG);
-  });
+    // ล้าง Overlay เก่า
+    svgEl.querySelectorAll('.zone-group').forEach(g => g.remove());
+
+    zones.forEach((seatIds, zoneName) => {
+        const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        group.setAttribute('class', 'zone-group');
+        
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        
+        seatIds.forEach(id => {
+            const seatData = seatElementsMap.get(id);
+            if (seatData) {
+                const { x, y, width, height } = seatData.box;
+                minX = Math.min(minX, x);
+                minY = Math.min(minY, y);
+                maxX = Math.max(maxX, x + width);
+                maxY = Math.max(maxY, y + height);
+            }
+        });
+
+        if (minX !== Infinity) {
+            const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+            rect.setAttribute('x', minX - 10);
+            rect.setAttribute('y', minY - 10);
+            rect.setAttribute('width', (maxX - minX) + 20);
+            rect.setAttribute('height', (maxY - minY) + 20);
+            rect.setAttribute('class', 'zone-overlay');
+            group.appendChild(rect);
+            svgEl.appendChild(group);
+        }
+    });
 };

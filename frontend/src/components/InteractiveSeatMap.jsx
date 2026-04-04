@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { injectMapStyles, buildVectorZones } from './seatMapUtils'; 
 
 export default function InteractiveSeatMap({
@@ -17,8 +17,31 @@ export default function InteractiveSeatMap({
   const dragState = useRef({ isDragging: false, startX: 0, startY: 0, mapX: 0, mapY: 0, target: null, time: 0 });
   const lassoRef = useRef({ active: false, startX: 0, startY: 0, clientStartX: 0, clientStartY: 0 });
   const seatElementsCache = useRef(new Map());
+  const requestRef = useRef(); 
 
   const ZOOM_THRESHOLD = 1.2; 
+
+  // ระบบ Culling: ซ่อนที่นั่งที่อยู่นอกจอเพื่อลดภาระเครื่อง (แก้หน่วง)
+  const updateCulling = useCallback(() => {
+    if (!containerRef.current || transform.current.scale < ZOOM_THRESHOLD) return;
+
+    const containerRect = containerRef.current.getBoundingClientRect();
+    
+    seatElementsCache.current.forEach((data) => {
+      const el = data.node;
+      if (el.getAttribute('data-unconfigured') === 'true') return;
+
+      const rect = el.getBoundingClientRect();
+      const isVisible = (
+        rect.top < containerRect.bottom &&
+        rect.bottom > containerRect.top &&
+        rect.left < containerRect.right &&
+        rect.right > containerRect.left
+      );
+
+      el.style.visibility = isVisible ? 'visible' : 'hidden';
+    });
+  }, []);
 
   const applyTransform = (animate = false) => {
     const svgEl = transformWrapperRef.current?.querySelector('svg');
@@ -30,12 +53,15 @@ export default function InteractiveSeatMap({
         svgEl.style.transition = 'none';
       }
       
-      svgEl.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
+      // ใช้ translate3d เพื่อใช้ GPU ช่วยเร่งความเร็ว
+      svgEl.style.transform = `translate3d(${transform.current.x}px, ${transform.current.y}px, 0) scale(${transform.current.scale})`;
       
       const currentZoom = transform.current.scale < ZOOM_THRESHOLD ? 'low' : 'high';
       if (svgEl.getAttribute('data-zoom') !== currentZoom) {
         svgEl.setAttribute('data-zoom', currentZoom);
       }
+      
+      updateCulling();
     }
   };
 
@@ -50,6 +76,7 @@ export default function InteractiveSeatMap({
     svgEl.style.width = '100%';
     svgEl.style.height = '100%';
     svgEl.style.transformOrigin = '0 0';
+    svgEl.style.willChange = 'transform'; 
     svgEl.setAttribute('draggable', 'false');
 
     seatElementsCache.current.clear();
@@ -72,7 +99,6 @@ export default function InteractiveSeatMap({
     });
 
     injectMapStyles(svgEl, mode);
-    
     transform.current = { x: 0, y: 0, scale: 1 };
     applyTransform();
   }, [svgContent, mode]);
@@ -180,7 +206,7 @@ export default function InteractiveSeatMap({
       mapX: transform.current.x, 
       mapY: transform.current.y,
       target: e.target,
-      time: Date.now() // เก็บรอยเวลาไว้เช็คว่าเป็น Tap หรือ Drag
+      time: Date.now() // ล็อกเวลาเพื่อแยกแยะระหว่าง Tap กับ Drag
     };
   };
 
@@ -200,15 +226,19 @@ export default function InteractiveSeatMap({
     const dx = e.clientX - dragState.current.startX;
     const dy = e.clientY - dragState.current.startY;
 
-    // แก้ระยะทนทาน (Threshold) ให้เหมาะกับมือถือ จาก 5px เป็น 15px
+    // ระยะ Threshold สำหรับมือถือ ป้องกันคลิกพลาดเป็นเลื่อน
     if (!dragState.current.isDragging && (Math.abs(dx) > 15 || Math.abs(dy) > 15)) {
       dragState.current.isDragging = true;
     }
 
     if (dragState.current.isDragging) {
-      transform.current.x = dragState.current.mapX + dx;
-      transform.current.y = dragState.current.mapY + dy;
-      applyTransform();
+      // ใช้ RequestAnimationFrame เพื่อความลื่นไหล
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+      requestRef.current = requestAnimationFrame(() => {
+        transform.current.x = dragState.current.mapX + dx;
+        transform.current.y = dragState.current.mapY + dy;
+        applyTransform();
+      });
     }
   };
 
@@ -237,11 +267,10 @@ export default function InteractiveSeatMap({
     }
 
     const timeDiff = Date.now() - dragState.current.time;
-    // ถ้าระยะเวลาแตะน้อยกว่า 300ms ให้ถือว่าตั้งใจคลิกแน่นอนแม้ว่านิ้วจะขยับไปนิดหน่อย
+    // ถ้าระยะเวลาแตะน้อยกว่า 300ms ให้นับว่าเป็นการคลิกแน่นอนแม้ลากนิ้วไปนิดเดียว
     if (!dragState.current.isDragging || timeDiff < 300) {
       handleMapClick(dragState.current.target, e.clientX, e.clientY);
     }
-    
     dragState.current.isDragging = false;
   };
 
