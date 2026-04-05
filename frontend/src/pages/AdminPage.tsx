@@ -5,7 +5,8 @@ import InteractiveSeatMap from '../components/InteractiveSeatMap';
 // ประกาศ Interface เพื่อแก้ Error Property does not exist on type 'never'
 interface User { id: number; email: string; role: string; status: string; }
 interface Booking { id: number; user_id: number; concert_name: string; seat_code: string; price: number; status: string; }
-interface Concert { id: number; name: string; venue?: string; venue_name?: string; venue_id?: number; ticket_price: number; show_date: string; is_active: boolean; } 
+// เพิ่ม access_code เข้ามาใน Concert interface
+interface Concert { id: number; access_code: string; name: string; venue?: string; venue_name?: string; venue_id?: number; ticket_price: number; show_date: string; is_active: boolean; } 
 interface Venue { id: number; name: string; }
 interface News { id: number; title: string; content: string; is_active: boolean; created_at: string; image_url?: string; }
 interface SeatConfig { seat_code: string; zone_name: string; price: number; color: string; }
@@ -144,7 +145,8 @@ export default function AdminPage() {
     setSeatConfigs([]); 
     setIsEraserMode(false);
     try {
-      const { data } = await api.get(`/api/concerts/${c.id}`);
+      // 🟢 อัปเดตตรงนี้: เปลี่ยนจากการใช้ c.id ไปดึงข้อมูลด้วย c.access_code แทน
+      const { data } = await api.get(`/api/concerts/${c.access_code}`);
       setMapSvg(data.svg_content || '');
       
       if (data.configured_seats && data.configured_seats.length > 0) {
