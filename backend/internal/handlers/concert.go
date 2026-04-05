@@ -184,8 +184,10 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 	u := GetUser(r)
 	if u == nil { return }
 
-	// ใช้ currentServing จากไฟล์ queue.go (แชร์ใน package เดียวกันได้เลย)
-	serving := atomic.LoadInt64(&currentServing)
+	// [แก้โค้ด] ดึงข้อมูลคิวของคอนเสิร์ตนี้แทนการเรียกตัวแปร global
+	q := getOrCreateQueue(fmt.Sprint(req.ConcertID))
+	serving := atomic.LoadInt64(&q.currentServing)
+	
 	if req.QueueTicket <= 0 || req.QueueTicket > serving {
 		h.writeError(w, http.StatusForbidden, "คุณยังไม่มีสิทธิ์ในการจอง หรือยังไม่ถึงคิวของคุณ (Bot Prevention)")
 		return

@@ -73,9 +73,9 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 		cr.Get("/news/latest", h.GetLatestNews)
 		cr.Get("/list", h.GetConcerts)
 		
-		// ✅ ย้าย Route ระบบคิวมาไว้บนสุด และเปลี่ยนเป็น cr.Get เพื่อไม่ให้ชนกับ /{id}
-		cr.Get("/queue/join", h.JoinQueue)
-		cr.Get("/queue/status", h.CheckQueueStatus)
+		// ✅ ระบบคิวแยกตามคอนเสิร์ต
+		cr.Get("/{id}/queue/join", h.JoinQueue)
+		cr.Get("/{id}/queue/status", h.CheckQueueStatus)
 
 		cr.Get("/{id}/seats", h.GetConcertSeats) // ระบบเก่า
 		cr.Get("/{id}", h.GetConcertDetails)     // ระบบใหม่ (SVG)
