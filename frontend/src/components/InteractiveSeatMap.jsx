@@ -18,7 +18,6 @@ export default function InteractiveSeatMap({
   const lassoRef = useRef({ active: false, startX: 0, startY: 0, clientStartX: 0, clientStartY: 0 });
   const seatElementsCache = useRef(new Map());
   
-  // [เพิ่มใหม่] Ref สำหรับจัดการ requestAnimationFrame ป้องกันอาการหน่วงตอนลาก
   const rafRef = useRef(null); 
 
   const ZOOM_THRESHOLD = 1.2; 
@@ -26,9 +25,6 @@ export default function InteractiveSeatMap({
   const applyTransform = (animate = false) => {
     const svgEl = transformWrapperRef.current?.querySelector('svg');
     if (svgEl) {
-      // [แก้ไขข้อ 2] เพิ่ม will-change เพื่อเร่งประสิทธิภาพด้วย GPU (Hardware Acceleration)
-      svgEl.style.willChange = 'transform';
-      
       if (animate) {
         svgEl.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
         setTimeout(() => { if(svgEl) svgEl.style.transition = 'none'; }, 300);
@@ -36,8 +32,8 @@ export default function InteractiveSeatMap({
         svgEl.style.transition = 'none';
       }
       
-      // [แก้ไขข้อ 2] เปลี่ยนมาใช้ translate3d เพื่อช่วยลดภาระ CPU และแก้อาการกระตุก
-      svgEl.style.transform = `translate3d(${transform.current.x}px, ${transform.current.y}px, 0) scale(${transform.current.scale})`;
+      // ใช้ translate แบบธรรมดาเพื่อให้การเรนเดอร์ SVG เป็น Vector เสมอ (ช่วยแก้ภาพเบลอ/แตก)
+      svgEl.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
       
       const currentZoom = transform.current.scale < ZOOM_THRESHOLD ? 'low' : 'high';
       if (svgEl.getAttribute('data-zoom') !== currentZoom) {
@@ -94,15 +90,13 @@ export default function InteractiveSeatMap({
 
     buildVectorZones(svgEl, seatElementsCache.current, configuredMap, bookedSet, mode);
 
-    // [แก้ไขข้อ 1] จัดการแสดง/ซ่อนที่นั่งที่ไม่ได้ถูกจัดให้จอง
+    // จัดการที่นั่งที่ไม่ได้ถูกจัดให้จอง โดยใช้ visibility ซ่อนอย่างเด็ดขาด
     seatElementsCache.current.forEach((seatData, seatId) => {
       if (mode === 'booking' && !configuredMap.has(seatId)) {
-        // หากไม่มีข้อมูลใน Config ให้ซ่อนตัวที่นั่ง
-        seatData.node.style.opacity = '0';
+        seatData.node.style.visibility = 'hidden'; 
         seatData.node.style.pointerEvents = 'none';
       } else {
-        // หากเป็นแอดมิน หรืออยู่ใน Config คืนค่าเดิม
-        seatData.node.style.opacity = '';
+        seatData.node.style.visibility = 'visible';
         seatData.node.style.pointerEvents = '';
       }
     });
@@ -172,7 +166,7 @@ export default function InteractiveSeatMap({
         transform.current.y = mouseY - (mouseY - transform.current.y) * scaleRatio;
         transform.current.scale = newScale;
         
-        // [แก้ไขข้อ 2] ใช้ requestAnimationFrame ควบคุมจังหวะซูมด้วยลูกกลิ้งเช่นกัน
+        // ใช้ requestAnimationFrame สำหรับการซูมเพื่อความลื่นไหล
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
         rafRef.current = requestAnimationFrame(() => applyTransform());
         setShowZoomHint(false);
@@ -224,7 +218,7 @@ export default function InteractiveSeatMap({
       transform.current.x = dragState.current.mapX + dx;
       transform.current.y = dragState.current.mapY + dy;
       
-      // [แก้ไขข้อ 2] ใช้ requestAnimationFrame ป้องกันอาการอืดและกระตุกขณะลากเลื่อนเมาส์
+      // ใช้ requestAnimationFrame สำหรับการลากเลื่อนเมาส์ ป้องกันอาการกระตุก
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => applyTransform());
     }
@@ -264,7 +258,6 @@ export default function InteractiveSeatMap({
   const handleReset = () => { transform.current = { x: 0, y: 0, scale: 1 }; applyTransform(true); };
 
   return (
-    // ส่วน Render ด้านล่างเหมือนเดิมทั้งหมด ไม่มีการเปลี่ยนแปลง
     <div className="relative select-none w-full h-full min-h-125">
       <div className="absolute top-4 right-4 z-20 flex flex-col gap-2 items-end pointer-events-none">
         <div className="flex gap-2 bg-white/90 dark:bg-gray-800/90 p-2 rounded-lg shadow-lg backdrop-blur-sm pointer-events-auto border dark:border-gray-600">
