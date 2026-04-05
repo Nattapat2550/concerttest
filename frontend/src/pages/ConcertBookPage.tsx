@@ -5,7 +5,7 @@ import InteractiveSeatMap from '../components/InteractiveSeatMap';
 import WaitingRoom from '../components/WaitingRoom';
 
 export default function ConcertBookPage() {
-  const { id } = useParams();
+  const { id } = useParams(); // id ตรงนี้จะกลายเป็น Access Code ตามที่ Router จ่ายมาให้
   const navigate = useNavigate();
   
   const [concert, setConcert] = useState<any>(null);
@@ -77,12 +77,12 @@ export default function ConcertBookPage() {
   }, [id]);
 
   const handleBook = async () => {
-    if (!selectedSeat || isBooking) return;
+    if (!selectedSeat || isBooking || !concert) return;
     setIsBooking(true);
     
     try {
       await api.post('/api/concerts/book', { 
-        concert_id: parseInt(id as string), 
+        concert_id: concert.id, // ต้องใช้ ID จริงสำหรับการจองในฐานข้อมูล
         seat_code: selectedSeat.seat_code, 
         price: selectedSeat.price,
         queue_ticket: myTicket

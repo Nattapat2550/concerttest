@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"net/http"
 	"time"
 
@@ -21,7 +23,14 @@ type AdminBookingView struct {
 }
 
 type AdminSaveSeatsRequest struct {
-	Seats []ConcertSeatConfig `json:"seats"` // ใช้ Struct จาก concert.go
+	Seats []ConcertSeatConfig `json:"seats"`
+}
+
+// สร้างรหัสสุ่มความยาว 16 ตัวอักษร
+func generateAccessCode() string {
+	b := make([]byte, 8)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 // ===== ADMIN FUNCTIONS =====
@@ -111,7 +120,9 @@ func (h *Handler) AdminCreateConcert(w http.ResponseWriter, r *http.Request) {
 	var vID interface{}
 	if venueID == "" { vID = nil } else { vID = venueID }
 
-	_, err := h.ConcertDB.Exec(`INSERT INTO concerts (name, venue, venue_id, ticket_price, show_date, layout_image_url, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7)`, name, venue, vID, price, showDate, imageURL, isActive)
+	accessCode := generateAccessCode() // สร้างรหัสใหม่
+
+	_, err := h.ConcertDB.Exec(`INSERT INTO concerts (access_code, name, venue, venue_id, ticket_price, show_date, layout_image_url, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, accessCode, name, venue, vID, price, showDate, imageURL, isActive)
 	if err != nil { h.writeError(w, http.StatusInternalServerError, "Failed to create concert"); return }
 
 	WriteJSON(w, http.StatusCreated, map[string]string{"message": "Success"})

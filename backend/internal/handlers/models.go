@@ -20,6 +20,7 @@ type Venue struct {
 
 type Concert struct {
 	ID             int       `json:"id"`
+	AccessCode     string    `json:"access_code"` // ฟิลด์ใหม่สำหรับรหัสสุ่ม
 	Name           string    `json:"name"`
 	ShowDate       time.Time `json:"show_date"`
 	Venue          string    `json:"venue"`

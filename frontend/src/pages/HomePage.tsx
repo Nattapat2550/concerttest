@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 
-// 1. สร้าง Interface เพื่อบอกว่าข้อมูล Concert แต่ละตัวมีอะไรบ้าง
 interface Concert {
   id: number;
+  access_code: string; // เพิ่มฟิลด์ access_code
   name: string;
   show_date: string;
   venue: string;
@@ -46,14 +46,12 @@ export default function HomePage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {concerts.map(c => (
-               // เพิ่ม opacity กรณี is_active เป็น false
               <div key={c.id} className={`bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden border dark:border-gray-700 transition flex flex-col h-full ${!c.is_active ? 'opacity-60 grayscale' : 'hover:shadow-lg'}`}>
                 <div className="h-48 bg-gray-200 dark:bg-gray-700 flex items-center justify-center shrink-0 relative">
                   {c.layout_image_url ? 
                     <img src={c.layout_image_url} alt="Cover" className="w-full h-full object-cover"/> : 
                     <span className="text-gray-400 dark:text-gray-500 text-sm">ไม่มีรูปภาพประกอบ</span>
                   }
-                   {/* แบนเนอร์ Coming Soon สำหรับคอนเสิร์ตที่ยังไม่เปิด */}
                   {!c.is_active && (
                     <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
                        <span className="text-white font-bold text-xl tracking-widest uppercase bg-black bg-opacity-70 px-4 py-2 rounded">Coming Soon</span>
@@ -66,9 +64,8 @@ export default function HomePage() {
                   <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 truncate">📍 {c.venue}</p>
                   
                   <div className="mt-auto pt-2">
-                    {/* เปลี่ยนแปลงปุ่มตาม is_active */}
                     {c.is_active ? (
-                      <Link to={`/concerts/${c.id}/book`} className="block text-center w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition active:scale-95 shadow-md">
+                      <Link to={`/concerts/${c.access_code}/book`} className="block text-center w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition active:scale-95 shadow-md">
                         เลือกระบุที่นั่ง
                       </Link>
                     ) : (

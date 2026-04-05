@@ -21,6 +21,7 @@ CREATE TABLE venues (
 -- 3. ตารางคอนเสิร์ต (Concerts)
 CREATE TABLE concerts (
     id SERIAL PRIMARY KEY,
+    access_code VARCHAR(50) UNIQUE NOT NULL, -- เพิ่มคอลัมน์รหัสสุ่ม
     name VARCHAR(255) NOT NULL,
     description TEXT,
     show_date TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -32,7 +33,7 @@ CREATE TABLE concerts (
     is_active BOOLEAN DEFAULT FALSE
 );
 
--- 4. ตารางกำหนดที่นั่งรายคอนเสิร์ต (Concert Seats - ข้อมูลที่ Admin จัดการจากหน้า Map Builder)
+-- 4. ตารางกำหนดที่นั่งรายคอนเสิร์ต (Concert Seats)
 CREATE TABLE concert_seats (
     id SERIAL PRIMARY KEY,
     concert_id INT REFERENCES concerts(id) ON DELETE CASCADE,
@@ -43,7 +44,7 @@ CREATE TABLE concert_seats (
     UNIQUE(concert_id, seat_code)
 );
 
--- 5. ตารางที่นั่ง (Seats) [ระบบเก่า เผื่อไว้กรณีไม่ใช้ SVG]
+-- 5. ตารางที่นั่ง (Seats) [ระบบเก่า]
 CREATE TABLE seats (
     id SERIAL PRIMARY KEY,
     concert_id INT REFERENCES concerts(id) ON DELETE CASCADE,
@@ -53,7 +54,7 @@ CREATE TABLE seats (
     UNIQUE(concert_id, seat_code)
 );
 
--- 6. ตารางการจองตั๋ว (Bookings) [แก้บัค UUID VARCHAR แล้ว]
+-- 6. ตารางการจองตั๋ว (Bookings)
 CREATE TABLE bookings (
     id SERIAL PRIMARY KEY,
     user_id VARCHAR(255) NOT NULL,
@@ -65,8 +66,6 @@ CREATE TABLE bookings (
     booked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- ป้องกันจองที่นั่งรหัสเดียวกันซ้ำในคอนเสิร์ตเดียวกัน
 CREATE UNIQUE INDEX idx_unique_svg_booking ON bookings (concert_id, seat_code) WHERE status = 'confirmed' AND seat_code IS NOT NULL;
 
--- ข้อมูลจำลอง
 INSERT INTO news (title, content) VALUES ('ยินดีต้อนรับสู่ ConcertTick!', 'ระบบจองตั๋วคอนเสิร์ต Interactive Map เปิดให้บริการแล้ว');

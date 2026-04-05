@@ -22,7 +22,15 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 	u := GetUser(r)
 	if u == nil { return }
 
-	q := getOrCreateQueue(fmt.Sprint(req.ConcertID))
+	// หา AccessCode จาก ID ของคอนเสิร์ตเพื่อไปเช็คกับ Queue Manager
+	var accessCode string
+	err := h.ConcertDB.QueryRowContext(ctx, "SELECT access_code FROM concerts WHERE id = $1", req.ConcertID).Scan(&accessCode)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "Invalid concert")
+		return
+	}
+
+	q := getOrCreateQueue(accessCode)
 	serving := atomic.LoadInt64(&q.currentServing)
 	
 	if req.QueueTicket <= 0 || req.QueueTicket > serving {

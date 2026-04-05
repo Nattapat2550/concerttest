@@ -50,17 +50,23 @@ export default function LoginPage() {
             </button>
           </div>
           
-          <div className="mb-6 flex items-center">
-            <input 
-              type="checkbox" 
-              id="remember" 
-              checked={remember} 
-              onChange={(e) => setRemember(e.target.checked)} 
-              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-            />
-            <label htmlFor="remember" className="ml-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
-              จดจำการเข้าสู่ระบบ (Remember Me)
-            </label>
+          {/* อัปเดตส่วน Remember Me และปุ่มลืมรหัสผ่าน */}
+          <div className="mb-6 flex items-center justify-between">
+            <div className="flex items-center">
+              <input 
+                type="checkbox" 
+                id="remember" 
+                checked={remember} 
+                onChange={(e) => setRemember(e.target.checked)} 
+                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+              />
+              <label htmlFor="remember" className="ml-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                จดจำการเข้าสู่ระบบ
+              </label>
+            </div>
+            <Link to="/reset" className="text-sm text-blue-600 hover:underline dark:text-blue-400">
+              ลืมรหัสผ่าน?
+            </Link>
           </div>
 
           <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition">เข้าสู่ระบบ</button>
