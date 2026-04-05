@@ -6,16 +6,14 @@ import { checkAuthStatus } from '../store/slices/authSlice';
 
 const CompleteProfilePage = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<any>();
   const [search] = useSearchParams();
   
-  // ✅ ดึงค่า Email, Name และข้อมูลเพิ่มเติมที่ได้จาก Google
   const emailFromQuery = search.get('email') || '';
   const nameFromQuery = search.get('name') || '';
   const oauthIdFromQuery = search.get('oauthId') || '';
   const pictureUrlFromQuery = search.get('pictureUrl') || '';
 
-  // ระบบแยกชื่อกับนามสกุลอัตโนมัติ 
   const nameParts = nameFromQuery.trim().split(' ');
   const defaultFirstName = nameParts[0] || '';
   const defaultLastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
@@ -27,7 +25,7 @@ const CompleteProfilePage = () => {
   const [lastName, setLastName] = useState(defaultLastName);
   const [tel, setTel] = useState('');
   
-  const [msg, setMsg] = useState(null);
+  const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!emailFromQuery) {
@@ -36,11 +34,10 @@ const CompleteProfilePage = () => {
     }
   }, [emailFromQuery]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setMsg(null);
     try {
-      // ✅ ส่งพารามิเตอร์ OAuth เพิ่มเติมไปพร้อมกับการยืนยันตัวตนทีเดียว
       const { data } = await api.post('/api/auth/complete-profile', {
         email: email.trim(), 
         username: username.trim(), 
@@ -59,7 +56,7 @@ const CompleteProfilePage = () => {
 
       await dispatch(checkAuthStatus());
       window.location.href = '/home';
-    } catch (err) {
+    } catch (err: any) {
       setMsg(err.response?.data?.error || 'Failed to complete profile');
     }
   };
@@ -97,7 +94,8 @@ const CompleteProfilePage = () => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">รหัสผ่าน (ขั้นต่ำ 8 ตัวอักษร)</label>
-          <input type="password" required minLength="8" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-gray-900 dark:text-white" />
+          {/* เปลี่ยน minLength="8" เป็น minLength={8} */}
+          <input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition text-gray-900 dark:text-white" />
         </div>
         
         <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2.5 rounded-lg transition-colors mt-4">บันทึกข้อมูลและเข้าสู่ระบบ</button>

@@ -6,14 +6,13 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(false); // ✅ เพิ่ม State Remember
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState('');
   
-  const handleLogin = async (e) => {
+  const handleLogin = async (e: any) => {
     e.preventDefault();
     setError('');
     try {
-      // ✅ ส่งค่า remember ไปยัง Backend ด้วย
       const { data } = await api.post('/api/auth/login', { email, password, remember });
       if (data.user.status === 'banned') return setError('บัญชีของคุณถูกระงับการใช้งานถาวร');
       if (data.reactivated) alert('กู้คืนบัญชีสำเร็จ! ยินดีต้อนรับกลับมา');
@@ -21,7 +20,7 @@ export default function LoginPage() {
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       window.location.href = '/home';
-    } catch (err) {
+    } catch (err: any) {
       setError(err.response?.data?.error || 'เข้าสู่ระบบล้มเหลว');
     }
   };
@@ -51,7 +50,6 @@ export default function LoginPage() {
             </button>
           </div>
           
-          {/* ✅ Checkbox จดจำการเข้าสู่ระบบ */}
           <div className="mb-6 flex items-center">
             <input 
               type="checkbox" 

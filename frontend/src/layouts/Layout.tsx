@@ -11,7 +11,7 @@ export default function Layout() {
 
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const dropdownRef = useRef(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -22,8 +22,8 @@ export default function Layout() {
 
   // ปิด Dropdown เมื่อคลิกที่อื่น
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setDropdownOpen(false);
       }
     };
@@ -37,7 +37,7 @@ export default function Layout() {
     window.location.href = '/login';
   };
 
-  const isActive = (path) => location.pathname.includes(path) ? "text-blue-400 font-bold" : "text-gray-300 hover:text-white transition";
+  const isActive = (path: string) => location.pathname.includes(path) ? "text-blue-400 font-bold" : "text-gray-300 hover:text-white transition";
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors duration-200">
@@ -78,7 +78,6 @@ export default function Layout() {
                     <span>{user?.first_name || user?.username || 'User'}</span>
                     <svg className={`w-4 h-4 transform transition ${dropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
                   </button>
-                  {/* ✅ Dropdown Menu */}
                   {dropdownOpen && (
                     <div className="absolute right-0 mt-3 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 border dark:border-gray-700 transition-all">
                       <Link to="/settings" onClick={() => setDropdownOpen(false)} className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">⚙️ ตั้งค่าโปรไฟล์</Link>

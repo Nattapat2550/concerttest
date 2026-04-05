@@ -8,11 +8,11 @@ export default function ConcertBookPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   
-  const [concert, setConcert] = useState(null);
-  const [svgContent, setSvgContent] = useState('');
-  const [configuredSeats, setConfiguredSeats] = useState([]);
-  const [bookedSeats, setBookedSeats] = useState([]);
-  const [selectedSeat, setSelectedSeat] = useState(null);
+  const [concert, setConcert] = useState<any>(null);
+  const [svgContent, setSvgContent] = useState<string>('');
+  const [configuredSeats, setConfiguredSeats] = useState<any[]>([]);
+  const [bookedSeats, setBookedSeats] = useState<string[]>([]);
+  const [selectedSeat, setSelectedSeat] = useState<any>(null);
   
   const [isBooking, setIsBooking] = useState(false);
   const [queueState, setQueueState] = useState('joining');
@@ -20,8 +20,8 @@ export default function ConcertBookPage() {
   const [currentTicket, setCurrentTicket] = useState(0);
 
   useEffect(() => {
-    let queueInterval;
-    let seatUpdateInterval;
+    let queueInterval: ReturnType<typeof setInterval>;
+    let seatUpdateInterval: ReturnType<typeof setInterval>;
 
     const fetchSeatMapDetails = async () => {
       try {
@@ -30,14 +30,13 @@ export default function ConcertBookPage() {
         setSvgContent(data.svg_content || '');
         setConfiguredSeats(data.configured_seats || []);
         setBookedSeats(data.booked_seats || []);
-      } catch (err) { 
+      } catch (err: any) { 
         console.error("Error loading concert map"); 
       }
     };
 
-    const checkStatus = async (ticket) => {
+    const checkStatus = async (ticket: number) => {
       try {
-        // อัปเดต API ให้ใช้ id คอนเสิร์ต
         const { data } = await api.get(`/api/concerts/${id}/queue/status?ticket=${ticket}`);
         setCurrentTicket(data.current_ticket);
         
@@ -47,12 +46,11 @@ export default function ConcertBookPage() {
           fetchSeatMapDetails();
           seatUpdateInterval = setInterval(fetchSeatMapDetails, 5000);
         }
-      } catch (err) {}
+      } catch (err: any) {}
     };
 
     const joinQueue = async () => {
       try {
-        // อัปเดต API ให้ใช้ id คอนเสิร์ต
         const { data } = await api.get(`/api/concerts/${id}/queue/join`);
         setMyTicket(data.ticket);
         
@@ -65,7 +63,7 @@ export default function ConcertBookPage() {
           checkStatus(data.ticket);
           queueInterval = setInterval(() => checkStatus(data.ticket), 3000);
         }
-      } catch (err) {
+      } catch (err: any) {
         alert("ไม่สามารถเข้าร่วมคิวได้ ระบบอาจจะเต็ม");
       }
     };
@@ -84,14 +82,14 @@ export default function ConcertBookPage() {
     
     try {
       await api.post('/api/concerts/book', { 
-        concert_id: parseInt(id), 
+        concert_id: parseInt(id as string), 
         seat_code: selectedSeat.seat_code, 
         price: selectedSeat.price,
         queue_ticket: myTicket
       });
       alert("🎉 จองที่นั่งสำเร็จ!");
       navigate('/my-bookings');
-    } catch (err) {
+    } catch (err: any) {
       const status = err.response?.status;
       if (status === 409) alert("❌ ที่นั่งนี้เพิ่งถูกจองตัดหน้าไป กรุณาเลือกที่นั่งอื่น");
       else if (status === 403) alert("❌ ไม่อนุญาตให้จอง: คิวของคุณไม่ถูกต้อง (Bot Prevention)");
@@ -101,7 +99,7 @@ export default function ConcertBookPage() {
       try {
         const { data } = await api.get(`/api/concerts/${id}`);
         setBookedSeats(data.booked_seats || []);
-      } catch (e) {}
+      } catch (e: any) {}
       setSelectedSeat(null);
     } finally {
       setIsBooking(false);

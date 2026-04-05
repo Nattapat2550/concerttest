@@ -6,7 +6,7 @@ const CheckCodePage = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
-  const [msg, setMsg] = useState(null);
+  const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
     const pending = sessionStorage.getItem('pendingEmail');
@@ -17,13 +17,13 @@ const CheckCodePage = () => {
     setEmail(pending);
   }, [navigate]);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setMsg(null);
     try {
       await api.post('/api/auth/verify-code', { email, code: code.trim() });
       navigate(`/form?email=${encodeURIComponent(email)}`);
-    } catch (err) {
+    } catch (err: any) {
       setMsg(err.response?.data?.error || 'Invalid code');
     }
   };

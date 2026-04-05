@@ -1,40 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 
+// 1. สร้าง Interface ให้ News
+interface News {
+  id: number;
+  title: string;
+  content: string;
+  image_url?: string;
+}
+
 export default function NewsPopup() {
   const [showNewsModal, setShowNewsModal] = useState(false);
-  const [newsList, setNewsList] = useState([]);
+  const [newsList, setNewsList] = useState<News[]>([]); // 2. บอกว่า Array นี้เก็บข้อมูลหน้าตาแบบ News
   const [dontShowAgain, setDontShowAgain] = useState(false);
 
   useEffect(() => {
-    // ✅ ทำการดึงข่าวสารทุกครั้งที่เข้ามา เพื่อตรวจสอบว่ามีข่าวใหม่เข้ามาหรือไม่
     fetchActiveNews();
-    
-    // เคลียร์ค่าเก่าของระบบเดิมทิ้ง (ถ้ามี)
     localStorage.removeItem('hasSeenNews');
     sessionStorage.removeItem('hasSeenNews');
   }, []);
 
   const fetchActiveNews = async () => {
     try {
-      // ได้รับข้อมูลข่าวสารทั้งหมดที่เป็น Array แล้ว
       const { data } = await api.get('/api/concerts/news/latest'); 
       
       if (data && data.length > 0) {
-        // ✅ หารหัสข่าว (ID) ที่ล่าสุด/สูงสุดจากข้อมูลที่ดึงมา
-        const latestNewsIdFromDB = Math.max(...data.map(n => n.id));
+        const latestNewsIdFromDB = Math.max(...data.map((n: News) => n.id));
         
-        // ดึงรหัสข่าวล่าสุดที่ผู้ใช้เคยดูจาก Storage (ถ้าไม่เคยดูให้เป็น 0)
-        const seenLocalId = parseInt(localStorage.getItem('latestSeenNewsId'), 10) || 0;
-        const seenSessionId = parseInt(sessionStorage.getItem('latestSeenNewsId'), 10) || 0;
+        // 3. เติม || '0' เข้าไปเพื่อรับมือกับกรณีที่ getItem คืนค่ามาเป็น null
+        const seenLocalId = parseInt(localStorage.getItem('latestSeenNewsId') || '0', 10);
+        const seenSessionId = parseInt(sessionStorage.getItem('latestSeenNewsId') || '0', 10);
 
-        // ✅ เช็คว่ามีข่าวใหม่ (ID มากกว่าที่เคยดู) หรือไม่
         if (latestNewsIdFromDB > seenLocalId && latestNewsIdFromDB > seenSessionId) {
-          setNewsList(data); // นำข้อมูลทั้งหมดไปเตรียมแสดงผล
+          setNewsList(data);
           setShowNewsModal(true);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log("No active news");
     }
   };
@@ -42,13 +44,12 @@ export default function NewsPopup() {
   const closeNewsModal = () => {
     setShowNewsModal(false);
     
-    // ✅ บันทึก ID ของข่าวล่าสุดที่ผู้ใช้ได้เห็นแล้ว เพื่อใช้เทียบในครั้งถัดไป
     const latestId = Math.max(...newsList.map(n => n.id));
     
     if (dontShowAgain) {
-      localStorage.setItem('latestSeenNewsId', latestId); // จำถาวรจนกว่าจะมีข่าวใหม่กว่านี้
+      localStorage.setItem('latestSeenNewsId', latestId.toString()); // เติม toString()
     } else {
-      sessionStorage.setItem('latestSeenNewsId', latestId); // จำแค่รอบเปิด Browser นี้
+      sessionStorage.setItem('latestSeenNewsId', latestId.toString());
     }
   };
 
@@ -66,7 +67,6 @@ export default function NewsPopup() {
         
         <h2 className="text-2xl font-bold mb-4 text-blue-800 border-b pb-2">ประกาศข่าวสาร</h2>
         
-        {/* ✅ คอนเทนต์ข่าว เลื่อนดูได้ถ้ามีหลายข่าว */}
         <div className="overflow-y-auto pr-2 mb-4 space-y-8 flex-1">
           {newsList.map((news) => (
             <div key={news.id} className="pb-4">

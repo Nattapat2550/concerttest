@@ -13,20 +13,18 @@ export default function SettingsPage() {
     })).catch(console.error);
   }, []);
 
-  // ✅ การแก้ไขข้อมูล Text (ใช้ PUT API ปกติ)
-  const handleUpdateProfile = async (e) => {
+  const handleUpdateProfile = async (e: any) => {
     e.preventDefault();
     setLoading(true);
     try {
-      await api.put('/api/users/me', profile); // ใช้ PUT ตาม API Backend
+      await api.put('/api/users/me', profile); 
       setSuccessMsg('บันทึกข้อมูลสำเร็จ');
       setTimeout(() => setSuccessMsg(''), 3000);
-    } catch (err) { alert('เกิดข้อผิดพลาดในการบันทึก'); }
+    } catch (err: any) { alert('เกิดข้อผิดพลาดในการบันทึก'); }
     setLoading(false);
   };
 
-  // ✅ การอัปโหลดรูปโปรไฟล์ (อัปจากเครื่องส่งเป็น FormData)
-  const handleAvatarChange = async (e) => {
+  const handleAvatarChange = async (e: any) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -39,14 +37,16 @@ export default function SettingsPage() {
       });
       setProfile({ ...profile, profile_picture_url: data.profile_picture_url });
       
-      // อัปเดตข้อมูลใน LocalStorage เพื่อให้ Navbar เปลี่ยนรูปตาม
-      const user = JSON.parse(localStorage.getItem('user'));
-      user.profile_picture_url = data.profile_picture_url;
-      localStorage.setItem('user', JSON.stringify(user));
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        user.profile_picture_url = data.profile_picture_url;
+        localStorage.setItem('user', JSON.stringify(user));
+      }
 
       alert('เปลี่ยนรูปโปรไฟล์สำเร็จ');
-      window.location.reload(); // รีเฟรชเพื่อให้ภาพขึ้นทุกส่วน
-    } catch (err) { alert('ไฟล์รูปภาพใหญ่เกินไป หรือเกิดข้อผิดพลาด'); }
+      window.location.reload(); 
+    } catch (err: any) { alert('ไฟล์รูปภาพใหญ่เกินไป หรือเกิดข้อผิดพลาด'); }
   };
 
   const handleDeleteAccount = async () => {
@@ -56,7 +56,7 @@ export default function SettingsPage() {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         window.location.href = '/login';
-      } catch (err) { alert('เกิดข้อผิดพลาดในการลบ'); }
+      } catch (err: any) { alert('เกิดข้อผิดพลาดในการลบ'); }
     }
   };
 
@@ -68,7 +68,6 @@ export default function SettingsPage() {
 
       <div className="flex flex-col md:flex-row gap-8">
         
-        {/* ส่วนอัปโหลดรูปภาพ */}
         <div className="flex flex-col items-center space-y-4">
           <div className="w-32 h-32 rounded-full border-4 border-blue-100 dark:border-gray-600 overflow-hidden bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
             {profile.profile_picture_url ? (
@@ -83,7 +82,6 @@ export default function SettingsPage() {
           </label>
         </div>
 
-        {/* ส่วนฟอร์มข้อมูล */}
         <form onSubmit={handleUpdateProfile} className="flex-1 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>

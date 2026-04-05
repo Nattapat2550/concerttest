@@ -1,25 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
-import InteractiveSeatMap from '../components/InteractiveSeatMap'; // นำเข้าแผนที่ตัวใหม่
+import InteractiveSeatMap from '../components/InteractiveSeatMap';
+
+// ประกาศ Interface เพื่อแก้ Error Property does not exist on type 'never'
+interface User { id: number; email: string; role: string; status: string; }
+interface Booking { id: number; user_id: number; concert_name: string; seat_code: string; price: number; status: string; }
+interface Concert { id: number; name: string; venue?: string; venue_name?: string; venue_id?: number; ticket_price: number; show_date: string; }
+interface Venue { id: number; name: string; }
+interface News { id: number; title: string; content: string; is_active: boolean; created_at: string; image_url?: string; }
+interface SeatConfig { seat_code: string; zone_name: string; price: number; color: string; }
+interface Channel { id: number; name: string; price: number | string; color: string; }
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('bookings'); 
-  const [users, setUsers] = useState([]);
-  const [bookings, setBookings] = useState([]);
-  const [concerts, setConcerts] = useState([]);
-  const [news, setNews] = useState([]);
-  const [venues, setVenues] = useState([]); 
+  // เติม Type ให้กับ State ต่างๆ
+  const [users, setUsers] = useState<User[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [concerts, setConcerts] = useState<Concert[]>([]);
+  const [news, setNews] = useState<News[]>([]);
+  const [venues, setVenues] = useState<Venue[]>([]); 
 
-  const [editingConcert, setEditingConcert] = useState(null);
-  const [editingNews, setEditingNews] = useState(null);
+  const [editingConcert, setEditingConcert] = useState<Concert | null>(null);
+  const [editingNews, setEditingNews] = useState<News | null>(null);
 
   // Map Builder States
-  const [mapConcert, setMapConcert] = useState(null);
+  const [mapConcert, setMapConcert] = useState<Concert | null>(null);
   const [mapSvg, setMapSvg] = useState('');
-  const [channels, setChannels] = useState([{ id: 1, name: 'VIP', price: 5000, color: '#ef4444' }]);
+  const [channels, setChannels] = useState<Channel[]>([{ id: 1, name: 'VIP', price: 5000, color: '#ef4444' }]);
   const [activeChannelId, setActiveChannelId] = useState(1);
-  const [isEraserMode, setIsEraserMode] = useState(false); // โหมดยางลบ
-  const [seatConfigs, setSeatConfigs] = useState([]); // เก็บที่นั่งทั้งหมดที่แอดมินเซ็ตไว้
+  const [isEraserMode, setIsEraserMode] = useState(false);
+  const [seatConfigs, setSeatConfigs] = useState<SeatConfig[]>([]);
 
   useEffect(() => { fetchData(); }, [activeTab]);
 
@@ -50,61 +60,67 @@ export default function AdminPage() {
     } catch (e) { console.error("Error fetching admin data"); }
   };
 
-  const handleUpdateUserStatus = async (userId, status) => {
+  const handleUpdateUserStatus = async (userId: number, status: string) => {
     try {
       await api.put(`/api/admin/users/${userId}`, { status });
       alert("อัปเดตสถานะผู้ใช้สำเร็จ");
     } catch (e) { alert("Error updating user"); }
   };
 
-  const handleCancelBooking = async (bookingId) => {
+  const handleCancelBooking = async (bookingId: number) => {
     if (window.confirm("ต้องการยกเลิกการจองนี้ใช่หรือไม่?")) {
       await api.put(`/api/admin/bookings/${bookingId}/cancel`);
       fetchData();
     }
   };
 
-  const handleUploadVenue = (e) => {
+  const handleUploadVenue = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const name = e.target.name.value;
-    const file = e.target.svg_file.files[0];
+    const target = e.target as any;
+    const name = target.name.value;
+    const file = target.svg_file.files[0];
     const reader = new FileReader();
-    reader.onload = async (event) => {
+    reader.onload = async (event: any) => {
       try {
         await api.post('/api/admin/venues', { name, svg_content: event.target.result });
         alert("อัปโหลดสถานที่ (SVG) สำเร็จ!");
-        e.target.reset();
+        target.reset();
         fetchData();
       } catch (err) { alert("เกิดข้อผิดพลาดในการอัปโหลด"); }
     };
     reader.readAsText(file);
   };
 
-  const handleDeleteVenue = async (id) => {
+  const handleDeleteVenue = async (id: number) => {
     if (window.confirm("ยืนยันการลบสถานที่?")) {
       await api.delete(`/api/admin/venues/${id}`);
       fetchData();
     }
   };
 
-  const handleCreateConcert = async (e) => {
+  const handleCreateConcert = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
-    formData.set('show_date', new Date(formData.get('show_date')).toISOString());
+    const formData = new FormData(e.currentTarget);
+    const showDateStr = formData.get('show_date') as string;
+    if (showDateStr) formData.set('show_date', new Date(showDateStr).toISOString());
+    
     try {
       await api.post('/api/admin/concerts', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       alert("สร้างคอนเสิร์ตสำเร็จ!");
-      e.target.reset();
+      (e.target as HTMLFormElement).reset();
       fetchData();
     } catch (err) { alert("เกิดข้อผิดพลาด"); }
   };
 
-  const handleUpdateConcert = async (e) => {
+  const handleUpdateConcert = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
-    formData.set('show_date', new Date(formData.get('show_date')).toISOString());
+    if (!editingConcert) return;
+    const formData = new FormData(e.currentTarget);
+    const showDateStr = formData.get('show_date') as string;
+    if (showDateStr) formData.set('show_date', new Date(showDateStr).toISOString());
+    
     try {
       await api.put(`/api/admin/concerts/${editingConcert.id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -115,7 +131,7 @@ export default function AdminPage() {
     } catch (err) { alert("เกิดข้อผิดพลาด"); }
   };
 
-  const handleDeleteConcert = async (id) => {
+  const handleDeleteConcert = async (id: number) => {
     if (window.confirm("ต้องการลบคอนเสิร์ตนี้?")) {
       await api.delete(`/api/admin/concerts/${id}`);
       fetchData();
@@ -123,7 +139,7 @@ export default function AdminPage() {
   };
 
   // ================= MAP BUILDER LOGIC =================
-  const openMapBuilder = async (c) => {
+  const openMapBuilder = async (c: Concert) => {
     setMapConcert(c);
     setSeatConfigs([]); 
     setIsEraserMode(false);
@@ -132,11 +148,10 @@ export default function AdminPage() {
       setMapSvg(data.svg_content || '');
       
       if (data.configured_seats && data.configured_seats.length > 0) {
-        setSeatConfigs(data.configured_seats); // โหลดที่นั่งดั้งเดิมใส่ State
+        setSeatConfigs(data.configured_seats);
         
-        // ดึงช่องสีราคาออกมาใส่ Channel
         const loadedChannels = new Map();
-        data.configured_seats.forEach(s => {
+        data.configured_seats.forEach((s: any) => {
           const chKey = `${s.zone_name}-${s.price}`;
           if (!loadedChannels.has(chKey)) {
             loadedChannels.set(chKey, { id: Date.now() + Math.random(), name: s.zone_name, price: s.price, color: s.color });
@@ -151,13 +166,11 @@ export default function AdminPage() {
     } catch (e) { alert("Error loading map"); }
   };
 
-  // ฟังก์ชันรับค่าเมื่อ InteractiveSeatMap ตรวจจับการคลิก/ลากคลุมได้
-  const handleAdminSeatSelect = (seats) => {
+  const handleAdminSeatSelect = (seats: any) => {
     const seatArray = Array.isArray(seats) ? seats : [seats];
     if (seatArray.length === 0) return;
     
     setSeatConfigs(prevConfigs => {
-      // 1. จำลอง Map เพื่อการค้นหา/ลบ/แก้ไข ระดับ O(1) (ป้องกันเครื่องค้าง)
       const configMap = new Map();
       for (const config of prevConfigs) {
          configMap.set(config.seat_code, config);
@@ -165,16 +178,13 @@ export default function AdminPage() {
       
       const activeChannel = channels.find(c => c.id === activeChannelId);
 
-      // 2. จัดการข้อมูลทีละเก้าอี้
       for (const seat of seatArray) {
         if (isEraserMode) {
-          configMap.delete(seat.seat_code); // โหมดยางลบ: ลบออกจากการขาย
+          configMap.delete(seat.seat_code);
         } else if (activeChannel) {
-          // ถ้าคลิกทีละ 1 ที่นั่ง แล้วสีนั้นถูกเลือกไว้อยู่แล้ว ให้ถือว่าเป็นการ "ยกเลิกสี (Toggle off)"
           if (seatArray.length === 1 && configMap.has(seat.seat_code) && configMap.get(seat.seat_code).zone_name === activeChannel.name) {
              configMap.delete(seat.seat_code);
           } else {
-             // สาดสีใหม่ทับลงไป
              configMap.set(seat.seat_code, {
                seat_code: seat.seat_code,
                zone_name: activeChannel.name,
@@ -184,13 +194,12 @@ export default function AdminPage() {
           }
         }
       }
-      
       return Array.from(configMap.values());
     });
   };
 
   const handleSaveMap = async () => {
-    if (!window.confirm("ยืนยันการตั้งค่าผัง? (ที่นั่งที่ไม่ได้ระบายสีจะไม่ถูกเปิดขาย)")) return;
+    if (!mapConcert || !window.confirm("ยืนยันการตั้งค่าผัง? (ที่นั่งที่ไม่ได้ระบายสีจะไม่ถูกเปิดขาย)")) return;
 
     try {
       await api.post(`/api/admin/concerts/${mapConcert.id}/seats`, { seats: seatConfigs });
@@ -199,20 +208,21 @@ export default function AdminPage() {
     } catch(e) { alert("เกิดข้อผิดพลาดในการบันทึก"); }
   };
 
-  const handleCreateNews = async (e) => {
+  const handleCreateNews = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
+    const formData = new FormData(e.currentTarget);
     try {
       await api.post('/api/admin/news', formData, { headers: { 'Content-Type': 'multipart/form-data' }});
       alert("สร้างประกาศสำเร็จ!");
-      e.target.reset();
+      (e.target as HTMLFormElement).reset();
       fetchData();
     } catch (err) { alert("เกิดข้อผิดพลาด"); }
   };
 
-  const handleUpdateNews = async (e) => {
+  const handleUpdateNews = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
+    if (!editingNews) return;
+    const formData = new FormData(e.currentTarget);
     try {
       await api.put(`/api/admin/news/${editingNews.id}`, formData, { headers: { 'Content-Type': 'multipart/form-data' }});
       alert("แก้ไขประกาศสำเร็จ!");
@@ -221,14 +231,14 @@ export default function AdminPage() {
     } catch (err) { alert("เกิดข้อผิดพลาด"); }
   };
 
-  const handleDeleteNews = async (id) => {
+  const handleDeleteNews = async (id: number) => {
     if (window.confirm("ต้องการลบประกาศนี้?")) {
       await api.delete(`/api/admin/news/${id}`);
       fetchData();
     }
   };
 
-  const formatDateForInput = (isoString) => {
+  const formatDateForInput = (isoString?: string) => {
     if (!isoString) return '';
     return new Date(isoString).toISOString().slice(0, 16);
   };
@@ -249,7 +259,6 @@ export default function AdminPage() {
           <div className="w-full lg:w-1/4 bg-white p-4 shadow rounded border h-fit">
             <h3 className="text-lg font-bold mb-4 border-b pb-2">🎨 เครื่องมือจัดการโซน</h3>
             
-            {/* ปุ่มโหมดยางลบ */}
             <button 
               onClick={() => setIsEraserMode(true)} 
               className={`w-full py-2 mb-4 font-bold rounded border transition-all ${isEraserMode ? 'bg-red-500 text-white border-red-600 shadow-inner' : 'bg-white text-red-500 border-red-200 hover:bg-red-50'}`}
@@ -436,7 +445,8 @@ export default function AdminPage() {
             <h3 className="text-xl font-bold dark:text-white mb-4">+ ประกาศข่าวสารใหม่</h3>
             <div className="flex flex-col gap-4">
               <input type="text" name="title" placeholder="หัวข้อข่าว" required className="p-2 border rounded dark:bg-gray-800 dark:text-white" />
-              <textarea name="content" placeholder="รายละเอียดข่าวสาร" required rows="3" className="p-2 border rounded dark:bg-gray-800 dark:text-white"></textarea>
+              {/* เปลี่ยน rows="3" เป็น rows={3} */}
+              <textarea name="content" placeholder="รายละเอียดข่าวสาร" required rows={3} className="p-2 border rounded dark:bg-gray-800 dark:text-white"></textarea>
               <input type="file" name="image" accept="image/*" className="p-2 border rounded bg-white dark:bg-gray-800" title="รูปภาพประกอบข่าว" />
               <button type="submit" className="bg-blue-600 text-white font-bold py-2 px-6 rounded w-fit">ประกาศข่าว</button>
             </div>
@@ -491,8 +501,9 @@ export default function AdminPage() {
             <h3 className="text-xl font-bold mb-4 dark:text-white">แก้ไขประกาศข่าวสาร</h3>
             <div className="flex flex-col gap-4">
               <input type="text" name="title" defaultValue={editingNews.title} required className="p-2 border rounded dark:bg-gray-700 dark:text-white" />
-              <textarea name="content" defaultValue={editingNews.content} required rows="4" className="p-2 border rounded dark:bg-gray-700 dark:text-white"></textarea>
-              <select name="is_active" defaultValue={editingNews.is_active} className="p-2 border rounded dark:bg-gray-700 dark:text-white">
+              {/* เปลี่ยน rows="4" เป็น rows={4} */}
+              <textarea name="content" defaultValue={editingNews.content} required rows={4} className="p-2 border rounded dark:bg-gray-700 dark:text-white"></textarea>
+              <select name="is_active" defaultValue={String(editingNews.is_active)} className="p-2 border rounded dark:bg-gray-700 dark:text-white">
                 <option value="true">เปิดใช้งาน</option>
                 <option value="false">ปิดใช้งาน</option>
               </select>

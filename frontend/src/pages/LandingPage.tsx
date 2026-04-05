@@ -3,7 +3,7 @@ import { Link, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 
 const LandingPage = () => {
-  const { isAuthenticated, role } = useSelector((s) => s.auth);
+  const { isAuthenticated, role } = useSelector((s: any) => s.auth);
 
   if (isAuthenticated) {
     return <Navigate to={role === 'admin' ? '/admin' : '/home'} replace />;

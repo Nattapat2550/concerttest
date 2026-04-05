@@ -2,15 +2,25 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 
+// 1. สร้าง Interface เพื่อบอกว่าข้อมูล Concert แต่ละตัวมีอะไรบ้าง
+interface Concert {
+  id: number;
+  name: string;
+  show_date: string;
+  venue: string;
+  layout_image_url?: string;
+}
+
 export default function HomePage() {
-  const [concerts, setConcerts] = useState([]);
+  // 2. ใส่ <Concert[]> เข้าไปหลัง useState เพื่อลบ Error 'never'
+  const [concerts, setConcerts] = useState<Concert[]>([]);
 
   useEffect(() => {
     const fetchConcerts = async () => {
       try {
         const { data } = await api.get('/api/concerts/list');
         setConcerts(data || []);
-      } catch (err) {
+      } catch (err: any) { // 3. เติม : any ให้ err
         console.error("Failed to load concerts");
       }
     };

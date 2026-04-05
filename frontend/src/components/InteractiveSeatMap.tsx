@@ -1,24 +1,41 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { injectMapStyles, buildVectorZones } from './seatMapUtils'; 
 
+interface SeatConfig {
+  seat_code: string;
+  price?: number;
+  color?: string;
+  zone_name?: string;
+  status?: string;
+}
+
+interface InteractiveSeatMapProps {
+  svgContent: string;
+  configuredSeats?: SeatConfig[];
+  bookedSeats?: string[];
+  mode?: 'booking' | 'admin';
+  onSeatSelect?: (seat: any) => void;
+  selectedSeat?: any;
+}
+
 export default function InteractiveSeatMap({
   svgContent,
   configuredSeats = [],
   bookedSeats = [],
   mode = 'booking',
   onSeatSelect,
-}) {
-  const containerRef = useRef(null);
-  const transformWrapperRef = useRef(null);
+}: InteractiveSeatMapProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const transformWrapperRef = useRef<HTMLDivElement>(null);
   const [showZoomHint, setShowZoomHint] = useState(false);
-  const [lasso, setLasso] = useState(null); 
+  const [lasso, setLasso] = useState<{x: number, y: number, w: number, h: number} | null>(null); 
   
   const transform = useRef({ x: 0, y: 0, scale: 1 });
-  const dragState = useRef({ isDragging: false, startX: 0, startY: 0, mapX: 0, mapY: 0, target: null });
+  const dragState = useRef({ isDragging: false, startX: 0, startY: 0, mapX: 0, mapY: 0, target: null as EventTarget | null });
   const lassoRef = useRef({ active: false, startX: 0, startY: 0, clientStartX: 0, clientStartY: 0 });
-  const seatElementsCache = useRef(new Map());
+  const seatElementsCache = useRef(new Map<string, any>());
   
-  const rafRef = useRef(null); 
+  const rafRef = useRef<number | null>(null); 
 
   const ZOOM_THRESHOLD = 1.2; 
 
@@ -32,7 +49,6 @@ export default function InteractiveSeatMap({
         svgEl.style.transition = 'none';
       }
       
-      // ใช้ translate แบบธรรมดาเพื่อให้การเรนเดอร์ SVG เป็น Vector เสมอ (ช่วยแก้ภาพเบลอ/แตก)
       svgEl.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
       
       const currentZoom = transform.current.scale < ZOOM_THRESHOLD ? 'low' : 'high';
@@ -58,18 +74,20 @@ export default function InteractiveSeatMap({
     seatElementsCache.current.clear();
 
     const allShapes = svgEl.querySelectorAll('circle, ellipse, rect, path');
-    allShapes.forEach((el, idx) => {
+    allShapes.forEach((el: any, idx: number) => {
       try {
-        const box = el.getBBox();
-        if (box.width > 0 && box.width <= 60 && box.height > 0 && box.height <= 60) {
-          let id = el.getAttribute('id') || `seat-auto-${idx}`;
-          el.setAttribute('id', id);
-          el.classList.add('smart-seat');
-          
-          seatElementsCache.current.set(id, { 
-            node: el, 
-            box: { x: box.x, y: box.y, width: box.width, height: box.height } 
-          });
+        if (typeof el.getBBox === 'function') {
+          const box = el.getBBox();
+          if (box.width > 0 && box.width <= 60 && box.height > 0 && box.height <= 60) {
+            let id = el.getAttribute('id') || `seat-auto-${idx}`;
+            el.setAttribute('id', id);
+            el.classList.add('smart-seat');
+            
+            seatElementsCache.current.set(id, { 
+              node: el, 
+              box: { x: box.x, y: box.y, width: box.width, height: box.height } 
+            });
+          }
         }
       } catch (e) { /* ข้าม */ }
     });
@@ -90,7 +108,6 @@ export default function InteractiveSeatMap({
 
     buildVectorZones(svgEl, seatElementsCache.current, configuredMap, bookedSet, mode);
 
-    // จัดการที่นั่งที่ไม่ได้ถูกจัดให้จอง โดยใช้ visibility ซ่อนอย่างเด็ดขาด
     seatElementsCache.current.forEach((seatData, seatId) => {
       if (mode === 'booking' && !configuredMap.has(seatId)) {
         seatData.node.style.visibility = 'hidden'; 
@@ -103,12 +120,15 @@ export default function InteractiveSeatMap({
 
   }, [configuredSeats, bookedSeats, mode]);
 
-  const handleMapClick = (target, clientX, clientY) => {
+  const handleMapClick = (target: EventTarget | null, clientX: number, clientY: number) => {
     if (!target) return;
+    const element = target as Element;
 
-    const seat = target.closest('.smart-seat');
+    const seat = element.closest('.smart-seat');
     if (seat && transform.current.scale >= ZOOM_THRESHOLD) {
       const seatId = seat.getAttribute('id');
+      if (!seatId) return;
+
       if (mode === 'booking' && bookedSeats.includes(seatId)) return;
       
       const config = configuredSeats.find(c => c.seat_code === seatId);
@@ -118,8 +138,8 @@ export default function InteractiveSeatMap({
       return;
     }
 
-    const overlay = target.closest('.zone-overlay');
-    if (overlay || transform.current.scale < ZOOM_THRESHOLD) {
+    const overlay = element.closest('.zone-overlay');
+    if ((overlay || transform.current.scale < ZOOM_THRESHOLD) && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const clickX = clientX - rect.left;
       const clickY = clientY - rect.top;
@@ -139,6 +159,7 @@ export default function InteractiveSeatMap({
               const seatsInZone = group.querySelectorAll('.smart-seat');
               const selectedGroup = Array.from(seatsInZone).map(s => {
                   const sId = s.getAttribute('id');
+                  if(!sId) return null;
                   const conf = configuredSeats.find(c => c.seat_code === sId);
                   return conf || { seat_code: sId, status: 'available' };
               }).filter(s => s);
@@ -151,7 +172,7 @@ export default function InteractiveSeatMap({
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
-    const handleWheel = (e) => {
+    const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
         const delta = e.deltaY * -0.002;
@@ -166,7 +187,6 @@ export default function InteractiveSeatMap({
         transform.current.y = mouseY - (mouseY - transform.current.y) * scaleRatio;
         transform.current.scale = newScale;
         
-        // ใช้ requestAnimationFrame สำหรับการซูมเพื่อความลื่นไหล
         if (rafRef.current) cancelAnimationFrame(rafRef.current);
         rafRef.current = requestAnimationFrame(() => applyTransform());
         setShowZoomHint(false);
@@ -179,9 +199,9 @@ export default function InteractiveSeatMap({
     return () => container.removeEventListener('wheel', handleWheel);
   }, []);
 
-  const handlePointerDown = (e) => {
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId);
-    if (mode === 'admin' && e.shiftKey) {
+    if (mode === 'admin' && e.shiftKey && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const startX = e.clientX - rect.left;
       const startY = e.clientY - rect.top;
@@ -196,8 +216,8 @@ export default function InteractiveSeatMap({
     };
   };
 
-  const handlePointerMove = (e) => {
-    if (lassoRef.current.active) {
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (lassoRef.current.active && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
       const currentX = e.clientX - rect.left;
       const currentY = e.clientY - rect.top;
@@ -218,13 +238,12 @@ export default function InteractiveSeatMap({
       transform.current.x = dragState.current.mapX + dx;
       transform.current.y = dragState.current.mapY + dy;
       
-      // ใช้ requestAnimationFrame สำหรับการลากเลื่อนเมาส์ ป้องกันอาการกระตุก
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => applyTransform());
     }
   };
 
-  const handlePointerUp = (e) => {
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     e.currentTarget.releasePointerCapture(e.pointerId);
     if (lassoRef.current.active) {
       if (lasso && lasso.w > 5 && lasso.h > 5) {
@@ -232,7 +251,7 @@ export default function InteractiveSeatMap({
           left: Math.min(lassoRef.current.clientStartX, e.clientX), top: Math.min(lassoRef.current.clientStartY, e.clientY),
           right: Math.max(lassoRef.current.clientStartX, e.clientX), bottom: Math.max(lassoRef.current.clientStartY, e.clientY),
         };
-        const selectedGroup = [];
+        const selectedGroup: any[] = [];
         seatElementsCache.current.forEach((seatData, seatId) => {
           if (transform.current.scale < ZOOM_THRESHOLD) return; 
           const sRect = seatData.node.getBoundingClientRect();
@@ -254,7 +273,7 @@ export default function InteractiveSeatMap({
     dragState.current.isDragging = false;
   };
 
-  const handleZoom = (factor) => { transform.current.scale = Math.max(0.5, Math.min(transform.current.scale + factor, 15)); applyTransform(true); };
+  const handleZoom = (factor: number) => { transform.current.scale = Math.max(0.5, Math.min(transform.current.scale + factor, 15)); applyTransform(true); };
   const handleReset = () => { transform.current = { x: 0, y: 0, scale: 1 }; applyTransform(true); };
 
   return (

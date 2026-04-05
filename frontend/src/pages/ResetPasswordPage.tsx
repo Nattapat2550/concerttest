@@ -8,26 +8,26 @@ const ResetPasswordPage = () => {
 
   const [email, setEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [msg, setMsg] = useState(null);
+  const [msg, setMsg] = useState<string | null>(null);
 
-  const requestReset = async (e) => {
+  const requestReset = async (e: any) => {
     e.preventDefault();
     setMsg(null);
     try {
       await api.post('/api/auth/forgot-password', { email: email.trim() });
       setMsg('If that email exists, a reset link was sent.');
-    } catch (err) {
+    } catch (err: any) {
       setMsg(err.response?.data?.error || 'Request failed');
     }
   };
 
-  const doReset = async (e) => {
+  const doReset = async (e: any) => {
     e.preventDefault();
     setMsg(null);
     try {
       await api.post('/api/auth/reset-password', { token, newPassword });
       setMsg('Password set. You can login now.');
-    } catch (err) {
+    } catch (err: any) {
       setMsg(err.response?.data?.error || 'Reset failed');
     }
   };

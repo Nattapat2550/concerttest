@@ -1,6 +1,13 @@
 import React from 'react';
 
-export default function WaitingRoom({ myTicket, currentTicket }) {
+// 1. สร้าง Interface เพื่อบอกว่ารับ Props อะไรมาบ้าง
+interface WaitingRoomProps {
+  myTicket: number;
+  currentTicket: number;
+}
+
+// 2. ใส่ Type ให้ Props
+export default function WaitingRoom({ myTicket, currentTicket }: WaitingRoomProps) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] md:min-h-[70vh] text-center px-4">
       <div className="bg-white dark:bg-gray-800 p-6 md:p-8 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 max-w-md w-full animate-fade-in">

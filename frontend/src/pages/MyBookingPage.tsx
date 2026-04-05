@@ -1,8 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 
+interface Booking {
+  id: number;
+  concert_name: string;
+  seat_code: string;
+  price: number;
+  status: string;
+}
+
 export default function MyBookingPage() {
-  const [bookings, setBookings] = useState([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
 
   useEffect(() => { fetchBookings(); }, []);
 
@@ -10,16 +18,16 @@ export default function MyBookingPage() {
     try {
       const { data } = await api.get('/api/concerts/my-bookings');
       setBookings(data || []);
-    } catch (err) { console.error("No bookings found"); }
+    } catch (err: any) { console.error("No bookings found"); }
   };
 
-  const handleCancel = async (id) => {
+  const handleCancel = async (id: number) => {
     if (window.confirm("คุณแน่ใจหรือไม่ว่าต้องการยกเลิกตั๋วใบนี้? ระบบจะปล่อยที่นั่งคืนทันที")) {
       try {
         await api.put(`/api/concerts/bookings/${id}/cancel`);
         alert("ยกเลิกตั๋วสำเร็จ");
         fetchBookings();
-      } catch (err) { alert("เกิดข้อผิดพลาดในการยกเลิก"); }
+      } catch (err: any) { alert("เกิดข้อผิดพลาดในการยกเลิก"); }
     }
   };
 

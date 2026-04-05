@@ -5,16 +5,16 @@ import api from '../services/api';
 const RegisterPage = () => {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
-  const [msg, setMsg] = useState(null);
+  const [msg, setMsg] = useState<string | null>(null);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: any) => {
     e.preventDefault();
     setMsg(null);
     try {
       await api.post('/api/auth/register', { email: email.trim() });
       sessionStorage.setItem('pendingEmail', email.trim());
       navigate('/check');
-    } catch (err) {
+    } catch (err: any) {
       setMsg(err.response?.data?.error || 'Register failed');
     }
   };

@@ -1,4 +1,3 @@
-// src/App.jsx
 import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import api from './services/api';
@@ -25,18 +24,15 @@ const App = () => {
   const [serverReady, setServerReady] = useState(false);
   const [wakingUp, setWakingUp] = useState(false);
 
-  // ระบบปลุก Server (Backend & PureAPI)
   useEffect(() => {
     let isMounted = true;
     const wakeUpServers = async () => {
       try {
-        // ยิงไปที่ homepage เพื่อบังคับให้ Backend ต้องไปเรียก PureAPI ด้วย (ตื่นพร้อมกัน 2 เด้ง)
         await api.get('/api/homepage');
         if (isMounted) setServerReady(true);
-      } catch (err) {
+      } catch (err: any) { // แก้ err เป็น err: any
         if (isMounted) {
           setWakingUp(true);
-          // วนลูปยิงเช็คทุกๆ 3 วินาทีจนกว่าเซิร์ฟเวอร์จะตื่น
           setTimeout(wakeUpServers, 3000);
         }
       }
@@ -62,7 +58,6 @@ const App = () => {
     }
   }, []);
 
-  // หน้าจอรอโหลดระหว่างปลุก Server
   if (!serverReady) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-6 text-center transition-colors duration-300">
@@ -93,7 +88,6 @@ const App = () => {
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
 
-          {/* Protected Routes */}
           <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
           <Route path="/concerts" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
           <Route path="/concerts/:id/book" element={<ProtectedRoute><ConcertBookPage /></ProtectedRoute>} />
@@ -101,7 +95,6 @@ const App = () => {
           <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route path="/download" element={<ProtectedRoute><DownloadPage /></ProtectedRoute>} />
 
-          {/* Admin Route */}
           <Route path="/admin" element={<ProtectedRoute roles={['admin']}><AdminPage /></ProtectedRoute>} />
 
           <Route path="*" element={<Navigate to="/" replace />} />

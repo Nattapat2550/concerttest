@@ -1,6 +1,6 @@
-// seatMapUtils.js
+// seatMapUtils.ts
 
-export const injectMapStyles = (svgEl, mode) => {
+export const injectMapStyles = (svgEl: SVGElement, mode: string) => {
   const oldStyle = svgEl.querySelector('#seat-map-styles');
   if (oldStyle) oldStyle.remove();
 
@@ -22,7 +22,7 @@ export const injectMapStyles = (svgEl, mode) => {
       font-size: 32px; font-weight: 900; text-shadow: 0px 4px 6px rgba(0,0,0,0.8), 0px 0px 8px rgba(0,0,0,0.5);
     }
     
-    /* CULLING: ปิดการมองเห็นและหยุดคำนวณกราฟิก 100% (ลดอาการแลคได้มหาศาล) */
+    /* CULLING */
     svg[data-zoom="low"] .smart-seat { display: none !important; pointer-events: none !important; }
     svg[data-zoom="low"] .zone-overlay { display: block !important; pointer-events: auto !important; }
     
@@ -32,16 +32,20 @@ export const injectMapStyles = (svgEl, mode) => {
   svgEl.appendChild(styleEl);
 };
 
-export const buildVectorZones = (svgEl, seatElementsCache, configuredMap, bookedSet, mode) => {
-  const zoneGroupsMap = new Map();
+export const buildVectorZones = (
+  svgEl: SVGElement, 
+  seatElementsCache: Map<string, any>, 
+  configuredMap: Map<string, any>, 
+  bookedSet: Set<string>, 
+  mode: string
+) => {
+  const zoneGroupsMap = new Map<string, any>();
 
-  // ล้าง Overlay เก่าออก
   const oldOverlays = svgEl.querySelectorAll('.zone-overlay');
   oldOverlays.forEach(o => o.remove());
 
-  // 1. จัดกลุ่มเก้าอี้ที่เปิดขายแยกตามโซน
   seatElementsCache.forEach((seatData, seatId) => {
-    const seatNode = seatData.node;
+    const seatNode = seatData.node as SVGElement;
     seatNode.classList.remove('unconfigured', 'booked');
     
     if (configuredMap.has(seatId)) {
@@ -58,7 +62,6 @@ export const buildVectorZones = (svgEl, seatElementsCache, configuredMap, booked
         if (!zoneGroupsMap.has(parentG.id)) {
           zoneGroupsMap.set(parentG.id, { groupNode: parentG, seats: [] });
         }
-        // ใช้กล่องพิกัดที่เก็บไว้ใน Cache เลย จะได้ไม่ต้องดึงใหม่ตอนมันโดนซ่อน
         zoneGroupsMap.get(parentG.id).seats.push({ box: seatData.box, color: seatColor });
       }
     } else {
@@ -66,7 +69,6 @@ export const buildVectorZones = (svgEl, seatElementsCache, configuredMap, booked
     }
   });
 
-  // 2. สร้างกล่องเหลี่ยมรัดรูป (Overlapping Orthogonal Rects)
   const PADDING = 10; 
 
   zoneGroupsMap.forEach((zoneData, zoneId) => {
@@ -75,13 +77,13 @@ export const buildVectorZones = (svgEl, seatElementsCache, configuredMap, booked
 
     let sumX = 0, sumY = 0, count = 0;
 
-    zoneData.seats.forEach(s => {
+    zoneData.seats.forEach((s: any) => {
       const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      rect.setAttribute('x', s.box.x - PADDING);
-      rect.setAttribute('y', s.box.y - PADDING);
-      rect.setAttribute('width', s.box.width + PADDING * 2);
-      rect.setAttribute('height', s.box.height + PADDING * 2);
-      rect.setAttribute('rx', 4); 
+      rect.setAttribute('x', String(s.box.x - PADDING));
+      rect.setAttribute('y', String(s.box.y - PADDING));
+      rect.setAttribute('width', String(s.box.width + PADDING * 2));
+      rect.setAttribute('height', String(s.box.height + PADDING * 2));
+      rect.setAttribute('rx', '4'); 
       rect.setAttribute('class', 'zone-sub-rect');
       
       rect.style.fill = s.color;
@@ -98,8 +100,8 @@ export const buildVectorZones = (svgEl, seatElementsCache, configuredMap, booked
     if (count > 0) {
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.textContent = zoneId.replace(/[_-]/g, ' ').toUpperCase();
-      text.setAttribute('x', sumX / count);
-      text.setAttribute('y', sumY / count);
+      text.setAttribute('x', String(sumX / count));
+      text.setAttribute('y', String(sumY / count));
       text.setAttribute('text-anchor', 'middle');
       text.setAttribute('dominant-baseline', 'middle');
       text.setAttribute('class', 'zone-blob-text');
