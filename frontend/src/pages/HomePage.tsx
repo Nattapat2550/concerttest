@@ -9,10 +9,10 @@ interface Concert {
   show_date: string;
   venue: string;
   layout_image_url?: string;
+  is_active: boolean;
 }
 
 export default function HomePage() {
-  // 2. ใส่ <Concert[]> เข้าไปหลัง useState เพื่อลบ Error 'never'
   const [concerts, setConcerts] = useState<Concert[]>([]);
 
   useEffect(() => {
@@ -20,7 +20,7 @@ export default function HomePage() {
       try {
         const { data } = await api.get('/api/concerts/list');
         setConcerts(data || []);
-      } catch (err: any) { // 3. เติม : any ให้ err
+      } catch (err: any) { 
         console.error("Failed to load concerts");
       }
     };
@@ -46,12 +46,19 @@ export default function HomePage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {concerts.map(c => (
-              <div key={c.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden border dark:border-gray-700 hover:shadow-lg transition flex flex-col h-full">
-                <div className="h-48 bg-gray-200 dark:bg-gray-700 flex items-center justify-center shrink-0">
+               // เพิ่ม opacity กรณี is_active เป็น false
+              <div key={c.id} className={`bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden border dark:border-gray-700 transition flex flex-col h-full ${!c.is_active ? 'opacity-60 grayscale' : 'hover:shadow-lg'}`}>
+                <div className="h-48 bg-gray-200 dark:bg-gray-700 flex items-center justify-center shrink-0 relative">
                   {c.layout_image_url ? 
                     <img src={c.layout_image_url} alt="Cover" className="w-full h-full object-cover"/> : 
                     <span className="text-gray-400 dark:text-gray-500 text-sm">ไม่มีรูปภาพประกอบ</span>
                   }
+                   {/* แบนเนอร์ Coming Soon สำหรับคอนเสิร์ตที่ยังไม่เปิด */}
+                  {!c.is_active && (
+                    <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+                       <span className="text-white font-bold text-xl tracking-widest uppercase bg-black bg-opacity-70 px-4 py-2 rounded">Coming Soon</span>
+                    </div>
+                  )}
                 </div>
                 <div className="p-5 flex flex-col flex-1">
                   <h3 className="text-lg md:text-xl font-bold mb-2 text-gray-900 dark:text-white wrap-break-word line-clamp-2">{c.name}</h3>
@@ -59,9 +66,16 @@ export default function HomePage() {
                   <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 truncate">📍 {c.venue}</p>
                   
                   <div className="mt-auto pt-2">
-                    <Link to={`/concerts/${c.id}/book`} className="block text-center w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition active:scale-95 shadow-md">
-                      เลือกระบุที่นั่ง
-                    </Link>
+                    {/* เปลี่ยนแปลงปุ่มตาม is_active */}
+                    {c.is_active ? (
+                      <Link to={`/concerts/${c.id}/book`} className="block text-center w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition active:scale-95 shadow-md">
+                        เลือกระบุที่นั่ง
+                      </Link>
+                    ) : (
+                      <button disabled className="w-full bg-gray-400 text-white font-bold py-3 rounded-lg cursor-not-allowed">
+                        ยังไม่เปิดให้จอง
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

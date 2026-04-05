@@ -104,13 +104,14 @@ func (h *Handler) AdminCreateConcert(w http.ResponseWriter, r *http.Request) {
 	price := r.FormValue("ticket_price")
 	if price == "" { price = "0" }
 	showDate := r.FormValue("show_date")
+	isActive := r.FormValue("is_active") == "true"
 	
 	imageURL, _ := tryReadImageDataURL(r, "image", 5*1024*1024)
 
 	var vID interface{}
 	if venueID == "" { vID = nil } else { vID = venueID }
 
-	_, err := h.ConcertDB.Exec(`INSERT INTO concerts (name, venue, venue_id, ticket_price, show_date, layout_image_url) VALUES ($1, $2, $3, $4, $5, $6)`, name, venue, vID, price, showDate, imageURL)
+	_, err := h.ConcertDB.Exec(`INSERT INTO concerts (name, venue, venue_id, ticket_price, show_date, layout_image_url, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7)`, name, venue, vID, price, showDate, imageURL, isActive)
 	if err != nil { h.writeError(w, http.StatusInternalServerError, "Failed to create concert"); return }
 
 	WriteJSON(w, http.StatusCreated, map[string]string{"message": "Success"})
@@ -124,6 +125,7 @@ func (h *Handler) AdminUpdateConcert(w http.ResponseWriter, r *http.Request) {
 	price := r.FormValue("ticket_price")
 	if price == "" { price = "0" }
 	showDate := r.FormValue("show_date")
+	isActive := r.FormValue("is_active") == "true"
 	id := chi.URLParam(r, "id")
 	
 	imageURL, _ := tryReadImageDataURL(r, "image", 5*1024*1024)
@@ -132,9 +134,9 @@ func (h *Handler) AdminUpdateConcert(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 	if imageURL != "" {
-		_, err = h.ConcertDB.Exec(`UPDATE concerts SET name=$1, venue=$2, venue_id=$3, ticket_price=$4, show_date=$5, layout_image_url=$6 WHERE id=$7`, name, venue, vID, price, showDate, imageURL, id)
+		_, err = h.ConcertDB.Exec(`UPDATE concerts SET name=$1, venue=$2, venue_id=$3, ticket_price=$4, show_date=$5, layout_image_url=$6, is_active=$7 WHERE id=$8`, name, venue, vID, price, showDate, imageURL, isActive, id)
 	} else {
-		_, err = h.ConcertDB.Exec(`UPDATE concerts SET name=$1, venue=$2, venue_id=$3, ticket_price=$4, show_date=$5 WHERE id=$6`, name, venue, vID, price, showDate, id)
+		_, err = h.ConcertDB.Exec(`UPDATE concerts SET name=$1, venue=$2, venue_id=$3, ticket_price=$4, show_date=$5, is_active=$6 WHERE id=$7`, name, venue, vID, price, showDate, isActive, id)
 	}
 	if err != nil { h.writeError(w, http.StatusInternalServerError, "Failed to update concert"); return }
 

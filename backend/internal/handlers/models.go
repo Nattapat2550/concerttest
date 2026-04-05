@@ -27,6 +27,7 @@ type Concert struct {
 	VenueName      string    `json:"venue_name"`
 	TicketPrice    float64   `json:"ticket_price"`
 	LayoutImageURL string    `json:"layout_image_url"`
+	IsActive       bool      `json:"is_active"`
 }
 
 type ConcertSeatConfig struct {

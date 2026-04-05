@@ -28,7 +28,8 @@ CREATE TABLE concerts (
     venue_id INT REFERENCES venues(id) ON DELETE SET NULL, 
     ticket_price DECIMAL(10, 2) DEFAULT 2500.00,
     layout_image_url TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    is_active BOOLEAN DEFAULT FALSE
 );
 
 -- 4. ตารางกำหนดที่นั่งรายคอนเสิร์ต (Concert Seats - ข้อมูลที่ Admin จัดการจากหน้า Map Builder)
