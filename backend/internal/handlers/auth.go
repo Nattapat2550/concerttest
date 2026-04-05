@@ -41,7 +41,6 @@ type verifyReq struct {
 	Code  string `json:"code"`
 }
 
-// ✅ รับค่า OAuthId และ PictureUrl สำหรับการสร้างไอดีในจังหวะนี้
 type completeProfileReq struct {
 	Email      string `json:"email"`
 	Username   string `json:"username"`
@@ -178,10 +177,8 @@ func (h *Handler) AuthCompleteProfile(w http.ResponseWriter, r *http.Request) {
 
 	var user userDTO
 	
-	// ✅ 1. ตรวจสอบว่ามีข้อมูลผู้ใช้ในระบบแล้วหรือยัง
 	err := h.Pure.Post(ctx, "/api/internal/find-user", map[string]any{"email": email}, &user)
 	if err != nil || user.ID == 0 {
-		// ถ้าเป็น User ใหม่ที่มาจาก Google (มี OAuthId) ให้ทำการสร้างข้อมูลจังหวะนี้
 		if req.OAuthId != "" {
 			payloadOAuth := map[string]any{
 				"provider":   "google",
@@ -195,7 +192,6 @@ func (h *Handler) AuthCompleteProfile(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		} else {
-			// เผื่อหลุดมาจากการสมัครปกติ
 			if errCreate := h.Pure.Post(ctx, "/api/internal/create-user-email", map[string]any{"email": email}, &user); errCreate != nil {
 				h.writeError(w, http.StatusInternalServerError, "Failed to create user account")
 				return
@@ -203,7 +199,6 @@ func (h *Handler) AuthCompleteProfile(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// ✅ 2. บันทึกข้อมูลโปรไฟล์ทั้งหมด
 	payloadUpdate := map[string]any{
 		"email":      email,
 		"username":   username,
@@ -394,8 +389,9 @@ func (h *Handler) AuthForgotPassword(w http.ResponseWriter, r *http.Request) {
 	token := randomTokenHex(32)
 	expiresAt := time.Now().Add(30 * time.Minute).Format(time.RFC3339)
 
+	// ✅ แก้ไข: เปลี่ยนจาก userId เป็น email เพื่อให้ตรงกับฝั่ง Rust (CreateResetTokenBody)
 	_ = h.Pure.Post(ctx, "/api/internal/create-reset-token", map[string]any{
-		"userId":    user.ID,
+		"email":     user.Email,
 		"token":     token,
 		"expiresAt": expiresAt,
 	}, nil)
@@ -444,7 +440,8 @@ func (h *Handler) AuthResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.Pure.Post(ctx, "/api/internal/set-password", map[string]any{"id": user.ID, "password": newPass}, nil); err != nil {
+	// ✅ แก้ไข: เปลี่ยน keys จาก "id" เป็น "userId" และ "password" เป็น "newPassword" เพื่อให้ตรงกับ SetPasswordBody ของ Rust
+	if err := h.Pure.Post(ctx, "/api/internal/set-password", map[string]any{"userId": user.ID, "newPassword": newPass}, nil); err != nil {
 		h.writeErrFrom(w, err)
 		return
 	}
