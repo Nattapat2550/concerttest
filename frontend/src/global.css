@@ -1,57 +1,63 @@
 /* src/global.css */
 @import "tailwindcss";
 
-/* 1. ใช้ @variant เพื่อให้ Tailwind v4 สลับ Dark Mode ผ่าน Class .dark */
 @variant dark (&:where(.dark, .dark *));
 
-/* =========================================
-   กำหนด CSS Variables สำหรับ Light และ Dark Theme
-   ========================================= */
+@theme {
+  /* 1. กำหนดชุดสี Raw Colors ตาม Palette ของคุณ */
+  --color-wisteria: #d1a1ed;
+  --color-pastel-petal: #ffc7dc;
+  --color-baby-pink: #ffadcb;
+  --color-icy-blue: #bde0ff;
+  --color-sky-blue: #a3d3ff;
+  
+  --color-purple-x11: #a200ff;
+  --color-hot-fuchsia: #ff005e;
+  --color-neon-pink: #ff2d7a;
+  --color-cool-sky: #4ca8f9;
+  --color-azure-blue: #0084ff;
 
-/* Light Theme (ค่าเริ่มต้น) */
-:root {
-  /* ชุดสี Light ของคุณ */
-  --wisteria: #d1a1edff;
-  --pastel-petal: #ffc7dcff;
-  --baby-pink: #ffadcbff;
-  --icy-blue: #bde0ffff;
-  --sky-blue: #a3d3ffff;
-  --white: #ffffffff;
-
-  /* แมปสีไปใช้กับตัวแปรที่ต้องการใน App.css (สามารถปรับเปลี่ยนได้ตามความเหมาะสม) */
-  --accent: var(--wisteria);
-  --accent-bg: var(--pastel-petal);
-  --accent-border: var(--baby-pink);
-  --border: var(--icy-blue);
-  --text-h: #111827;
-  --social-bg: #f3f4f6;
-  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-}
-
-/* Dark Theme (เมื่อมีการใส่ class "dark" ที่ tag <html> หรือ <body>) */
-.dark {
-  /* ชุดสี Dark ของคุณ */
-  --black: #000000ff;
-  --purple-x11: #a200ffff;
-  --hot-fuchsia: #ff005eff;
-  --neon-pink: #ff2d7aff;
-  --cool-sky: #4ca8f9ff;
-  --azure-blue: #0084ffff;
-
-  /* แมปสีไปใช้กับตัวแปรใน App.css ให้เข้ากับ Dark Mode */
-  --accent: var(--purple-x11);
-  --accent-bg: rgba(162, 0, 255, 0.1); /* ปรับพื้นหลังให้โปร่งใสเข้ากับ Dark Mode */
-  --accent-border: var(--hot-fuchsia);
-  --border: var(--azure-blue);
-  --text-h: var(--white);
-  --social-bg: #1f2937;
-  --shadow: 0 4px 6px -1px rgba(255, 255, 255, 0.1);
+  /* 2. สร้าง Semantic Colors สำหรับนำไปใช้ใน Class ของ Tailwind */
+  --color-bg-main: var(--theme-bg-main);
+  --color-bg-card: var(--theme-bg-card);
+  --color-text-main: var(--theme-text-main);
+  --color-text-sub: var(--theme-text-sub);
+  --color-brand: var(--theme-brand);
+  --color-brand-hover: var(--theme-brand-hover);
+  --color-outline: var(--theme-outline);
 }
 
 @layer base {
+  :root {
+    /* --------------------------------------
+       Light Theme (ใช้ชุดสี Light ของคุณ) 
+       -------------------------------------- */
+    --theme-bg-main: #f8fafc;        /* พื้นหลังหน้าเว็บ */
+    --theme-bg-card: #ffffff;        /* พื้นหลังการ์ดเนื้อหา */
+    --theme-text-main: #0f172a;      /* ตัวอักษรสีเข้มให้อ่านง่าย */
+    --theme-text-sub: #475569;       /* ตัวอักษรรอง */
+    
+    --theme-brand: var(--color-wisteria);        
+    --theme-brand-hover: var(--color-baby-pink); 
+    --theme-outline: var(--color-icy-blue);      
+  }
+
+  .dark {
+    /* --------------------------------------
+       Dark Theme (ใช้ชุดสี Dark ของคุณ) 
+       -------------------------------------- */
+    --theme-bg-main: #000000;               /* พื้นหลังหน้าเว็บสีดำสนิท */
+    --theme-bg-card: #111827;               /* การ์ดสีเทาเข้มให้ดูมีมิติ */
+    --theme-text-main: #f8fafc;             /* ตัวอักษรสีสว่าง */
+    --theme-text-sub: var(--color-sky-blue);/* อักษรรองใช้สีฟ้าจากชุด Light ให้อ่านง่าย */
+
+    --theme-brand: var(--color-purple-x11);
+    --theme-brand-hover: var(--color-hot-fuchsia);
+    --theme-outline: var(--color-azure-blue);
+  }
+
   body {
-    /* 2. ตั้งค่าสีพื้นหลังและตัวอักษร 
-       สามารถเปลี่ยนจาก gray-50/gray-900 ไปใช้ตัวแปร --white / --black ที่คุณตั้งไว้ได้หากต้องการ */
-    @apply bg-white text-gray-900 antialiased dark:bg-(--black) dark:text-gray-100 transition-colors duration-300;
+    /* บังคับให้ทั้งเว็บใช้สีพื้นหลังและสีตัวอักษรที่เราตั้งไว้ด้านบนเสมอ */
+    @apply bg-bg-main text-text-main antialiased transition-colors duration-300;
   }
 }
