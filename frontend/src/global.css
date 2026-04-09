@@ -1,12 +1,57 @@
 /* src/global.css */
 @import "tailwindcss";
 
-/* 1. ใช้ @variant (แทน @custom-variant) เพื่อให้ Tailwind v4 สลับ Dark Mode ผ่าน Class .dark */
+/* 1. ใช้ @variant เพื่อให้ Tailwind v4 สลับ Dark Mode ผ่าน Class .dark */
 @variant dark (&:where(.dark, .dark *));
+
+/* =========================================
+   กำหนด CSS Variables สำหรับ Light และ Dark Theme
+   ========================================= */
+
+/* Light Theme (ค่าเริ่มต้น) */
+:root {
+  /* ชุดสี Light ของคุณ */
+  --wisteria: #d1a1edff;
+  --pastel-petal: #ffc7dcff;
+  --baby-pink: #ffadcbff;
+  --icy-blue: #bde0ffff;
+  --sky-blue: #a3d3ffff;
+  --white: #ffffffff;
+
+  /* แมปสีไปใช้กับตัวแปรที่ต้องการใน App.css (สามารถปรับเปลี่ยนได้ตามความเหมาะสม) */
+  --accent: var(--wisteria);
+  --accent-bg: var(--pastel-petal);
+  --accent-border: var(--baby-pink);
+  --border: var(--icy-blue);
+  --text-h: #111827;
+  --social-bg: #f3f4f6;
+  --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Dark Theme (เมื่อมีการใส่ class "dark" ที่ tag <html> หรือ <body>) */
+.dark {
+  /* ชุดสี Dark ของคุณ */
+  --black: #000000ff;
+  --purple-x11: #a200ffff;
+  --hot-fuchsia: #ff005eff;
+  --neon-pink: #ff2d7aff;
+  --cool-sky: #4ca8f9ff;
+  --azure-blue: #0084ffff;
+
+  /* แมปสีไปใช้กับตัวแปรใน App.css ให้เข้ากับ Dark Mode */
+  --accent: var(--purple-x11);
+  --accent-bg: rgba(162, 0, 255, 0.1); /* ปรับพื้นหลังให้โปร่งใสเข้ากับ Dark Mode */
+  --accent-border: var(--hot-fuchsia);
+  --border: var(--azure-blue);
+  --text-h: var(--white);
+  --social-bg: #1f2937;
+  --shadow: 0 4px 6px -1px rgba(255, 255, 255, 0.1);
+}
 
 @layer base {
   body {
-    /* 2. เพิ่มการตั้งค่าสีพื้นหลังและตัวอักษรสำหรับทั้ง Light และ Dark mode (รวมถึงเพิ่ม transition ให้เปลี่ยนสีแบบนุ่มนวล) */
-    @apply bg-gray-50 text-gray-900 antialiased dark:bg-gray-900 dark:text-gray-100 transition-colors duration-300;
+    /* 2. ตั้งค่าสีพื้นหลังและตัวอักษร 
+       สามารถเปลี่ยนจาก gray-50/gray-900 ไปใช้ตัวแปร --white / --black ที่คุณตั้งไว้ได้หากต้องการ */
+    @apply bg-white text-gray-900 antialiased dark:bg-(--black) dark:text-gray-100 transition-colors duration-300;
   }
 }
