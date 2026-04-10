@@ -18,12 +18,16 @@ interface ConcertDetail {
   is_active: boolean;
 }
 
-// ฟังก์ชันแปลง HTML Entities 
+// 🛠️ 1. ปรับฟังก์ชันให้ถอดรหัสซ้ำ 3 รอบ (เผื่อโดนเข้ารหัสซ้อนกันมา)
 const decodeHTMLEntities = (text: string) => {
   if (!text) return '';
-  const textArea = document.createElement('textarea');
-  textArea.innerHTML = text;
-  return textArea.value;
+  let decoded = text;
+  for (let i = 0; i < 3; i++) {
+    const textArea = document.createElement('textarea');
+    textArea.innerHTML = decoded;
+    decoded = textArea.value;
+  }
+  return decoded;
 };
 
 export default function ConcertDetailsPage() {
@@ -59,7 +63,6 @@ export default function ConcertDetailsPage() {
   
   if (!concert) return null;
 
-  // 1. นำข้อความที่ได้จาก DB มา Decode และใช้ตรงๆ โดยไม่ผ่านการกรอง (เพื่อทดสอบ)
   const rawHTML = concert.description 
     ? decodeHTMLEntities(concert.description) 
     : '<p class="text-center text-gray-500 my-10">เตรียมพบกับรายละเอียดความสนุกเร็วๆ นี้</p>';
@@ -107,38 +110,31 @@ export default function ConcertDetailsPage() {
             </div>
           </div>
 
-          {/* ส่วนแสดงผลเนื้อหา HTML โดยไม่ผ่าน DOMPurify */}
+          {/* 🛠️ 2. ลบคลาส prose ออกทั้งหมดชั่วคราว เพื่อให้ HTML ทำงานแบบเพียวๆ */}
           <div 
-            className="prose prose-lg md:prose-xl max-w-none dark:prose-invert 
-                       prose-headings:font-bold prose-headings:text-brand
-                       prose-a:text-blue-600 hover:prose-a:text-blue-500
-                       prose-img:rounded-xl prose-img:shadow-lg prose-img:mx-auto prose-img:my-8
-                       prose-iframe:w-full prose-iframe:aspect-video prose-iframe:rounded-xl prose-iframe:shadow-lg"
+            className="w-full text-gray-800 dark:text-gray-200"
             dangerouslySetInnerHTML={{ __html: rawHTML }} 
           />
 
-          {/* 🛠️ กล่อง Debug (เมื่อรันเว็บให้เลื่อนลงมาดูตรงนี้) */}
           <div className="mt-12 p-4 bg-gray-900 text-green-400 rounded-lg overflow-x-auto border border-gray-700 font-mono text-sm shadow-inner">
             <p className="text-white mb-2 font-bold flex items-center gap-2">
-              <span>🛠️</span> ข้อมูลดิบที่ดึงมาจาก Database (อ่านจาก API):
+              <span>🛠️</span> ข้อมูลดิบที่ดึงมาจาก Database:
             </p>
             <pre className="whitespace-pre-wrap word-break">
               {rawHTML}
             </pre>
           </div>
-          {/* สิ้นสุดกล่อง Debug */}
 
         </div>
       </div>
 
+      {/* ส่วนปุ่มด้านล่าง (คงเดิม) */}
       <div className="fixed bottom-0 left-0 w-full bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-[0_-10px_30px_rgba(0,0,0,0.1)] z-50 animate-fade-in-up">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          
           <div className="hidden sm:block text-left">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white truncate max-w-md">{concert.name}</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400">เริ่มต้น ฿{concert.ticket_price?.toLocaleString() || '0'}</p>
           </div>
-
           <div className="w-full sm:w-auto shrink-0">
             {concert.is_active ? (
               <Link 
@@ -157,7 +153,6 @@ export default function ConcertDetailsPage() {
               </button>
             )}
           </div>
-
         </div>
       </div>
 
