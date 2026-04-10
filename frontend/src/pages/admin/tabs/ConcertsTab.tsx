@@ -3,7 +3,7 @@ import api from '../../../services/api';
 import { Concert, Venue } from '../types';
 import placeImg from '../../../assets/place.png';
 import ReactQuill from 'react-quill-new';
-import 'react-quill/dist/quill.snow.css'; // นำเข้า CSS ของ Editor
+import 'react-quill-new/dist/quill.snow.css'; // นำเข้า CSS ของ Editor
 
 interface ConcertsTabProps {
   onOpenMapBuilder: (concert: Concert) => void;
