@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
 
+// นำเข้ารูปภาพประกอบจาก assets
+import heroImg from '../assets/hero.png';
+
 interface Concert {
   id: number;
-  access_code: string; // เพิ่มฟิลด์ access_code
+  access_code: string; 
   name: string;
   show_date: string;
   venue: string;
@@ -28,29 +31,37 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="pb-10 w-full overflow-x-hidden">
-      <div className="bg-blue-900 text-white p-8 md:p-12 text-center shadow-inner">
-        <h1 className="text-3xl md:text-4xl font-bold mb-4 px-2 wrap-break-word">ยินดีต้อนรับสู่ ConcertTick</h1>
-        <p className="text-base md:text-lg px-4">เลือกระบุที่นั่งและจองตั๋วคอนเสิร์ตที่คุณชื่นชอบ</p>
+    <div className="pb-10 w-full overflow-x-hidden bg-bg-main">
+      {/* ปรับสี Banner โดยใช้ bg-brand จากธีม และนำรูป heroImg มาใช้ตกแต่ง */}
+      <div className="bg-brand text-white shadow-inner relative overflow-hidden">
+        <div className="max-w-6xl mx-auto px-8 md:px-12 py-10 flex flex-col md:flex-row items-center justify-between">
+          <div className="text-center md:text-left z-10 mb-6 md:mb-0">
+            <h1 className="text-3xl md:text-4xl font-bold mb-4 wrap-break-word">ยินดีต้อนรับสู่ ConcertTick</h1>
+            <p className="text-base md:text-lg">เลือกระบุที่นั่งและจองตั๋วคอนเสิร์ตที่คุณชื่นชอบ</p>
+          </div>
+          <div className="z-10 w-48 md:w-64">
+            <img src={heroImg} alt="ConcertTick Hero" className="w-full h-auto drop-shadow-xl" />
+          </div>
+        </div>
       </div>
 
       <div className="w-full max-w-6xl mx-auto mt-8 md:mt-10 px-4 sm:px-6">
-        <h2 className="text-xl md:text-2xl font-bold text-gray-800 dark:text-white border-b border-gray-300 dark:border-gray-700 pb-2 mb-6">
+        <h2 className="text-xl md:text-2xl font-bold text-text-main border-b border-outline pb-2 mb-6">
           คอนเสิร์ตเร็วๆ นี้
         </h2>
         
         {concerts.length === 0 ? (
-          <div className="text-center p-8 md:p-10 bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700 mx-2">
-            <p className="text-gray-500 dark:text-gray-400">ยังไม่มีคอนเสิร์ตในระบบ (Admin กำลังเพิ่มข้อมูล)</p>
+          <div className="text-center p-8 md:p-10 bg-bg-card rounded-lg shadow border border-outline mx-2">
+            <p className="text-text-sub">ยังไม่มีคอนเสิร์ตในระบบ (Admin กำลังเพิ่มข้อมูล)</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
             {concerts.map(c => (
-              <div key={c.id} className={`bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden border dark:border-gray-700 transition flex flex-col h-full ${!c.is_active ? 'opacity-60 grayscale' : 'hover:shadow-lg'}`}>
-                <div className="h-48 bg-gray-200 dark:bg-gray-700 flex items-center justify-center shrink-0 relative">
+              <div key={c.id} className={`bg-bg-card rounded-lg shadow-md overflow-hidden border border-outline transition flex flex-col h-full ${!c.is_active ? 'opacity-60 grayscale' : 'hover:shadow-lg hover:border-brand'}`}>
+                <div className="h-48 bg-bg-main flex items-center justify-center shrink-0 relative border-b border-outline">
                   {c.layout_image_url ? 
                     <img src={c.layout_image_url} alt="Cover" className="w-full h-full object-cover"/> : 
-                    <span className="text-gray-400 dark:text-gray-500 text-sm">ไม่มีรูปภาพประกอบ</span>
+                    <span className="text-text-sub text-sm">ไม่มีรูปภาพประกอบ</span>
                   }
                   {!c.is_active && (
                     <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
@@ -59,17 +70,18 @@ export default function HomePage() {
                   )}
                 </div>
                 <div className="p-5 flex flex-col flex-1">
-                  <h3 className="text-lg md:text-xl font-bold mb-2 text-gray-900 dark:text-white wrap-break-word line-clamp-2">{c.name}</h3>
-                  <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">📅 {new Date(c.show_date).toLocaleString()}</p>
-                  <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 truncate">📍 {c.venue}</p>
+                  <h3 className="text-lg md:text-xl font-bold mb-2 text-text-main wrap-break-word line-clamp-2">{c.name}</h3>
+                  {/* หมายเหตุ: ส่วนของ Date และ Venue ยังใช้ Emoji เพราะไม่มีรูปใน assets */}
+                  <p className="text-text-sub text-sm mb-1">📅 {new Date(c.show_date).toLocaleString()}</p>
+                  <p className="text-text-sub text-sm mb-4 truncate">📍 {c.venue}</p>
                   
                   <div className="mt-auto pt-2">
                     {c.is_active ? (
-                      <Link to={`/concerts/${c.access_code}/book`} className="block text-center w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition active:scale-95 shadow-md">
+                      <Link to={`/concerts/${c.access_code}/book`} className="block text-center w-full bg-brand text-white font-bold py-3 rounded-lg hover:bg-brand-hover transition active:scale-95 shadow-md">
                         เลือกระบุที่นั่ง
                       </Link>
                     ) : (
-                      <button disabled className="w-full bg-gray-400 text-white font-bold py-3 rounded-lg cursor-not-allowed">
+                      <button disabled className="w-full bg-bg-main text-text-sub font-bold py-3 rounded-lg cursor-not-allowed border border-outline">
                         ยังไม่เปิดให้จอง
                       </button>
                     )}
