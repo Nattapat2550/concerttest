@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
-import DOMPurify from 'dompurify';
 
 import calendarImg from '../assets/calendar.png';
 import placeImg from '../assets/place.png';
@@ -19,8 +18,9 @@ interface ConcertDetail {
   is_active: boolean;
 }
 
-// ฟังก์ชันสำหรับแปลง HTML Entities กลับเป็น HTML ปกติ
+// ฟังก์ชันแปลง HTML Entities 
 const decodeHTMLEntities = (text: string) => {
+  if (!text) return '';
   const textArea = document.createElement('textarea');
   textArea.innerHTML = text;
   return textArea.value;
@@ -59,16 +59,10 @@ export default function ConcertDetailsPage() {
   
   if (!concert) return null;
 
-  // 1. นำข้อความที่ได้จาก DB มา Decode กลับเป็น HTML ก่อน
+  // 1. นำข้อความที่ได้จาก DB มา Decode และใช้ตรงๆ โดยไม่ผ่านการกรอง (เพื่อทดสอบ)
   const rawHTML = concert.description 
     ? decodeHTMLEntities(concert.description) 
     : '<p class="text-center text-gray-500 my-10">เตรียมพบกับรายละเอียดความสนุกเร็วๆ นี้</p>';
-
-  // 2. ใช้ DOMPurify แบบ ADD_TAGS และ ADD_ATTR เพื่ออนุญาต iframe และ class
-  const safeHTML = DOMPurify.sanitize(rawHTML, {
-    ADD_TAGS: ['iframe', 'style'], 
-    ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling', 'class', 'target', 'style']
-  });
 
   return (
     <div className="bg-bg-main min-h-screen pb-32 relative selection:bg-brand selection:text-white">
@@ -113,15 +107,27 @@ export default function ConcertDetailsPage() {
             </div>
           </div>
 
-          {/* ส่วนแสดงผลเนื้อหา HTML */}
+          {/* ส่วนแสดงผลเนื้อหา HTML โดยไม่ผ่าน DOMPurify */}
           <div 
             className="prose prose-lg md:prose-xl max-w-none dark:prose-invert 
                        prose-headings:font-bold prose-headings:text-brand
                        prose-a:text-blue-600 hover:prose-a:text-blue-500
                        prose-img:rounded-xl prose-img:shadow-lg prose-img:mx-auto prose-img:my-8
                        prose-iframe:w-full prose-iframe:aspect-video prose-iframe:rounded-xl prose-iframe:shadow-lg"
-            dangerouslySetInnerHTML={{ __html: safeHTML }} 
+            dangerouslySetInnerHTML={{ __html: rawHTML }} 
           />
+
+          {/* 🛠️ กล่อง Debug (เมื่อรันเว็บให้เลื่อนลงมาดูตรงนี้) */}
+          <div className="mt-12 p-4 bg-gray-900 text-green-400 rounded-lg overflow-x-auto border border-gray-700 font-mono text-sm shadow-inner">
+            <p className="text-white mb-2 font-bold flex items-center gap-2">
+              <span>🛠️</span> ข้อมูลดิบที่ดึงมาจาก Database (อ่านจาก API):
+            </p>
+            <pre className="whitespace-pre-wrap word-break">
+              {rawHTML}
+            </pre>
+          </div>
+          {/* สิ้นสุดกล่อง Debug */}
+
         </div>
       </div>
 
