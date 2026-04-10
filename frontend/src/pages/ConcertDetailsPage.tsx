@@ -18,16 +18,20 @@ interface ConcertDetail {
   is_active: boolean;
 }
 
-// 🛠️ 1. ปรับฟังก์ชันให้ถอดรหัสซ้ำ 3 รอบ (เผื่อโดนเข้ารหัสซ้อนกันมา)
-const decodeHTMLEntities = (text: string) => {
-  if (!text) return '';
-  let decoded = text;
-  for (let i = 0; i < 3; i++) {
-    const textArea = document.createElement('textarea');
-    textArea.innerHTML = decoded;
-    decoded = textArea.value;
+// 🛠️ 1. ปรับฟังก์ชันถอดรหัสแบบ "ขุดรากถอนโคน" (กันโดนเข้ารหัสซ้อนหลายชั้น)
+const decodeDeep = (str: string) => {
+  if (!str) return '';
+  let s = str;
+  let attempt = 0;
+  // วนลูปถอดรหัสจนกว่าจะไม่เหลือ &lt; หรือวนครบ 5 รอบ
+  while ((s.includes('&lt;') || s.includes('&gt;') || s.includes('&amp;')) && attempt < 5) {
+    const txt = document.createElement('textarea');
+    txt.innerHTML = s;
+    if (txt.value === s) break;
+    s = txt.value;
+    attempt++;
   }
-  return decoded;
+  return s;
 };
 
 export default function ConcertDetailsPage() {
@@ -64,8 +68,13 @@ export default function ConcertDetailsPage() {
   if (!concert) return null;
 
   const rawHTML = concert.description 
-    ? decodeHTMLEntities(concert.description) 
+    ? decodeDeep(concert.description) 
     : '<p class="text-center text-gray-500 my-10">เตรียมพบกับรายละเอียดความสนุกเร็วๆ นี้</p>';
+
+  // โค้ด HTML ดิบสำหรับทดสอบ (บังคับใส่ Style ให้ต้องแสดงผลแน่นอน)
+  const testHardcodeHTML = `
+    <img src="https://images.unsplash.com/photo-1540039155733-d7696d4eb959?q=80&w=1024&auto=format&fit=crop" style="width: 100%; max-width: 500px; height: 250px; object-fit: cover; border: 5px solid green; display: block; margin-top: 10px;" alt="Test Image" />
+  `;
 
   return (
     <div className="bg-bg-main min-h-screen pb-32 relative selection:bg-brand selection:text-white">
@@ -110,20 +119,22 @@ export default function ConcertDetailsPage() {
             </div>
           </div>
 
-          {/* 🛠️ 2. ลบคลาส prose ออกทั้งหมดชั่วคราว เพื่อให้ HTML ทำงานแบบเพียวๆ */}
+          {/* 🛠️ กล่องทดสอบ 1: บังคับรันโค้ด HTML ดิบๆ */}
+          <div className="mb-8 p-4 border-4 border-dashed border-red-400 bg-red-50 dark:bg-red-900/20 rounded-xl">
+            <h3 className="font-bold text-red-600 dark:text-red-400 mb-2">🛠️ กล่องทดสอบระบบ:</h3>
+            <p className="text-sm text-gray-700 dark:text-gray-300">ถ้ารูปภาพกรอบสีเขียวด้านล่างนี้ <b>แสดงขึ้นมา</b> แปลว่า React ทำงานปกติ และปัญหาอยู่ที่การจัดฟอร์แมตข้อมูลในฐานข้อมูล</p>
+            <div dangerouslySetInnerHTML={{ __html: testHardcodeHTML }} />
+          </div>
+
+          {/* เนื้อหาจริงจาก Database */}
           <div 
-            className="w-full text-gray-800 dark:text-gray-200"
+            className="prose prose-lg md:prose-xl max-w-none dark:prose-invert 
+                       prose-headings:font-bold prose-headings:text-brand
+                       prose-a:text-blue-600 hover:prose-a:text-blue-500
+                       prose-img:rounded-xl prose-img:shadow-lg prose-img:mx-auto prose-img:my-8
+                       prose-iframe:w-full prose-iframe:aspect-video prose-iframe:rounded-xl prose-iframe:shadow-lg"
             dangerouslySetInnerHTML={{ __html: rawHTML }} 
           />
-
-          <div className="mt-12 p-4 bg-gray-900 text-green-400 rounded-lg overflow-x-auto border border-gray-700 font-mono text-sm shadow-inner">
-            <p className="text-white mb-2 font-bold flex items-center gap-2">
-              <span>🛠️</span> ข้อมูลดิบที่ดึงมาจาก Database:
-            </p>
-            <pre className="whitespace-pre-wrap word-break">
-              {rawHTML}
-            </pre>
-          </div>
 
         </div>
       </div>
