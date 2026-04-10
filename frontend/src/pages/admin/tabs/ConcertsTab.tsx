@@ -3,13 +3,12 @@ import api from '../../../services/api';
 import { Concert, Venue } from '../types';
 import placeImg from '../../../assets/place.png';
 import ReactQuill from 'react-quill-new';
-import 'react-quill-new/dist/quill.snow.css'; // นำเข้า CSS ของ Editor
+import 'react-quill-new/dist/quill.snow.css';
 
 interface ConcertsTabProps {
   onOpenMapBuilder: (concert: Concert) => void;
 }
 
-// ตั้งค่าแถบเครื่องมือของ Editor ให้ใส่รูป ใส่วิดีโอ และจัดหน้าได้เต็มที่
 const quillModules = {
   toolbar: [
     [{ 'header': [1, 2, 3, 4, false] }],
@@ -26,9 +25,12 @@ export default function ConcertsTab({ onOpenMapBuilder }: ConcertsTabProps) {
   const [venues, setVenues] = useState<Venue[]>([]);
   const [editingConcert, setEditingConcert] = useState<Concert | null>(null);
 
-  // State สำหรับเก็บข้อมูล HTML ของ Editor
   const [newDescription, setNewDescription] = useState('');
   const [editDescription, setEditDescription] = useState('');
+  
+  // 💡 เพิ่ม State สำหรับเปิด/ปิดโหมด HTML
+  const [isHtmlModeNew, setIsHtmlModeNew] = useState(false);
+  const [isHtmlModeEdit, setIsHtmlModeEdit] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -47,14 +49,13 @@ export default function ConcertsTab({ onOpenMapBuilder }: ConcertsTabProps) {
     const showDateStr = formData.get('show_date') as string;
     if (showDateStr) formData.set('show_date', new Date(showDateStr).toISOString());
     
-    // แนบข้อมูล HTML จาก Editor ไปด้วย
     formData.append('description', newDescription);
 
     try {
       await api.post('/api/admin/concerts', formData, { headers: { 'Content-Type': 'multipart/form-data' } });
       alert("สร้างคอนเสิร์ตสำเร็จ!");
       (e.target as HTMLFormElement).reset();
-      setNewDescription(''); // เคลียร์ช่องข้อความ
+      setNewDescription('');
       fetchData();
     } catch (err) { alert("เกิดข้อผิดพลาด"); }
   };
@@ -66,7 +67,6 @@ export default function ConcertsTab({ onOpenMapBuilder }: ConcertsTabProps) {
     const showDateStr = formData.get('show_date') as string;
     if (showDateStr) formData.set('show_date', new Date(showDateStr).toISOString());
     
-    // แนบข้อมูล HTML ที่แก้ไข
     formData.append('description', editDescription);
 
     try {
@@ -92,6 +92,8 @@ export default function ConcertsTab({ onOpenMapBuilder }: ConcertsTabProps) {
   const openEditModal = (c: Concert) => {
     setEditingConcert(c);
     setEditDescription(c.description || '');
+    // ถ้าข้อมูลมี Tag HTML ให้เปิดโหมด Code เป็นค่าเริ่มต้น
+    setIsHtmlModeEdit(c.description?.includes('<div') || c.description?.includes('<iframe') ? true : false);
   };
 
   return (
@@ -115,20 +117,39 @@ export default function ConcertsTab({ onOpenMapBuilder }: ConcertsTabProps) {
           <input type="file" name="image" accept="image/*" className="p-2 border rounded bg-white dark:bg-gray-800" title="รูปปกคอนเสิร์ต" />
         </div>
         
-        {/* Editor สำหรับเขียนรายละเอียดและออกแบบหน้าเว็บ */}
         <div className="mb-4">
-          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-            ออกแบบหน้ารายละเอียดคอนเสิร์ต (ใส่รูป, วิดีโอ YouTube, หรือลิงก์ได้เลย)
-          </label>
-          <div className="bg-white rounded overflow-hidden">
-            <ReactQuill 
-              theme="snow" 
-              modules={quillModules}
-              value={newDescription} 
-              onChange={setNewDescription} 
-              className="h-64 mb-12"
-            />
+          <div className="flex justify-between items-center mb-2">
+            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+              รายละเอียดคอนเสิร์ต
+            </label>
+            <button 
+              type="button" 
+              onClick={() => setIsHtmlModeNew(!isHtmlModeNew)} 
+              className={`px-3 py-1 rounded text-sm font-bold transition ${isHtmlModeNew ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}`}
+            >
+              {isHtmlModeNew ? '💻 สลับไปใช้ Visual Editor' : '⚙️ สลับไปวางโค้ด HTML'}
+            </button>
           </div>
+
+          <div className="bg-white rounded overflow-hidden">
+            {isHtmlModeNew ? (
+              <textarea 
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+                className="w-full h-64 p-4 font-mono text-sm bg-gray-900 text-green-400 border-none outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                placeholder=""
+              />
+            ) : (
+              <ReactQuill 
+                theme="snow" 
+                modules={quillModules}
+                value={newDescription} 
+                onChange={setNewDescription} 
+                className="h-64 mb-12"
+              />
+            )}
+          </div>
+          {isHtmlModeNew && <p className="text-xs text-red-500 mt-1">* <b>ข้อควรระวัง:</b> หากใส่โค้ด HTML/Tailwind ไปแล้ว กรุณาอย่าสลับกลับไปโหมด Visual Editor เพราะโปรแกรมอาจลบคลาส CSS ของคุณทิ้ง</p>}
         </div>
 
         <button type="submit" className="bg-green-600 text-white font-bold py-2 px-6 rounded hover:bg-green-700">สร้างคอนเสิร์ต</button>
@@ -177,22 +198,42 @@ export default function ConcertsTab({ onOpenMapBuilder }: ConcertsTabProps) {
                  <option value="true">เปิดให้จองทันที</option>
               </select>
             </div>
-            
-            {/* กล่องช่วยจำให้ Admin */}
-            <div className="mb-4 bg-blue-50 border border-blue-200 p-3 rounded-lg text-sm text-blue-800">
-              💡 <b>ลิงก์สำหรับหน้าจองตั๋ว:</b> <code className="bg-blue-100 px-1 py-0.5 rounded">/concerts/{editingConcert.access_code}/book</code> 
-              <br/>(ให้นำลิงก์นี้ไปใส่ที่ปุ่มหรือข้อความด้านล่าง เพื่อให้ลูกค้ากดเข้าไปจองตั๋วได้)
+
+            <div className="mb-4">
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">
+                  รายละเอียดคอนเสิร์ต
+                </label>
+                <button 
+                  type="button" 
+                  onClick={() => setIsHtmlModeEdit(!isHtmlModeEdit)} 
+                  className={`px-3 py-1 rounded text-sm font-bold transition ${isHtmlModeEdit ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-800 hover:bg-gray-300'}`}
+                >
+                  {isHtmlModeEdit ? '💻 สลับไปใช้ Visual Editor' : '⚙️ สลับไปวางโค้ด HTML'}
+                </button>
+              </div>
+
+              <div className="bg-white rounded overflow-hidden">
+                {isHtmlModeEdit ? (
+                  <textarea 
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    className="w-full h-72 p-4 font-mono text-sm bg-gray-900 text-green-400 border-none outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                    placeholder=""
+                  />
+                ) : (
+                  <ReactQuill 
+                    theme="snow" 
+                    modules={quillModules}
+                    value={editDescription} 
+                    onChange={setEditDescription} 
+                    className="h-72 mb-12"
+                  />
+                )}
+              </div>
+              {isHtmlModeEdit && <p className="text-xs text-red-500 mt-1">* <b>ข้อควรระวัง:</b> หากแก้ไขโค้ด HTML แล้ว ให้กดบันทึกเลย <b>ห้ามสลับกลับไปโหมด Visual Editor</b> ไม่งั้นระบบจะลบคลาส CSS ทิ้ง</p>}
             </div>
 
-            <div className="mb-4 bg-white">
-              <ReactQuill 
-                theme="snow" 
-                modules={quillModules}
-                value={editDescription} 
-                onChange={setEditDescription} 
-                className="h-72 mb-12"
-              />
-            </div>
             <p className="text-sm text-gray-500 mb-2">อัปเดตรูปภาพปก (เว้นว่างไว้หากใช้รูปเดิม)</p>
             <input type="file" name="image" accept="image/*" className="p-2 border rounded dark:bg-gray-700 dark:text-white w-full mb-6" />
             
