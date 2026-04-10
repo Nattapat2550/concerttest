@@ -116,11 +116,7 @@ export default function ConcertDetailsPage() {
                        prose-headings:font-bold prose-headings:text-brand
                        prose-a:text-blue-600 hover:prose-a:text-blue-500
                        prose-img:rounded-xl prose-img:shadow-lg prose-img:mx-auto prose-img:my-8
-                       prose-iframe:w-full prose-iframe:aspect-video prose-iframe:rounded-xl prose-iframe:shadow-lg
-                       
-                       /* 🔥 เวทมนตร์บังคับแสดงผล: ถ้าแท็กมีอยู่จริง จะต้องแสดงกรอบออกมาให้เห็น! */
-                       [&_img]:block [&_img]:min-h-25 [&_img]:bg-gray-200 [&_img]:border-2 [&_img]:border-red-500
-                       [&_iframe]:block [&_iframe]:min-h-62.5 [&_iframe]:bg-gray-200 [&_iframe]:border-2 [&_iframe]:border-blue-500"
+                       prose-iframe:w-full prose-iframe:aspect-video prose-iframe:rounded-xl prose-iframe:shadow-lg"
             dangerouslySetInnerHTML={{ __html: safeHTML }} 
           />
         </div>
