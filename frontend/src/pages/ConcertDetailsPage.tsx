@@ -12,14 +12,14 @@ interface ConcertDetail {
   access_code: string;
   name: string;
   description: string;
-  layout_image_url: string;
+  layout_image_url: string; 
   show_date: string;
   venue_name: string;
   ticket_price: number;
   is_active: boolean;
 }
 
-// 1. เพิ่มฟังก์ชันสำหรับแปลง HTML Entities (เช่น &lt; เป็น <) ให้เป็น HTML ปกติ
+// ฟังก์ชันสำหรับแปลง HTML Entities กลับเป็น HTML ปกติ
 const decodeHTMLEntities = (text: string) => {
   const textArea = document.createElement('textarea');
   textArea.innerHTML = text;
@@ -59,14 +59,15 @@ export default function ConcertDetailsPage() {
   
   if (!concert) return null;
 
-  // 2. Decode ข้อความก่อน แล้วจึงนำไปผ่าน DOMPurify
+  // 1. นำข้อความที่ได้จาก DB มา Decode กลับเป็น HTML ก่อน
   const rawHTML = concert.description 
     ? decodeHTMLEntities(concert.description) 
     : '<p class="text-center text-gray-500 my-10">เตรียมพบกับรายละเอียดความสนุกเร็วๆ นี้</p>';
 
+  // 2. ใช้ DOMPurify แบบ ADD_TAGS และ ADD_ATTR เพื่ออนุญาต iframe และ class
   const safeHTML = DOMPurify.sanitize(rawHTML, {
-    ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'h1', 'h2', 'h3', 'h4', 'img', 'iframe', 'br', 'ul', 'ol', 'li', 'span', 'div', 'u', 's', 'blockquote'],
-    ALLOWED_ATTR: ['href', 'src', 'style', 'class', 'target', 'width', 'height', 'frameborder', 'allowfullscreen', 'allow', 'rel', 'title']
+    ADD_TAGS: ['iframe', 'style'], 
+    ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling', 'class', 'target', 'style']
   });
 
   return (
@@ -112,6 +113,7 @@ export default function ConcertDetailsPage() {
             </div>
           </div>
 
+          {/* ส่วนแสดงผลเนื้อหา HTML */}
           <div 
             className="prose prose-lg md:prose-xl max-w-none dark:prose-invert 
                        prose-headings:font-bold prose-headings:text-brand
