@@ -55,7 +55,7 @@ export default function ConcertDetailsPage() {
 
   const safeHTML = DOMPurify.sanitize(concert.description || '<p className="text-center text-gray-500 my-10">เตรียมพบกับรายละเอียดความสนุกเร็วๆ นี้</p>', {
     ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'h1', 'h2', 'h3', 'h4', 'img', 'iframe', 'br', 'ul', 'ol', 'li', 'span', 'div', 'u', 's', 'blockquote'],
-    ALLOWED_ATTR: ['href', 'src', 'style', 'class', 'target', 'width', 'height', 'frameborder', 'allowfullscreen', 'allow', 'rel']
+    ALLOWED_ATTR: ['href', 'src', 'style', 'class', 'target', 'width', 'height', 'frameborder', 'allowfullscreen', 'allow', 'rel', 'title']
   });
 
   return (
