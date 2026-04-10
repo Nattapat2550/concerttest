@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
+import DOMPurify from 'dompurify';
 
 import calendarImg from '../assets/calendar.png';
 import placeImg from '../assets/place.png';
@@ -18,20 +19,11 @@ interface ConcertDetail {
   is_active: boolean;
 }
 
-// 🛠️ 1. ปรับฟังก์ชันถอดรหัสแบบ "ขุดรากถอนโคน" (กันโดนเข้ารหัสซ้อนหลายชั้น)
-const decodeDeep = (str: string) => {
-  if (!str) return '';
-  let s = str;
-  let attempt = 0;
-  // วนลูปถอดรหัสจนกว่าจะไม่เหลือ &lt; หรือวนครบ 5 รอบ
-  while ((s.includes('&lt;') || s.includes('&gt;') || s.includes('&amp;')) && attempt < 5) {
-    const txt = document.createElement('textarea');
-    txt.innerHTML = s;
-    if (txt.value === s) break;
-    s = txt.value;
-    attempt++;
-  }
-  return s;
+const decodeHTMLEntities = (text: string) => {
+  if (!text) return '';
+  const textArea = document.createElement('textarea');
+  textArea.innerHTML = text;
+  return textArea.value;
 };
 
 export default function ConcertDetailsPage() {
@@ -67,14 +59,13 @@ export default function ConcertDetailsPage() {
   
   if (!concert) return null;
 
-  const rawHTML = concert.description 
-    ? decodeDeep(concert.description) 
-    : '<p class="text-center text-gray-500 my-10">เตรียมพบกับรายละเอียดความสนุกเร็วๆ นี้</p>';
+  const rawHTML = concert.description ? decodeHTMLEntities(concert.description) : '<p class="text-center text-gray-500 my-10">เตรียมพบกับรายละเอียดความสนุกเร็วๆ นี้</p>';
 
-  // โค้ด HTML ดิบสำหรับทดสอบ (บังคับใส่ Style ให้ต้องแสดงผลแน่นอน)
-  const testHardcodeHTML = `
-    <img src="https://images.unsplash.com/photo-1540039155733-d7696d4eb959?q=80&w=1024&auto=format&fit=crop" style="width: 100%; max-width: 500px; height: 250px; object-fit: cover; border: 5px solid green; display: block; margin-top: 10px;" alt="Test Image" />
-  `;
+  // ใช้ DOMPurify แบบปลดล็อกครบถ้วน
+  const safeHTML = DOMPurify.sanitize(rawHTML, {
+    ADD_TAGS: ['iframe', 'style'], 
+    ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling', 'class', 'target', 'style', 'width', 'height']
+  });
 
   return (
     <div className="bg-bg-main min-h-screen pb-32 relative selection:bg-brand selection:text-white">
@@ -119,27 +110,22 @@ export default function ConcertDetailsPage() {
             </div>
           </div>
 
-          {/* 🛠️ กล่องทดสอบ 1: บังคับรันโค้ด HTML ดิบๆ */}
-          <div className="mb-8 p-4 border-4 border-dashed border-red-400 bg-red-50 dark:bg-red-900/20 rounded-xl">
-            <h3 className="font-bold text-red-600 dark:text-red-400 mb-2">🛠️ กล่องทดสอบระบบ:</h3>
-            <p className="text-sm text-gray-700 dark:text-gray-300">ถ้ารูปภาพกรอบสีเขียวด้านล่างนี้ <b>แสดงขึ้นมา</b> แปลว่า React ทำงานปกติ และปัญหาอยู่ที่การจัดฟอร์แมตข้อมูลในฐานข้อมูล</p>
-            <div dangerouslySetInnerHTML={{ __html: testHardcodeHTML }} />
-          </div>
-
-          {/* เนื้อหาจริงจาก Database */}
+          {/* 🛠️ เนื้อหาหลัก + Force Render CSS */}
           <div 
             className="prose prose-lg md:prose-xl max-w-none dark:prose-invert 
                        prose-headings:font-bold prose-headings:text-brand
                        prose-a:text-blue-600 hover:prose-a:text-blue-500
                        prose-img:rounded-xl prose-img:shadow-lg prose-img:mx-auto prose-img:my-8
-                       prose-iframe:w-full prose-iframe:aspect-video prose-iframe:rounded-xl prose-iframe:shadow-lg"
-            dangerouslySetInnerHTML={{ __html: rawHTML }} 
+                       prose-iframe:w-full prose-iframe:aspect-video prose-iframe:rounded-xl prose-iframe:shadow-lg
+                       
+                       /* 🔥 เวทมนตร์บังคับแสดงผล: ถ้าแท็กมีอยู่จริง จะต้องแสดงกรอบออกมาให้เห็น! */
+                       [&_img]:block [&_img]:min-h-25 [&_img]:bg-gray-200 [&_img]:border-2 [&_img]:border-red-500
+                       [&_iframe]:block [&_iframe]:min-h-62.5 [&_iframe]:bg-gray-200 [&_iframe]:border-2 [&_iframe]:border-blue-500"
+            dangerouslySetInnerHTML={{ __html: safeHTML }} 
           />
-
         </div>
       </div>
 
-      {/* ส่วนปุ่มด้านล่าง (คงเดิม) */}
       <div className="fixed bottom-0 left-0 w-full bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 shadow-[0_-10px_30px_rgba(0,0,0,0.1)] z-50 animate-fade-in-up">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="hidden sm:block text-left">
