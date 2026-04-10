@@ -12,12 +12,19 @@ interface ConcertDetail {
   access_code: string;
   name: string;
   description: string;
-  layout_image_url: string; // แก้ชื่อให้ตรงกับ Backend
+  layout_image_url: string;
   show_date: string;
   venue_name: string;
   ticket_price: number;
   is_active: boolean;
 }
+
+// 1. เพิ่มฟังก์ชันสำหรับแปลง HTML Entities (เช่น &lt; เป็น <) ให้เป็น HTML ปกติ
+const decodeHTMLEntities = (text: string) => {
+  const textArea = document.createElement('textarea');
+  textArea.innerHTML = text;
+  return textArea.value;
+};
 
 export default function ConcertDetailsPage() {
   const { accessCode } = useParams();
@@ -29,7 +36,6 @@ export default function ConcertDetailsPage() {
     const fetchConcert = async () => {
       try {
         const { data } = await api.get(`/api/concerts/${accessCode}`);
-        // [จุดที่แก้] ต้องดึง data.concert เพราะ API ห่อข้อมูลมาในชื่อนี้
         setConcert(data.concert); 
       } catch (err) {
         console.error("Failed to fetch concert details");
@@ -53,7 +59,12 @@ export default function ConcertDetailsPage() {
   
   if (!concert) return null;
 
-  const safeHTML = DOMPurify.sanitize(concert.description || '<p className="text-center text-gray-500 my-10">เตรียมพบกับรายละเอียดความสนุกเร็วๆ นี้</p>', {
+  // 2. Decode ข้อความก่อน แล้วจึงนำไปผ่าน DOMPurify
+  const rawHTML = concert.description 
+    ? decodeHTMLEntities(concert.description) 
+    : '<p class="text-center text-gray-500 my-10">เตรียมพบกับรายละเอียดความสนุกเร็วๆ นี้</p>';
+
+  const safeHTML = DOMPurify.sanitize(rawHTML, {
     ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'h1', 'h2', 'h3', 'h4', 'img', 'iframe', 'br', 'ul', 'ol', 'li', 'span', 'div', 'u', 's', 'blockquote'],
     ALLOWED_ATTR: ['href', 'src', 'style', 'class', 'target', 'width', 'height', 'frameborder', 'allowfullscreen', 'allow', 'rel', 'title']
   });
