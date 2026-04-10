@@ -87,8 +87,8 @@ export default function HomePage() {
                   
                   <div className="mt-auto pt-2">
                     {c.is_active ? (
-                      <Link to={`/concerts/${c.access_code}/book`} className="block text-center w-full bg-brand text-white font-bold py-3 rounded-lg hover:bg-brand-hover transition active:scale-95 shadow-md">
-                        เลือกระบุที่นั่ง
+                      <Link to={`/concerts/${c.access_code}`} className="block text-center w-full bg-brand text-white font-bold py-3 rounded-lg hover:bg-brand-hover transition active:scale-95 shadow-md">
+                        ดูรายละเอียด & จองตั๋ว
                       </Link>
                     ) : (
                       <button disabled className="w-full bg-bg-main text-text-sub font-bold py-3 rounded-lg cursor-not-allowed border border-outline">

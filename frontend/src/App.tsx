@@ -5,6 +5,9 @@ import api from './services/api';
 import Layout from './layouts/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import LandingPage from './pages/LandingPage';
+import ReactQuill from 'react-quill-new';
+import 'react-quill-new/dist/quill.snow.css';
+import ConcertDetailsPage from './pages/ConcertDetailsPage';
 
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
@@ -15,7 +18,7 @@ const ConcertBookPage = lazy(() => import('./pages/ConcertBookPage'));
 const MyBookingPage = lazy(() => import('./pages/MyBookingPage')); 
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage'));
-const AdminPage = lazy(() => import('./pages/AdminPage'));
+const AdminPage = lazy(() => import('./pages/admin/AdminPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 const DownloadPage = lazy(() => import('./pages/DownloadPage'));
@@ -87,7 +90,7 @@ const App = () => {
           <Route path="/reset" element={<ResetPasswordPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
-
+          <Route path="/concerts/:accessCode" element={<ConcertDetailsPage />} />
           <Route path="/home" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
           <Route path="/concerts" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
           <Route path="/concerts/:id/book" element={<ProtectedRoute><ConcertBookPage /></ProtectedRoute>} />
