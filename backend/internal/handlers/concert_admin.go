@@ -108,6 +108,7 @@ func (h *Handler) AdminDeleteVenue(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AdminCreateConcert(w http.ResponseWriter, r *http.Request) {
 	r.ParseMultipartForm(10 * 1024 * 1024)
 	name := r.FormValue("name")
+	description := r.FormValue("description") // รับค่า description จาก Form
 	venue := r.FormValue("venue")
 	venueID := r.FormValue("venue_id")
 	price := r.FormValue("ticket_price")
@@ -120,9 +121,10 @@ func (h *Handler) AdminCreateConcert(w http.ResponseWriter, r *http.Request) {
 	var vID interface{}
 	if venueID == "" { vID = nil } else { vID = venueID }
 
-	accessCode := generateAccessCode() // สร้างรหัสใหม่
+	accessCode := generateAccessCode()
 
-	_, err := h.ConcertDB.Exec(`INSERT INTO concerts (access_code, name, venue, venue_id, ticket_price, show_date, layout_image_url, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, accessCode, name, venue, vID, price, showDate, imageURL, isActive)
+	// เพิ่ม description ในคำสั่ง INSERT (รวมเป็น $9)
+	_, err := h.ConcertDB.Exec(`INSERT INTO concerts (access_code, name, description, venue, venue_id, ticket_price, show_date, layout_image_url, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, accessCode, name, description, venue, vID, price, showDate, imageURL, isActive)
 	if err != nil { h.writeError(w, http.StatusInternalServerError, "Failed to create concert"); return }
 
 	WriteJSON(w, http.StatusCreated, map[string]string{"message": "Success"})
@@ -131,6 +133,7 @@ func (h *Handler) AdminCreateConcert(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AdminUpdateConcert(w http.ResponseWriter, r *http.Request) {
 	r.ParseMultipartForm(10 * 1024 * 1024)
 	name := r.FormValue("name")
+	description := r.FormValue("description") // รับค่า description จาก Form
 	venue := r.FormValue("venue")
 	venueID := r.FormValue("venue_id")
 	price := r.FormValue("ticket_price")
@@ -145,9 +148,11 @@ func (h *Handler) AdminUpdateConcert(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 	if imageURL != "" {
-		_, err = h.ConcertDB.Exec(`UPDATE concerts SET name=$1, venue=$2, venue_id=$3, ticket_price=$4, show_date=$5, layout_image_url=$6, is_active=$7 WHERE id=$8`, name, venue, vID, price, showDate, imageURL, isActive, id)
+		// อัปเดตตารางเมื่อมีรูปภาพใหม่
+		_, err = h.ConcertDB.Exec(`UPDATE concerts SET name=$1, description=$2, venue=$3, venue_id=$4, ticket_price=$5, show_date=$6, layout_image_url=$7, is_active=$8 WHERE id=$9`, name, description, venue, vID, price, showDate, imageURL, isActive, id)
 	} else {
-		_, err = h.ConcertDB.Exec(`UPDATE concerts SET name=$1, venue=$2, venue_id=$3, ticket_price=$4, show_date=$5, is_active=$6 WHERE id=$7`, name, venue, vID, price, showDate, isActive, id)
+		// อัปเดตตารางเมื่อไม่มีการเปลี่ยนรูป
+		_, err = h.ConcertDB.Exec(`UPDATE concerts SET name=$1, description=$2, venue=$3, venue_id=$4, ticket_price=$5, show_date=$6, is_active=$7 WHERE id=$8`, name, description, venue, vID, price, showDate, isActive, id)
 	}
 	if err != nil { h.writeError(w, http.StatusInternalServerError, "Failed to update concert"); return }
 
