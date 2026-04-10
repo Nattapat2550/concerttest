@@ -4,6 +4,8 @@ import api from '../services/api';
 
 // นำเข้ารูปภาพประกอบจาก assets
 import heroImg from '../assets/hero.png';
+import calendarImg from '../assets/calendar.png';
+import placeImg from '../assets/place.png';
 
 interface Concert {
   id: number;
@@ -70,10 +72,18 @@ export default function HomePage() {
                   )}
                 </div>
                 <div className="p-5 flex flex-col flex-1">
-                  <h3 className="text-lg md:text-xl font-bold mb-2 text-text-main wrap-break-word line-clamp-2">{c.name}</h3>
-                  {/* หมายเหตุ: ส่วนของ Date และ Venue ยังใช้ Emoji เพราะไม่มีรูปใน assets */}
-                  <p className="text-text-sub text-sm mb-1">📅 {new Date(c.show_date).toLocaleString()}</p>
-                  <p className="text-text-sub text-sm mb-4 truncate">📍 {c.venue}</p>
+                  <h3 className="text-lg md:text-xl font-bold mb-3 text-text-main wrap-break-word line-clamp-2">{c.name}</h3>
+                  
+                  {/* เปลี่ยนเป็นรูปภาพแทน Emoji */}
+                  <div className="flex items-center text-text-sub text-sm mb-2">
+                    <img src={calendarImg} alt="Date" className="w-4 h-4 mr-2 object-contain" />
+                    <span>{new Date(c.show_date).toLocaleString()}</span>
+                  </div>
+                  
+                  <div className="flex items-center text-text-sub text-sm mb-4">
+                    <img src={placeImg} alt="Venue" className="w-4 h-4 mr-2 object-contain" />
+                    <span className="truncate">{c.venue}</span>
+                  </div>
                   
                   <div className="mt-auto pt-2">
                     {c.is_active ? (

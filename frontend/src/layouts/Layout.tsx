@@ -4,9 +4,11 @@ import NewsPopup from '../components/NewsPopup';
 
 // นำเข้ารูปภาพจาก assets
 import logoImg from '../assets/logo.png';
-import settingImg from '../assets/setting.png';
+import settingImg from '../assets/settings.png'; // เปลี่ยนชื่อไฟล์ให้ตรงกับ assets ที่มี (settings.png)
 import logoutImg from '../assets/logout.png';
 import userImg from '../assets/user.png';
+import lightImg from '../assets/light.png';
+import darkImg from '../assets/dark.png';
 
 export default function Layout() {
   const location = useLocation();
@@ -89,9 +91,9 @@ export default function Layout() {
 
             {/* ขวา: โหมดกลางคืน + Profile/Login + ปุ่ม Hamburger */}
             <div className="flex items-center space-x-2 md:space-x-4">
-              {/* หมายเหตุ: ปุ่มธีมยังใช้ Emoji เพราะไม่มีรูป Sun/Moon ใน assets */}
-              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-full hover:bg-bg-main text-text-main transition">
-                {theme === 'dark' ? '../assets/light.png' : '../assets/dark.png'}
+              {/* ปุ่มเปลี่ยนธีมใช้รูปภาพแล้ว */}
+              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-full hover:bg-bg-main text-text-main transition flex items-center justify-center">
+                <img src={theme === 'dark' ? lightImg : darkImg} alt="Toggle Theme" className="w-5 h-5 object-contain" />
               </button>
               
               <div className="hidden md:block border-l border-outline h-6 mx-2"></div>
