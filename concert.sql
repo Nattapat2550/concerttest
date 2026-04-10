@@ -30,8 +30,7 @@ CREATE TABLE concerts (
     ticket_price DECIMAL(10, 2) DEFAULT 2500.00,
     layout_image_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    is_active BOOLEAN DEFAULT FALSE,
-    description TEXT
+    is_active BOOLEAN DEFAULT FALSE
 );
 
 -- 4. ตารางกำหนดที่นั่งรายคอนเสิร์ต (Concert Seats)
