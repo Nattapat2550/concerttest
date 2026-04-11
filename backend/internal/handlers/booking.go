@@ -1,8 +1,13 @@
+// backend/internal/handlers/booking.go
 package handlers
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"net/http"
 	"sync/atomic"
@@ -10,6 +15,17 @@ import (
 
 	"github.com/go-chi/chi/v5"
 )
+
+// ===== Helper for QR Token =====
+func generateQRToken(bookingID int) string {
+	secret := "concerttick_super_secret" // คีย์สำหรับการเข้ารหัส (ใน Production ควรใส่ใน ENV)
+	msg := fmt.Sprintf("%d", bookingID)
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write([]byte(msg))
+	sig := hex.EncodeToString(h.Sum(nil))
+	// รูปแบบ: base64( ID | HMAC_Signature )
+	return base64.StdEncoding.EncodeToString([]byte(msg + "|" + sig))
+}
 
 // ===== BOOKING FUNCTIONS =====
 
@@ -22,11 +38,17 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 	u := GetUser(r)
 	if u == nil { return }
 
-	// หา AccessCode จาก ID ของคอนเสิร์ตเพื่อไปเช็คกับ Queue Manager
 	var accessCode string
-	err := h.ConcertDB.QueryRowContext(ctx, "SELECT access_code FROM concerts WHERE id = $1", req.ConcertID).Scan(&accessCode)
+	var showDate time.Time
+	err := h.ConcertDB.QueryRowContext(ctx, "SELECT access_code, show_date FROM concerts WHERE id = $1", req.ConcertID).Scan(&accessCode, &showDate)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, "Invalid concert")
+		return
+	}
+
+	// 🛑 ระบบหมดเวลา: ถ้าเวลาปัจจุบัน เลยเวลาแสดงคอนเสิร์ตไปแล้ว จะจองไม่ได้
+	if time.Now().After(showDate) {
+		h.writeError(w, http.StatusBadRequest, "คอนเสิร์ตนี้ได้เริ่มหรือจบลงแล้ว ไม่สามารถจองที่นั่งได้")
 		return
 	}
 
@@ -97,10 +119,15 @@ func (h *Handler) GetMyBookings(w http.ResponseWriter, r *http.Request) {
 		FROM bookings b JOIN concerts c ON b.concert_id = c.id 
 		WHERE b.user_id = $1 ORDER BY b.booked_at DESC`, fmt.Sprint(u.ID))
 	defer rows.Close()
+	
 	var bookings []MyBooking
 	for rows.Next() {
 		var b MyBooking
-		if err := rows.Scan(&b.ID, &b.ConcertName, &b.SeatCode, &b.Price, &b.Status); err == nil { bookings = append(bookings, b) }
+		if err := rows.Scan(&b.ID, &b.ConcertName, &b.SeatCode, &b.Price, &b.Status); err == nil { 
+			// สร้างรหัส QR พิเศษสำหรับแต่ละการจอง
+			b.QRToken = generateQRToken(b.ID)
+			bookings = append(bookings, b) 
+		}
 	}
 	if bookings == nil { bookings = []MyBooking{} }
 	WriteJSON(w, http.StatusOK, bookings)

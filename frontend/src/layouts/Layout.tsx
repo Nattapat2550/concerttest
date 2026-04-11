@@ -1,8 +1,8 @@
+// frontend/src/layouts/Layout.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import NewsPopup from '../components/NewsPopup';
 
-// นำเข้ารูปภาพจาก assets
 import logoImg from '../assets/logo.png';
 import settingImg from '../assets/settings.png'; 
 import logoutImg from '../assets/logout.png';
@@ -13,8 +13,21 @@ import darkImg from '../assets/dark.png';
 export default function Layout() {
   const location = useLocation();
   const token = localStorage.getItem('token');
-  const userStr = localStorage.getItem('user');
-  const user = userStr ? JSON.parse(userStr) : null;
+  
+  // สังเกตการเปลี่ยน User หากมีการอัปเดต Username หรือ Profile Image ให้ Load ใหม่
+  const [user, setUser] = useState<any>(null);
+
+  useEffect(() => {
+    const loadUser = () => {
+      const userStr = localStorage.getItem('user');
+      if (userStr) setUser(JSON.parse(userStr));
+    };
+    loadUser();
+    // ดักฟังเผื่อมีการแก้ไขข้อมูลในหน้า Settings
+    window.addEventListener('storage', loadUser);
+    return () => window.removeEventListener('storage', loadUser);
+  }, []);
+
   const role = token ? (user?.role || 'user') : 'guest';
 
   const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light');
@@ -56,7 +69,6 @@ export default function Layout() {
     <div className="min-h-screen flex flex-col bg-bg-main text-text-main transition-colors duration-300 font-sans">
       <NewsPopup />
       
-      {/* Navbar Premium: Glassmorphism & Sticky */}
       <nav className="sticky top-0 bg-bg-card/80 backdrop-blur-lg border-b border-outline shadow-[0_4px_30px_rgba(0,0,0,0.03)] z-50 transition-colors duration-300">
         <div className="w-full px-6 lg:px-12 2xl:px-20">
           <div className="flex justify-between h-20 items-center">
@@ -102,8 +114,10 @@ export default function Layout() {
               ) : (
                 <div className="relative" ref={dropdownRef}>
                   <button onClick={() => setDropdownOpen(!dropdownOpen)} className="flex items-center gap-3 p-1.5 pr-4 rounded-full border border-outline hover:border-brand/50 hover:bg-bg-main transition-all focus:outline-none">
-                    <img src={userImg} alt="User" className="w-9 h-9 rounded-full bg-brand/10 p-1 object-cover" />
-                    <span className="hidden sm:block max-w-32 truncate text-sm font-bold">{user?.first_name || user?.username || 'User'}</span>
+                    {/* ดึงรูป Profile Picture จริงจากฐานข้อมูล */}
+                    <img src={user?.profile_picture_url || userImg} alt="User" className="w-9 h-9 rounded-full bg-brand/10 p-1 object-cover" />
+                    {/* ดึง Username ขึ้นมาก่อน ค่อยตามด้วย First Name */}
+                    <span className="hidden sm:block max-w-32 truncate text-sm font-bold">{user?.username || user?.first_name || 'User'}</span>
                     <svg className={`w-4 h-4 text-text-sub transform transition-transform duration-300 ${dropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7"></path></svg>
                   </button>
                   

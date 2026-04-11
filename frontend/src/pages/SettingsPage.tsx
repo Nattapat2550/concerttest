@@ -1,15 +1,19 @@
+// frontend/src/pages/SettingsPage.tsx
 import React, { useState, useEffect } from 'react';
 import api from '../services/api';
 
 export default function SettingsPage() {
-  const [profile, setProfile] = useState({ first_name: '', last_name: '', tel: '', profile_picture_url: '' });
+  const [profile, setProfile] = useState({ username: '', first_name: '', last_name: '', tel: '', profile_picture_url: '' });
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
 
   useEffect(() => {
     api.get('/api/users/me').then(({ data }) => setProfile({
-      first_name: data.first_name || '', last_name: data.last_name || '', 
-      tel: data.tel || '', profile_picture_url: data.profile_picture_url || ''
+      username: data.username || '',
+      first_name: data.first_name || '', 
+      last_name: data.last_name || '', 
+      tel: data.tel || '', 
+      profile_picture_url: data.profile_picture_url || ''
     })).catch(console.error);
   }, []);
 
@@ -18,9 +22,22 @@ export default function SettingsPage() {
     setLoading(true);
     try {
       await api.put('/api/users/me', profile); 
+      
+      // อัปเดต LocalStorage เพื่อให้ Navbar เปลี่ยนทันที
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const u = JSON.parse(userStr);
+        u.username = profile.username;
+        u.first_name = profile.first_name;
+        localStorage.setItem('user', JSON.stringify(u));
+        window.dispatchEvent(new Event('storage'));
+      }
+
       setSuccessMsg('บันทึกข้อมูลสำเร็จ');
       setTimeout(() => setSuccessMsg(''), 3000);
-    } catch (err: any) { alert('เกิดข้อผิดพลาดในการบันทึก'); }
+    } catch (err: any) { 
+      alert(err.response?.data?.error || 'เกิดข้อผิดพลาดในการบันทึก หรือ Username นี้ถูกใช้ไปแล้ว'); 
+    }
     setLoading(false);
   };
 
@@ -42,10 +59,10 @@ export default function SettingsPage() {
         const user = JSON.parse(userStr);
         user.profile_picture_url = data.profile_picture_url;
         localStorage.setItem('user', JSON.stringify(user));
+        window.dispatchEvent(new Event('storage'));
       }
 
       alert('เปลี่ยนรูปโปรไฟล์สำเร็จ');
-      window.location.reload(); 
     } catch (err: any) { alert('ไฟล์รูปภาพใหญ่เกินไป หรือเกิดข้อผิดพลาด'); }
   };
 
@@ -83,6 +100,10 @@ export default function SettingsPage() {
         </div>
 
         <form onSubmit={handleUpdateProfile} className="flex-1 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Username</label>
+            <input type="text" value={profile.username} onChange={(e) => setProfile({...profile, username: e.target.value})} className="mt-1 block w-full border dark:border-gray-600 rounded-md p-2 dark:bg-gray-700 dark:text-white outline-none focus:ring-2 focus:ring-blue-500" required />
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">ชื่อจริง</label>

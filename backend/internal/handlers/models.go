@@ -68,4 +68,5 @@ type MyBooking struct {
 	SeatCode    string    `json:"seat_code"`
 	Price       float64   `json:"price"`
 	Status      string    `json:"status"`
+	QRToken     string    `json:"qr_token"`
 }

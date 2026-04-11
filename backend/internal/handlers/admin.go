@@ -1,7 +1,11 @@
+// backend/internal/handlers/admin.go
 package handlers
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -210,6 +214,72 @@ func (h *Handler) AdminCarouselDelete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ---------- Admin: Scan Ticket (NEW) ----------
+// POST /api/admin/bookings/scan
+func (h *Handler) AdminScanTicket(w http.ResponseWriter, r *http.Request) {
+	var req map[string]string
+	if err := ReadJSON(r, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	token := req["token"]
+
+	// ถอดรหัส Token
+	decoded, err := base64.StdEncoding.DecodeString(token)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "QR Code ไม่ถูกต้อง (Invalid Format)")
+		return
+	}
+
+	parts := strings.Split(string(decoded), "|")
+	if len(parts) != 2 {
+		h.writeError(w, http.StatusBadRequest, "QR Code ข้อมูลไม่ครบถ้วน")
+		return
+	}
+
+	bookingID := parts[0]
+	sig := parts[1]
+
+	// ตรวจสอบลายเซ็น (Signature) ว่าไม่ได้ถูกปลอมแปลง
+	secret := "concerttick_super_secret" // ต้องตรงกับฝั่ง Generate
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(bookingID))
+	expectedSig := hex.EncodeToString(mac.Sum(nil))
+
+	if !hmac.Equal([]byte(sig), []byte(expectedSig)) {
+		h.writeError(w, http.StatusForbidden, "QR Code ปลอมแปลง! ไม่อนุญาตให้เข้างาน")
+		return
+	}
+
+	ctx := r.Context()
+	var currentStatus string
+	err = h.ConcertDB.QueryRowContext(ctx, "SELECT status FROM bookings WHERE id = $1", bookingID).Scan(&currentStatus)
+	if err != nil {
+		h.writeError(w, http.StatusNotFound, "ไม่พบข้อมูลการจองในระบบ")
+		return
+	}
+
+	switch currentStatus {
+	case "used":
+		h.writeError(w, http.StatusConflict, "บัตรใบนี้ถูกใช้งานแสกนเข้างานไปแล้ว!")
+		return
+	case "cancelled":
+		h.writeError(w, http.StatusConflict, "บัตรใบนี้ถูกยกเลิกไปแล้ว!")
+		return
+	}
+
+	// อัปเดตเป็น Used ป้องกันการแสกนซ้ำ
+	_, err = h.ConcertDB.ExecContext(ctx, "UPDATE bookings SET status = 'used' WHERE id = $1", bookingID)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "Database Error")
+		return
+	}
+
+	WriteJSON(w, http.StatusOK, map[string]string{
+		"message": fmt.Sprintf("ตรวจสอบบัตรสำเร็จ (ID: %s) อนุญาตให้เข้างาน", bookingID),
+	})
+}
+
 // ---------- helpers ----------
 
 func isUsernameUniqueViolation(err error) bool {
@@ -263,7 +333,6 @@ func readImageDataURL(r *http.Request, field string, maxBytes int64) (string, er
 func tryReadImageDataURL(r *http.Request, field string, maxBytes int64) (string, error) {
 	f, hdr, err := r.FormFile(field)
 	if err != nil {
-		// no file provided
 		return "", nil
 	}
 	defer f.Close()

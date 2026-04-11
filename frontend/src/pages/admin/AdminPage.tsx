@@ -1,3 +1,4 @@
+// frontend/src/pages/admin/AdminPage.tsx
 import React, { useState } from 'react';
 import { Concert } from './types';
 
@@ -7,6 +8,7 @@ import ConcertsTab from './tabs/ConcertsTab';
 import BookingsTab from './tabs/BookingsTab';
 import UsersTab from './tabs/UsersTab';
 import NewsTab from './tabs/NewsTab';
+import ScanTicketTab from './tabs/ScanTicketTab'; 
 
 // นำเข้าไอคอนสำหรับเมนู
 import placeImg from '../../assets/place.png';
@@ -14,6 +16,7 @@ import ticketImg from '../../assets/ticket.png';
 import calendarImg from '../../assets/calendar.png';
 import userImg from '../../assets/user.png';
 import ideaImg from '../../assets/idea.png';
+import settingsImg from '../../assets/settings.png'; // ย้ายขึ้นมาด้านบนเพื่อไม่ให้เกิด Error
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('bookings'); 
@@ -42,6 +45,9 @@ export default function AdminPage() {
             <TabButton icon={calendarImg} id="bookings" label="ดูการจองตั๋ว" active={activeTab} onClick={setActiveTab} />
             <TabButton icon={userImg} id="users" label="จัดการผู้ใช้" active={activeTab} onClick={setActiveTab} />
             <TabButton icon={ideaImg} id="news" label="จัดการข่าวสาร" active={activeTab} onClick={setActiveTab} />
+            
+            {/* 👈 เพิ่มปุ่มเมนูสำหรับแสกนบัตร */}
+            <TabButton icon={ticketImg} id="scan" label="แสกนบัตรเข้างาน (Scan)" active={activeTab} onClick={setActiveTab} />
           </div>
         </div>
 
@@ -52,6 +58,9 @@ export default function AdminPage() {
           {activeTab === 'bookings' && <BookingsTab />}
           {activeTab === 'users' && <UsersTab />}
           {activeTab === 'news' && <NewsTab />}
+          
+          {/* 👈 แสดงหน้า Scan เมื่อเลือก Tab */}
+          {activeTab === 'scan' && <ScanTicketTab />}
         </div>
         
       </div>
@@ -80,6 +89,3 @@ function TabButton({ id, label, active, onClick, icon }: { id: string, label: st
     </button>
   );
 }
-
-// แอบนำเข้า settingsImg สำหรับ Header (ถ้าไม่อยากให้ Error ต้องมี Import ไว้ด้านบน หรือใช้ icon ที่มี)
-import settingsImg from '../../assets/settings.png';

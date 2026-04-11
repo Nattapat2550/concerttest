@@ -1,3 +1,4 @@
+// backend/internal/httpapi/router.go
 package httpapi
 
 import (
@@ -73,12 +74,11 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 		cr.Get("/news/latest", h.GetLatestNews)
 		cr.Get("/list", h.GetConcerts)
 		
-		// ✅ ระบบคิวแยกตามคอนเสิร์ต
 		cr.Get("/{id}/queue/join", h.JoinQueue)
 		cr.Get("/{id}/queue/status", h.CheckQueueStatus)
 
-		cr.Get("/{id}/seats", h.GetConcertSeats) // ระบบเก่า
-		cr.Get("/{id}", h.GetConcertDetails)     // ระบบใหม่ (SVG)
+		cr.Get("/{id}/seats", h.GetConcertSeats)
+		cr.Get("/{id}", h.GetConcertDetails)
 		
 		cr.With(h.RequireAuth).Post("/book", h.BookSeat)
 		cr.With(h.RequireAuth).Get("/my-bookings", h.GetMyBookings)
@@ -102,6 +102,7 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 		
 		ad.Get("/bookings", h.AdminGetAllBookings)
 		ad.Put("/bookings/{id}/cancel", h.AdminCancelBooking)
+		ad.Post("/bookings/scan", h.AdminScanTicket)
 		
 		ad.Get("/venues", h.AdminGetVenues)
 		ad.Post("/venues", h.AdminCreateVenue)
@@ -111,7 +112,7 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 		ad.Post("/concerts", h.AdminCreateConcert)
 		ad.Put("/concerts/{id}", h.AdminUpdateConcert)
 		ad.Delete("/concerts/{id}", h.AdminDeleteConcert)
-		ad.Post("/concerts/{id}/seats", h.AdminSaveConcertSeats) // บันทึกผังที่ Admin ตั้งค่า
+		ad.Post("/concerts/{id}/seats", h.AdminSaveConcertSeats)
 
 		ad.Get("/news", h.AdminGetNewsList)
 		ad.Post("/news", h.AdminCreateNews)
