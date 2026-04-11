@@ -229,7 +229,7 @@ export default function ConcertsTab({ onOpenMapBuilder }: ConcertsTabProps) {
             {/* Status Badge & ID */}
             <div className="flex justify-between items-center p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
               <span className="font-mono text-xs font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-2.5 py-1 rounded-md">
-                ID: {c.access_code}
+                ID: {c.id}
               </span>
               {c.is_active ? (
                 <span className="text-xs font-bold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 px-3 py-1 rounded-full border border-green-200 dark:border-green-800/50">เปิดให้จองอยู่</span>
@@ -297,7 +297,7 @@ export default function ConcertsTab({ onOpenMapBuilder }: ConcertsTabProps) {
                    <label className={labelStyle}>รหัสคอนเสิร์ต (Concert ID)</label>
                    <div className="flex items-center bg-gray-100 dark:bg-gray-900 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
                      <span className="px-4 py-3 bg-gray-200 dark:bg-gray-800 text-gray-500 font-bold border-r border-gray-300 dark:border-gray-700">ID</span>
-                     <input type="text" disabled value={editingConcert.id} className="w-full p-3 bg-transparent text-gray-700 dark:text-gray-300 font-mono font-bold outline-none" />
+                     <input type="text" disabled value={editingConcert.access_code} className="w-full p-3 bg-transparent text-gray-700 dark:text-gray-300 font-mono font-bold outline-none" />
                    </div>
                 </div>
 
