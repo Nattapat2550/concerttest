@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Admin Page Protection', () => {
+test.describe('Admin Page Protection & Functionality', () => {
   test.beforeEach(async ({ page }) => {
-    // 🌟 ดักปิดแค่ News Popup อย่างเดียว เพราะเทสต์ข้างในมีการจัดการ Status แยกกัน
+    // 🌟 ดักปิด News Popup ป้องกันมารบกวนการเทสต์
     await page.route('**/api/concerts/news/latest', route => route.fulfill({ status: 200, json: [] }));
   });
 
@@ -19,7 +19,7 @@ test.describe('Admin Page Protection', () => {
     await expect(page).toHaveURL(/\/login/); 
   });
 
-  test('Admin เข้า /admin และโหลดข้อมูลสำเร็จ', async ({ page }) => {
+  test('Admin เข้า /admin และโหลดข้อมูล UI ใหม่ (Premium) สำเร็จ', async ({ page }) => {
     // 📌 1. Mock API สำหรับการ Login 
     await page.route('**/api/auth/login', route => {
       route.fulfill({
@@ -45,9 +45,11 @@ test.describe('Admin Page Protection', () => {
     // 📌 4. ลองเข้าหน้า /admin
     await page.goto('/admin');
     
-    // 📌 5. ตรวจสอบคำที่มีอยู่จริงใน AdminPage.jsx ปัจจุบัน
-    await expect(page.locator('h2:has-text("Admin Dashboard")')).toBeVisible();
+    // 📌 5. ตรวจสอบคำที่มีอยู่จริงใน AdminPage.jsx (Premium UI Version)
+    await expect(page.locator('h2:has-text("Administrator Workspace")')).toBeVisible();
     await expect(page.locator('button:has-text("จัดการผู้ใช้")')).toBeVisible();
-    await expect(page.locator('button:has-text("2. จัดการคอนเสิร์ต/ผังที่นั่ง")')).toBeVisible();
+    await expect(page.locator('button:has-text("จัดการคอนเสิร์ต / ผังที่นั่ง")')).toBeVisible();
+    await expect(page.locator('button:has-text("จัดการสถานที่")')).toBeVisible();
+    await expect(page.locator('button:has-text("ดูการจองตั๋ว")')).toBeVisible();
   });
 });

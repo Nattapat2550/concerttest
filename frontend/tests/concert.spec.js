@@ -16,7 +16,6 @@ async function mockApi(page, urlPattern, responseData, status = 200, delay = 0) 
       return;
     }
     
-    // หน่วงเวลาจำลองความล่าช้าของ Network
     if (delay > 0) {
       await new Promise(resolve => setTimeout(resolve, delay));
     }
@@ -30,28 +29,16 @@ async function mockApi(page, urlPattern, responseData, status = 200, delay = 0) 
   });
 }
 
-// 🛠️ ตัวช่วยจำลองการคลิกที่นั่งใน SVG พร้อมส่งพิกัด X, Y ป้องกันบัค PointerEvent
-async function simulateSeatClick(page, seatId) {
-  await page.evaluate((id) => {
-    const el = document.getElementById(id);
-    if (el) {
-      const rect = el.getBoundingClientRect();
-      const clientX = rect.left + rect.width / 2;
-      const clientY = rect.top + rect.height / 2;
-      
-      el.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX, clientY }));
-      el.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX, clientY }));
-      el.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX, clientY }));
-    }
-  }, seatId);
-}
-
-test.describe('Concerts Booking & Queue Flow', () => {
+test.describe('Concerts Display, Booking & Flow', () => {
 
   test.beforeEach(async ({ page }) => {
-    // 🌟 ดัก API Auth แบบครอบจักรวาล ป้องกันแอปเด้งกลับไปหน้า Login แบบไม่ตั้งใจ
-    await mockApi(page, '**/api/auth/**', { authenticated: true, id: 1, role: 'user', user: { id: 1, role: 'user' } });
-    await mockApi(page, '**/api/concerts/news/latest', []);
+    // 🌟 ดัก API Auth 
+    await mockApi(page, '**/api/auth/status', { authenticated: true, id: 1, role: 'user', user: { id: 1, role: 'user' } });
+    
+    // Mock ข้อมูลคอนเสิร์ตจำลอง
+    await mockApi(page, '**/api/concerts/list', [
+      { id: 1, access_code: 'TEST2026', name: 'Premium Concert Test', show_date: '2026-12-31T20:00:00Z', venue: 'Impact Arena', is_active: true }
+    ]);
 
     await page.addInitScript(() => {
       localStorage.setItem('token', 'fake-jwt-token');
@@ -70,12 +57,35 @@ test.describe('Concerts Booking & Queue Flow', () => {
     await expect(popupTitle).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('ข่าวประกาศสำคัญ')).toBeVisible();
 
+    // กดปิดและไม่ต้องแสดงอีก
     await page.check('input[type="checkbox"]'); 
     await page.click('button:has-text("เข้าสู่เว็บไซต์")');
 
     await expect(popupTitle).not.toBeVisible();
     const latestSeenId = await page.evaluate(() => localStorage.getItem('latestSeenNewsId'));
     expect(latestSeenId).toBe('99');
+  });
+
+  test('should display concert list and navigate to details', async ({ page }) => {
+    await mockApi(page, '**/api/concerts/news/latest', []); // ไม่มีข่าว
+    
+    // Mock Concert Details API
+    await mockApi(page, '**/api/concerts/TEST2026', {
+      concert: { id: 1, access_code: 'TEST2026', name: 'Premium Concert Test', description: '<p>Detail</p>', show_date: '2026-12-31T20:00:00Z', venue_name: 'Impact Arena', ticket_price: 2500, is_active: true }
+    });
+
+    await page.goto('/home');
+
+    // ยืนยันว่าหน้า Home โหลดคอนเสิร์ตมาแสดง
+    await expect(page.locator('h3', { hasText: 'Premium Concert Test' })).toBeVisible();
+
+    // คลิกปุ่ม "ดูรายละเอียด & จองตั๋ว"
+    await page.click('text=ดูรายละเอียด & จองตั๋ว');
+
+    // ตรวจสอบว่าเปลี่ยนหน้ามาที่รายละเอียดแล้ว
+    await expect(page).toHaveURL(/\/concerts\/TEST2026/);
+    await expect(page.locator('h1:has-text("Premium Concert Test")')).toBeVisible();
+    await expect(page.locator('text=จองที่นั่งทันที')).toBeVisible();
   });
 
 });
