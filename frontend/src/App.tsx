@@ -56,18 +56,20 @@ const App = () => {
         localStorage.setItem('token', token);
         if (role) localStorage.setItem('role', role);
         
-        // แก้ไข: ดึงข้อมูล User จาก backend ทันทีเพราะ Google OAuth ไม่ได้ส่งข้อมูลนี้มาใน URL
+        // ดึงข้อมูล User จาก backend ทันที
         api.get('/api/auth/status')
           .then((res) => {
             if (res.data && res.data.user) {
               localStorage.setItem('user', JSON.stringify(res.data.user));
+              window.dispatchEvent(new Event('user-updated')); // ส่งสัญญาณบอกระบบให้ขยับ Layout ทันที
             }
-            window.history.replaceState(null, '', window.location.pathname);
-            window.location.href = role === 'admin' ? '/admin' : '/home';
+            const targetUrl = role === 'admin' ? '/admin' : '/home';
+            window.history.replaceState(null, '', targetUrl); // ลบ Hash ทิ้ง
+            window.location.reload(); // บังคับ Reload หน้าเว็บแบบสมบูรณ์ เพื่อป้องกัน State ค้าง
           })
           .catch(() => {
-            window.history.replaceState(null, '', window.location.pathname);
-            window.location.href = '/home';
+            window.history.replaceState(null, '', '/home');
+            window.location.reload();
           });
       }
     }

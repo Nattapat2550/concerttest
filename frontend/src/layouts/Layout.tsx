@@ -1,6 +1,7 @@
 // frontend/src/layouts/Layout.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
+import api from '../services/api'; // เพิ่ม import api
 import NewsPopup from '../components/NewsPopup';
 
 import logoImg from '../assets/logo.png';
@@ -14,19 +15,46 @@ export default function Layout() {
   const location = useLocation();
   const token = localStorage.getItem('token');
   
-  // สังเกตการเปลี่ยน User หากมีการอัปเดต Username หรือ Profile Image ให้ Load ใหม่
   const [user, setUser] = useState<any>(null);
 
+  // โหลด User ครั้งแรก และซิงค์ข้อมูลใหม่จาก Server
   useEffect(() => {
     const loadUser = () => {
       const userStr = localStorage.getItem('user');
-      if (userStr) setUser(JSON.parse(userStr));
+      if (userStr) {
+        try { setUser(JSON.parse(userStr)); } catch(e) {}
+      }
     };
     loadUser();
-    // ดักฟังเผื่อมีการแก้ไขข้อมูลในหน้า Settings
+
+    // หากมี Token ให้ดึงข้อมูลล่าสุดจาก Server เพื่อป้องกันปัญหาข้อมูลค้างจากหน้า Login/Google
+    if (token) {
+      api.get('/api/auth/status')
+        .then(res => {
+          if (res.data && res.data.user) {
+            setUser(res.data.user);
+            localStorage.setItem('user', JSON.stringify(res.data.user));
+          }
+        })
+        .catch(err => console.error("Failed to load user status", err));
+    }
+
+    // ดักฟัง Event กรณีข้อมูลเปลี่ยนในแท็บอื่น หรือแท็บเดียวกัน
     window.addEventListener('storage', loadUser);
-    return () => window.removeEventListener('storage', loadUser);
-  }, []);
+    window.addEventListener('user-updated', loadUser);
+    return () => {
+      window.removeEventListener('storage', loadUser);
+      window.removeEventListener('user-updated', loadUser);
+    };
+  }, [token]);
+
+  // ซิงค์จาก LocalStorage ใหม่เสมอเมื่อเปลี่ยนหน้า (เช่น ทำให้อัปเดตทันทีที่กลับมาจากหน้า Settings)
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      try { setUser(JSON.parse(userStr)); } catch(e) {}
+    }
+  }, [location.pathname]);
 
   const role = token ? (user?.role || 'user') : 'guest';
 
@@ -114,9 +142,7 @@ export default function Layout() {
               ) : (
                 <div className="relative" ref={dropdownRef}>
                   <button onClick={() => setDropdownOpen(!dropdownOpen)} className="flex items-center gap-3 p-1.5 pr-4 rounded-full border border-outline hover:border-brand/50 hover:bg-bg-main transition-all focus:outline-none">
-                    {/* ดึงรูป Profile Picture จริงจากฐานข้อมูล */}
                     <img src={user?.profile_picture_url || userImg} alt="User" className="w-9 h-9 rounded-full bg-brand/10 p-1 object-cover" />
-                    {/* ดึง Username ขึ้นมาก่อน ค่อยตามด้วย First Name */}
                     <span className="hidden sm:block max-w-32 truncate text-sm font-bold">{user?.username || user?.first_name || 'User'}</span>
                     <svg className={`w-4 h-4 text-text-sub transform transition-transform duration-300 ${dropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7"></path></svg>
                   </button>
