@@ -4,7 +4,7 @@ import NewsPopup from '../components/NewsPopup';
 
 // นำเข้ารูปภาพจาก assets
 import logoImg from '../assets/logo.png';
-import settingImg from '../assets/settings.png'; // เปลี่ยนชื่อไฟล์ให้ตรงกับ assets ที่มี (settings.png)
+import settingImg from '../assets/settings.png'; 
 import logoutImg from '../assets/logout.png';
 import userImg from '../assets/user.png';
 import lightImg from '../assets/light.png';
@@ -22,7 +22,6 @@ export default function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // สลับธีม
   useEffect(() => {
     const root = window.document.documentElement;
     if (theme === 'dark') root.classList.add('dark');
@@ -30,7 +29,6 @@ export default function Layout() {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // ปิด Dropdown Profile เมื่อคลิกที่อื่น
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -41,7 +39,6 @@ export default function Layout() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ปิดเมนูมือถืออัตโนมัติเมื่อเปลี่ยนหน้าเว็บ
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
@@ -52,28 +49,27 @@ export default function Layout() {
     window.location.href = '/login';
   };
 
-  const isActive = (path: string) => location.pathname.includes(path) ? "text-brand font-bold" : "text-text-sub hover:text-brand transition";
-  
-  // สไตล์สำหรับปุ่มเมนูในมือถือ
-  const isMobileActive = (path: string) => location.pathname.includes(path) ? "text-brand font-bold block px-3 py-2 rounded-md bg-brand/10" : "text-text-sub hover:text-brand transition block px-3 py-2 rounded-md hover:bg-bg-main";
+  const isActive = (path: string) => location.pathname.includes(path) ? "text-brand font-black" : "text-text-sub hover:text-brand font-medium transition-colors";
+  const isMobileActive = (path: string) => location.pathname.includes(path) ? "text-brand font-black block px-4 py-3 rounded-xl bg-brand/10" : "text-text-sub hover:text-brand font-medium transition block px-4 py-3 rounded-xl hover:bg-bg-main";
 
   return (
-    <div className="min-h-screen flex flex-col bg-bg-main text-text-main transition-colors duration-300">
+    <div className="min-h-screen flex flex-col bg-bg-main text-text-main transition-colors duration-300 font-sans">
       <NewsPopup />
       
-      <nav className="bg-bg-card border-b border-outline shadow-sm relative z-50 transition-colors duration-300">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
+      {/* Navbar Premium: Glassmorphism & Sticky */}
+      <nav className="sticky top-0 bg-bg-card/80 backdrop-blur-lg border-b border-outline shadow-[0_4px_30px_rgba(0,0,0,0.03)] z-50 transition-colors duration-300">
+        <div className="w-full px-6 lg:px-12 2xl:px-20">
+          <div className="flex justify-between h-20 items-center">
             
-            {/* ซ้าย: โลโก้ และ เมนูสำหรับจอคอม (md:flex) */}
             <div className="flex items-center">
-              <Link to="/" className="flex items-center mr-6 shrink-0">
-                <img src={logoImg} alt="ConcertTick Logo" className="w-8 h-8 mr-2 object-contain" />
-                <span className="text-xl font-bold tracking-wider text-brand">ConcertTick</span>
+              <Link to="/" className="flex items-center mr-10 shrink-0 group">
+                <div className="p-2 bg-brand/10 rounded-xl mr-3 group-hover:scale-105 transition-transform">
+                  <img src={logoImg} alt="Logo" className="w-8 h-8 object-contain" />
+                </div>
+                <span className="text-2xl font-black tracking-tight bg-clip-text text-transparent bg-linear-to-r from-brand to-purple-600">ConcertTick</span>
               </Link>
               
-              {/* เมนูจอคอม */}
-              <div className="hidden md:flex items-center space-x-5 lg:space-x-6 text-sm lg:text-base">
+              <div className="hidden lg:flex items-center space-x-8 text-base">
                 <Link to="/about" className={isActive('/about')}>About</Link>
                 <Link to="/contact" className={isActive('/contact')}>Contact</Link>
                 <Link to="/download" className={isActive('/download')}>Download</Link>
@@ -84,41 +80,45 @@ export default function Layout() {
                   </>
                 )}
                 {role === 'admin' && (
-                  <Link to="/admin" className="bg-brand px-3 py-1 rounded hover:bg-brand-hover font-bold text-white ml-2 transition">Admin Panel</Link>
+                  <Link to="/admin" className="bg-linear-to-r from-brand to-purple-600 px-5 py-2 rounded-xl text-white font-bold shadow-lg shadow-brand/30 hover:shadow-brand/50 transform hover:-translate-y-0.5 transition-all">
+                    Admin Workspace
+                  </Link>
                 )}
               </div>
             </div>
 
-            {/* ขวา: โหมดกลางคืน + Profile/Login + ปุ่ม Hamburger */}
-            <div className="flex items-center space-x-2 md:space-x-4">
-              {/* ปุ่มเปลี่ยนธีมใช้รูปภาพแล้ว */}
-              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-full hover:bg-bg-main text-text-main transition flex items-center justify-center">
-                <img src={theme === 'dark' ? lightImg : darkImg} alt="Toggle Theme" className="w-5 h-5 object-contain" />
+            <div className="flex items-center space-x-3 md:space-x-5">
+              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2.5 rounded-full hover:bg-bg-main text-text-main transition-all flex items-center justify-center border border-transparent hover:border-outline">
+                <img src={theme === 'dark' ? lightImg : darkImg} alt="Theme" className="w-5 h-5 object-contain opacity-80" />
               </button>
               
-              <div className="hidden md:block border-l border-outline h-6 mx-2"></div>
+              <div className="hidden md:block w-px h-8 bg-outline mx-2"></div>
 
               {role === 'guest' ? (
-                <div className="hidden md:flex items-center space-x-4 text-sm lg:text-base">
-                  <Link to="/login" className="text-text-sub hover:text-brand transition">เข้าสู่ระบบ</Link>
-                  <Link to="/register" className="bg-brand px-4 py-2 rounded text-white hover:bg-brand-hover transition">สมัครสมาชิก</Link>
+                <div className="hidden md:flex items-center space-x-4 text-base font-bold">
+                  <Link to="/login" className="text-text-sub hover:text-brand transition-colors px-4 py-2">เข้าสู่ระบบ</Link>
+                  <Link to="/register" className="bg-text-main text-bg-main px-6 py-2.5 rounded-xl hover:opacity-90 transition-opacity shadow-md">สมัครสมาชิก</Link>
                 </div>
               ) : (
                 <div className="relative" ref={dropdownRef}>
-                  <button onClick={() => setDropdownOpen(!dropdownOpen)} className="flex items-center space-x-2 text-text-sub hover:text-brand transition focus:outline-none">
-                    <img src={userImg} alt="User" className="w-7 h-7 rounded-full bg-bg-main object-cover" />
-                    <span className="hidden sm:block max-w-30 truncate text-sm">{user?.first_name || user?.username || 'User'}</span>
-                    <svg className={`w-4 h-4 transform transition ${dropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                  <button onClick={() => setDropdownOpen(!dropdownOpen)} className="flex items-center gap-3 p-1.5 pr-4 rounded-full border border-outline hover:border-brand/50 hover:bg-bg-main transition-all focus:outline-none">
+                    <img src={userImg} alt="User" className="w-9 h-9 rounded-full bg-brand/10 p-1 object-cover" />
+                    <span className="hidden sm:block max-w-32 truncate text-sm font-bold">{user?.first_name || user?.username || 'User'}</span>
+                    <svg className={`w-4 h-4 text-text-sub transform transition-transform duration-300 ${dropdownOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7"></path></svg>
                   </button>
                   
                   {dropdownOpen && (
-                    <div className="absolute right-0 mt-3 w-48 bg-bg-card rounded-md shadow-lg py-1 border border-outline transition-all z-50">
-                      <Link to="/settings" onClick={() => setDropdownOpen(false)} className="flex items-center px-4 py-2 text-sm text-text-main hover:bg-bg-main transition">
-                        <img src={settingImg} alt="Settings" className="w-4 h-4 mr-2" />
+                    <div className="absolute right-0 mt-4 w-56 bg-bg-card rounded-2xl shadow-2xl py-2 border border-outline transition-all z-50 animate-fade-in-up">
+                      <div className="px-5 py-3 border-b border-outline mb-1">
+                        <p className="text-sm font-bold truncate">{user?.email}</p>
+                        <p className="text-xs text-text-sub uppercase tracking-wider mt-1">{role}</p>
+                      </div>
+                      <Link to="/settings" onClick={() => setDropdownOpen(false)} className="flex items-center px-5 py-3 text-sm font-bold text-text-main hover:bg-bg-main transition-colors">
+                        <img src={settingImg} alt="Settings" className="w-5 h-5 mr-3 opacity-70 dark:invert" />
                         ตั้งค่าโปรไฟล์
                       </Link>
-                      <button onClick={handleLogout} className="w-full text-left flex items-center px-4 py-2 text-sm text-hot-fuchsia hover:bg-bg-main transition">
-                        <img src={logoutImg} alt="Logout" className="w-4 h-4 mr-2" />
+                      <button onClick={handleLogout} className="w-full text-left flex items-center px-5 py-3 text-sm font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                        <img src={logoutImg} alt="Logout" className="w-5 h-5 mr-3 opacity-80" />
                         ออกจากระบบ
                       </button>
                     </div>
@@ -126,17 +126,12 @@ export default function Layout() {
                 </div>
               )}
 
-              {/* ปุ่ม Hamburger Menu (โผล่มาเฉพาะจอมือถือ) */}
               <button 
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)} 
-                className="md:hidden ml-2 p-2 rounded-md text-text-sub hover:text-brand hover:bg-bg-main focus:outline-none transition"
+                className="lg:hidden p-2 rounded-xl text-text-sub hover:text-brand bg-bg-main focus:outline-none transition-colors"
               >
                 <svg className="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
-                  {mobileMenuOpen ? (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  ) : (
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-                  )}
+                  {mobileMenuOpen ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" /> : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16" />}
                 </svg>
               </button>
 
@@ -144,30 +139,25 @@ export default function Layout() {
           </div>
         </div>
 
-        {/* เมนูแบบ Dropdown สำหรับหน้าจอมือถือ */}
         {mobileMenuOpen && (
-          <div className="md:hidden bg-bg-card border-t border-outline shadow-xl absolute w-full left-0 z-40 transition-colors">
-            <div className="px-4 pt-2 pb-4 space-y-1">
+          <div className="lg:hidden bg-bg-card border-t border-outline shadow-2xl absolute w-full left-0 z-40 transition-colors">
+            <div className="px-6 py-6 space-y-2">
               <Link to="/about" className={isMobileActive('/about')}>About</Link>
               <Link to="/contact" className={isMobileActive('/contact')}>Contact</Link>
               <Link to="/download" className={isMobileActive('/download')}>Download</Link>
-              
               {role !== 'guest' && (
                 <>
                   <Link to="/concerts" className={isMobileActive('/concerts')}>Concerts</Link>
                   <Link to="/my-bookings" className={isMobileActive('/my-bookings')}>My Bookings</Link>
                 </>
               )}
-              
               {role === 'admin' && (
-                <Link to="/admin" className="block px-3 py-2 mt-2 bg-brand rounded font-bold text-white hover:bg-brand-hover transition">Admin Panel</Link>
+                <Link to="/admin" className="block px-4 py-3 mt-4 bg-linear-to-r from-brand to-purple-600 rounded-xl font-bold text-white shadow-md text-center">Admin Workspace</Link>
               )}
-
-              {/* ปุ่ม Login/Register ในมือถือ */}
               {role === 'guest' && (
-                <div className="pt-4 mt-2 border-t border-outline space-y-2">
-                  <Link to="/login" className="block px-3 py-2 text-base font-medium text-text-sub hover:text-brand hover:bg-bg-main rounded-md">เข้าสู่ระบบ</Link>
-                  <Link to="/register" className="block px-3 py-2 text-base font-medium bg-brand text-white rounded-md hover:bg-brand-hover text-center transition">สมัครสมาชิก</Link>
+                <div className="pt-6 mt-4 border-t border-outline grid grid-cols-2 gap-4">
+                  <Link to="/login" className="flex items-center justify-center px-4 py-3 text-sm font-bold bg-bg-main text-text-main rounded-xl">เข้าสู่ระบบ</Link>
+                  <Link to="/register" className="flex items-center justify-center px-4 py-3 text-sm font-bold bg-text-main text-bg-main rounded-xl">สมัครสมาชิก</Link>
                 </div>
               )}
             </div>
@@ -175,10 +165,14 @@ export default function Layout() {
         )}
       </nav>
 
-      <main className="grow w-full"><Outlet /></main>
+      <main className="grow w-full flex flex-col"><Outlet /></main>
       
-      <footer className="bg-bg-card border-t border-outline text-text-sub text-center py-4 mt-auto transition-colors">
-        <p className="text-sm">&copy; 2026 ConcertTick. All rights reserved.</p>
+      <footer className="bg-bg-card border-t border-outline text-text-sub text-center py-8 mt-auto transition-colors">
+        <div className="flex justify-center items-center gap-2 mb-2">
+          <img src={logoImg} alt="Logo" className="w-5 h-5 opacity-50 grayscale" />
+          <span className="font-bold tracking-wider">ConcertTick</span>
+        </div>
+        <p className="text-sm font-medium">&copy; 2026 ConcertTick Platform. All rights reserved.</p>
       </footer>
     </div>
   );

@@ -8,6 +8,13 @@ import BookingsTab from './tabs/BookingsTab';
 import UsersTab from './tabs/UsersTab';
 import NewsTab from './tabs/NewsTab';
 
+// นำเข้าไอคอนสำหรับเมนู
+import placeImg from '../../assets/place.png';
+import ticketImg from '../../assets/ticket.png';
+import calendarImg from '../../assets/calendar.png';
+import userImg from '../../assets/user.png';
+import ideaImg from '../../assets/idea.png';
+
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('bookings'); 
   const [mapConcert, setMapConcert] = useState<Concert | null>(null);
@@ -17,36 +24,62 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6 mt-6 bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700 min-h-[70vh]">
-      <h2 className="text-3xl font-bold mb-6 dark:text-white border-b dark:border-gray-700 pb-4">Admin Dashboard</h2>
-      
-      <div className="flex flex-wrap gap-4 mb-8 border-b dark:border-gray-700 pb-4">
-        <TabButton id="venues" label="1. จัดการสถานที่ (SVG Map)" active={activeTab} onClick={setActiveTab} />
-        <TabButton id="concerts" label="2. จัดการคอนเสิร์ต/ผังที่นั่ง" active={activeTab} onClick={setActiveTab} />
-        <TabButton id="bookings" label="3. ดูการจองตั๋ว" active={activeTab} onClick={setActiveTab} />
-        <TabButton id="users" label="จัดการผู้ใช้" active={activeTab} onClick={setActiveTab} />
-        <TabButton id="news" label="จัดการข่าวสาร" active={activeTab} onClick={setActiveTab} />
-      </div>
+    // ใช้ w-full แบบไร้ขอบด้านข้าง ประหยัดพื้นที่ขั้นสุด
+    <div className="w-full min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6 lg:p-8 transition-colors duration-300">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        
+        {/* Header Section */}
+        <div className="p-6 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 sticky top-0 z-10">
+          <h2 className="text-3xl font-black text-gray-900 dark:text-white flex items-center gap-3">
+            <img src={settingsImg} alt="Admin" className="w-8 h-8 dark:invert opacity-80" />
+            Admin Dashboard
+          </h2>
+          
+          {/* Tabs Navigation */}
+          <div className="flex flex-wrap gap-2 mt-6">
+            <TabButton icon={placeImg} id="venues" label="จัดการสถานที่ (SVG Map)" active={activeTab} onClick={setActiveTab} />
+            <TabButton icon={ticketImg} id="concerts" label="จัดการคอนเสิร์ต / ผังที่นั่ง" active={activeTab} onClick={setActiveTab} />
+            <TabButton icon={calendarImg} id="bookings" label="ดูการจองตั๋ว" active={activeTab} onClick={setActiveTab} />
+            <TabButton icon={userImg} id="users" label="จัดการผู้ใช้" active={activeTab} onClick={setActiveTab} />
+            <TabButton icon={ideaImg} id="news" label="จัดการข่าวสาร" active={activeTab} onClick={setActiveTab} />
+          </div>
+        </div>
 
-      <div className="animate-fade-in">
-        {activeTab === 'venues' && <VenuesTab />}
-        {activeTab === 'concerts' && <ConcertsTab onOpenMapBuilder={setMapConcert} />}
-        {activeTab === 'bookings' && <BookingsTab />}
-        {activeTab === 'users' && <UsersTab />}
-        {activeTab === 'news' && <NewsTab />}
+        {/* Content Area */}
+        <div className="p-6 bg-gray-50/50 dark:bg-gray-900/30 min-h-[70vh] animate-fade-in">
+          {activeTab === 'venues' && <VenuesTab />}
+          {activeTab === 'concerts' && <ConcertsTab onOpenMapBuilder={setMapConcert} />}
+          {activeTab === 'bookings' && <BookingsTab />}
+          {activeTab === 'users' && <UsersTab />}
+          {activeTab === 'news' && <NewsTab />}
+        </div>
+        
       </div>
     </div>
   );
 }
 
-function TabButton({ id, label, active, onClick }: { id: string, label: string, active: string, onClick: (id: string) => void }) {
+// ใช้งาน Icon ร่วมกับ Tab
+function TabButton({ id, label, active, onClick, icon }: { id: string, label: string, active: string, onClick: (id: string) => void, icon: string }) {
   const isActive = active === id;
   return (
     <button 
       onClick={() => onClick(id)} 
-      className={`px-4 py-2 rounded-lg font-bold transition-colors ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-gray-300'}`}
+      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-all duration-200 shadow-sm border ${
+        isActive 
+          ? 'bg-blue-600 text-white border-blue-600 shadow-blue-500/30 hover:bg-blue-700' 
+          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-700'
+      }`}
     >
+      <img 
+        src={icon} 
+        alt={label} 
+        className={`w-5 h-5 object-contain ${isActive ? 'brightness-0 invert' : 'dark:invert opacity-70'}`} 
+      />
       {label}
     </button>
   );
 }
+
+// แอบนำเข้า settingsImg สำหรับ Header (ถ้าไม่อยากให้ Error ต้องมี Import ไว้ด้านบน หรือใช้ icon ที่มี)
+import settingsImg from '../../assets/settings.png';
