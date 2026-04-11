@@ -229,7 +229,7 @@ export default function ConcertsTab({ onOpenMapBuilder }: ConcertsTabProps) {
             {/* Status Badge & ID */}
             <div className="flex justify-between items-center p-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-800/50">
               <span className="font-mono text-xs font-bold text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-gray-700 px-2.5 py-1 rounded-md">
-                ID: {c.id}
+                ID: {c.access_code}
               </span>
               {c.is_active ? (
                 <span className="text-xs font-bold bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400 px-3 py-1 rounded-full border border-green-200 dark:border-green-800/50">เปิดให้จองอยู่</span>
