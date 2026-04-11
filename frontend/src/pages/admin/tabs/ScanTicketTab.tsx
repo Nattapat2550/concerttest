@@ -1,41 +1,86 @@
+// frontend/src/pages/admin/tabs/ScanTicketTab.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import api from '../../../services/api';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
 export default function ScanTicketTab() {
   const [token, setToken] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [scanMode, setScanMode] = useState<'laser' | 'camera'>('laser'); // โหมดแสกน
+  
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // ให้ Auto Focus ที่ช่อง Input เสมอ เพื่อให้พร้อมใช้เครื่องแสกนเลเซอร์ยิงได้ทันที
+  // Auto Focus สำหรับโหมดเลเซอร์
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
+    if (scanMode === 'laser') {
+      inputRef.current?.focus();
+    }
+  }, [scanMode]);
 
-  const handleScan = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!token.trim()) return;
+  // ตั้งค่ากล้องเมื่อเลือกโหมด Camera
+  useEffect(() => {
+    let scanner: Html5QrcodeScanner | null = null;
 
+    if (scanMode === 'camera') {
+      // ป้องกันการแสกนซ้ำซ้อนขณะโหลด
+      let isProcessing = false;
+
+      scanner = new Html5QrcodeScanner(
+        "qr-reader",
+        { fps: 10, qrbox: { width: 250, height: 250 } },
+        false
+      );
+
+      scanner.render(
+        async (decodedText) => {
+          if (isProcessing) return;
+          isProcessing = true;
+          
+          // เมื่อแสกนติด ให้ปิดกล้องชั่วคราวแล้วส่ง API
+          scanner?.pause(true);
+          await processToken(decodedText);
+          
+          // สลับกลับไปหน้าจอผลลัพธ์ (ให้คลิกแสกนใหม่เอาเองเพื่อความชัวร์)
+          setScanMode('laser');
+          isProcessing = false;
+        },
+        (errorMessage) => {
+          // ignore errors while scanning
+        }
+      );
+    }
+
+    return () => {
+      if (scanner) {
+        scanner.clear().catch(console.error);
+      }
+    };
+  }, [scanMode]);
+
+  // ฟังก์ชันหลักสำหรับตรวจสอบ Token
+  const processToken = async (scanToken: string) => {
+    if (!scanToken.trim()) return;
     setLoading(true);
     setMessage(null);
 
     try {
-      const { data } = await api.post('/api/admin/bookings/scan', { token });
-      // แสกนผ่าน!
+      const { data } = await api.post('/api/admin/bookings/scan', { token: scanToken });
       setMessage({ type: 'success', text: data.message || 'ตรวจสอบบัตรสำเร็จ อนุญาตให้เข้างาน' });
-      
-      // ล้างช่อง input ทันทีเพื่อพร้อมแสกนคนต่อไป
-      setToken('');
-      inputRef.current?.focus(); 
-      
     } catch (err: any) {
-      // แสกนไม่ผ่าน (บัตรปลอม, ใช้ไปแล้ว, หรือยกเลิกแล้ว)
       setMessage({ type: 'error', text: err.response?.data?.error || 'เกิดข้อผิดพลาด บัตรไม่ถูกต้อง' });
-      setToken('');
-      inputRef.current?.focus();
     } finally {
       setLoading(false);
+      setToken('');
+      if (scanMode === 'laser') {
+        inputRef.current?.focus();
+      }
     }
+  };
+
+  const handleManualSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    processToken(token);
   };
 
   return (
@@ -44,34 +89,72 @@ export default function ScanTicketTab() {
         <h2 className="text-3xl font-black text-gray-800 dark:text-white mb-2">Ticket Scanner</h2>
         <p className="text-gray-500 dark:text-gray-400">ระบบตรวจสอบและตัดบัตรเข้างาน</p>
       </div>
-      
-      <form onSubmit={handleScan} className="flex flex-col gap-6">
-        <div>
-          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">
-            รหัส QR Code (คลิกที่ช่องนี้ก่อนใช้เครื่องแสกน)
-          </label>
-          <input
-            ref={inputRef}
-            type="text"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="คลิกที่นี่แล้วยิงเครื่องแสกน QR..."
-            className="w-full p-4 text-center text-lg border-2 border-blue-200 dark:border-blue-900/50 rounded-xl bg-blue-50/50 dark:bg-gray-900 text-gray-900 dark:text-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all"
-            autoFocus
-          />
-        </div>
 
+      {/* ปุ่มสลับโหมดการแสกน */}
+      <div className="flex bg-gray-100 dark:bg-gray-900 p-1 rounded-xl mb-8">
         <button
-          type="submit"
-          disabled={loading || !token.trim()}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-xl transition-colors disabled:opacity-50 text-lg shadow-lg shadow-blue-500/30"
+          onClick={() => { setScanMode('laser'); setMessage(null); }}
+          className={`flex-1 py-3 rounded-lg font-bold text-sm transition-all ${
+            scanMode === 'laser' 
+              ? 'bg-white dark:bg-gray-800 shadow text-blue-600 dark:text-blue-400' 
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+          }`}
         >
-          {loading ? 'กำลังตรวจสอบ...' : 'ตรวจสอบบัตร'}
+          🔫 ใช้เครื่องแสกน USB
         </button>
-      </form>
+        <button
+          onClick={() => { setScanMode('camera'); setMessage(null); }}
+          className={`flex-1 py-3 rounded-lg font-bold text-sm transition-all ${
+            scanMode === 'camera' 
+              ? 'bg-white dark:bg-gray-800 shadow text-blue-600 dark:text-blue-400' 
+              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+          }`}
+        >
+          📷 ใช้กล้อง (มือถือ/Webcam)
+        </button>
+      </div>
+      
+      {/* โหมดใช้เครื่องแสกน USB / กรอกเอง */}
+      {scanMode === 'laser' && (
+        <form onSubmit={handleManualSubmit} className="flex flex-col gap-6 animate-fade-in">
+          <div>
+            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 text-center">
+              คลิกที่ช่องด้านล่าง แล้วยิงเครื่องแสกน QR Code
+            </label>
+            <input
+              ref={inputRef}
+              type="text"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="รอรับรหัสจากการแสกน..."
+              className="w-full p-4 text-center text-lg border-2 border-blue-200 dark:border-blue-900/50 rounded-xl bg-blue-50/50 dark:bg-gray-900 text-gray-900 dark:text-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all"
+            />
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading || !token.trim()}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-xl transition-colors disabled:opacity-50 text-lg shadow-lg shadow-blue-500/30"
+          >
+            {loading ? 'กำลังตรวจสอบ...' : 'ตรวจสอบรหัส'}
+          </button>
+        </form>
+      )}
+
+      {/* โหมดใช้กล้องมือถือ / Webcam */}
+      {scanMode === 'camera' && (
+        <div className="flex flex-col items-center animate-fade-in">
+          <div className="w-full max-w-sm rounded-2xl overflow-hidden border-2 border-blue-200 dark:border-blue-900 shadow-inner bg-black">
+            <div id="qr-reader" className="w-full"></div>
+          </div>
+          <p className="mt-4 text-sm text-gray-500 dark:text-gray-400 font-medium">
+            อนุญาตการเข้าถึงกล้อง แล้วนำ QR Code มาส่องในกรอบ
+          </p>
+        </div>
+      )}
 
       {/* กล่องแสดงผลลัพธ์การแสกน */}
-      {message && (
+      {message && scanMode === 'laser' && (
         <div className={`mt-8 p-6 rounded-2xl font-bold text-center text-xl animate-fade-in-up border-2 ${
           message.type === 'success' 
             ? 'bg-green-50 text-green-700 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.2)]' 
@@ -79,12 +162,12 @@ export default function ScanTicketTab() {
         }`}>
           {message.type === 'success' ? (
             <div className="flex flex-col items-center gap-3">
-              <svg className="w-16 h-16 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+              <span className="text-5xl">✅</span>
               {message.text}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-3">
-              <svg className="w-16 h-16 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M6 18L18 6M6 6l12 12"></path></svg>
+              <span className="text-5xl">❌</span>
               {message.text}
             </div>
           )}
