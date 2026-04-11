@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { injectMapStyles, buildVectorZones } from './seatMapUtils'; 
+import { usePanZoom } from '../hooks/usePanZoom'; // ดึง Hook เข้ามา
 
 interface SeatConfig {
   seat_code: string;
@@ -18,6 +19,8 @@ interface InteractiveSeatMapProps {
   selectedSeat?: any;
 }
 
+const ZOOM_THRESHOLD = 1.2;
+
 export default function InteractiveSeatMap({
   svgContent,
   configuredSeats = [],
@@ -27,36 +30,14 @@ export default function InteractiveSeatMap({
 }: InteractiveSeatMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const transformWrapperRef = useRef<HTMLDivElement>(null);
-  const [showZoomHint, setShowZoomHint] = useState(false);
   const [lasso, setLasso] = useState<{x: number, y: number, w: number, h: number} | null>(null); 
   
-  const transform = useRef({ x: 0, y: 0, scale: 1 });
+  // เรียกใช้งาน Custom Hook สำหรับ Pan & Zoom
+  const { transform, applyTransform, handleZoom, handleReset, showZoomHint, rafRef } = usePanZoom(containerRef, transformWrapperRef, ZOOM_THRESHOLD);
+  
   const dragState = useRef({ isDragging: false, startX: 0, startY: 0, mapX: 0, mapY: 0, target: null as EventTarget | null });
   const lassoRef = useRef({ active: false, startX: 0, startY: 0, clientStartX: 0, clientStartY: 0 });
   const seatElementsCache = useRef(new Map<string, any>());
-  
-  const rafRef = useRef<number | null>(null); 
-
-  const ZOOM_THRESHOLD = 1.2; 
-
-  const applyTransform = (animate = false) => {
-    const svgEl = transformWrapperRef.current?.querySelector('svg');
-    if (svgEl) {
-      if (animate) {
-        svgEl.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
-        setTimeout(() => { if(svgEl) svgEl.style.transition = 'none'; }, 300);
-      } else {
-        svgEl.style.transition = 'none';
-      }
-      
-      svgEl.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
-      
-      const currentZoom = transform.current.scale < ZOOM_THRESHOLD ? 'low' : 'high';
-      if (svgEl.getAttribute('data-zoom') !== currentZoom) {
-        svgEl.setAttribute('data-zoom', currentZoom);
-      }
-    }
-  };
 
   useEffect(() => {
     const container = transformWrapperRef.current;
@@ -93,9 +74,7 @@ export default function InteractiveSeatMap({
     });
 
     injectMapStyles(svgEl, mode);
-    
-    transform.current = { x: 0, y: 0, scale: 1 };
-    applyTransform();
+    handleReset();
   }, [svgContent, mode]);
 
   useEffect(() => {
@@ -168,36 +147,6 @@ export default function InteractiveSeatMap({
       }
     }
   };
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    const handleWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        const delta = e.deltaY * -0.002;
-        let newScale = Math.max(0.5, Math.min(transform.current.scale + delta, 15));
-
-        const rect = container.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-
-        const scaleRatio = newScale / transform.current.scale;
-        transform.current.x = mouseX - (mouseX - transform.current.x) * scaleRatio;
-        transform.current.y = mouseY - (mouseY - transform.current.y) * scaleRatio;
-        transform.current.scale = newScale;
-        
-        if (rafRef.current) cancelAnimationFrame(rafRef.current);
-        rafRef.current = requestAnimationFrame(() => applyTransform());
-        setShowZoomHint(false);
-      } else {
-        setShowZoomHint(true);
-        setTimeout(() => setShowZoomHint(false), 2500);
-      }
-    };
-    container.addEventListener('wheel', handleWheel, { passive: false });
-    return () => container.removeEventListener('wheel', handleWheel);
-  }, []);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -272,9 +221,6 @@ export default function InteractiveSeatMap({
     }
     dragState.current.isDragging = false;
   };
-
-  const handleZoom = (factor: number) => { transform.current.scale = Math.max(0.5, Math.min(transform.current.scale + factor, 15)); applyTransform(true); };
-  const handleReset = () => { transform.current = { x: 0, y: 0, scale: 1 }; applyTransform(true); };
 
   return (
     <div className="relative select-none w-full h-full min-h-125">

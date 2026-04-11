@@ -17,6 +17,8 @@ import (
 
 func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 	r := chi.NewRouter()
+
+	// 1. Middlewares
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
@@ -28,19 +30,39 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 	}
 	r.Use(cors(allowedOrigins, true))
 
+	// 2. Base Routes
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
-	
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
-		if cfg.FrontendURL != "" { http.Redirect(w, req, cfg.FrontendURL, http.StatusFound); return }
+		if cfg.FrontendURL != "" {
+			http.Redirect(w, req, cfg.FrontendURL, http.StatusFound)
+			return
+		}
 		w.Write([]byte("Backend API is running"))
 	})
-	
 	r.Get("/favicon.ico", func(w http.ResponseWriter, req *http.Request) { w.WriteHeader(http.StatusNoContent) })
 
+	// 3. Initialize Handlers
 	p := pureapi.NewClient(cfg.PureAPIBaseURL, cfg.PureAPIKey, cfg.PureAPIInternalURL)
 	h := handlers.New(cfg, p, concertDB)
 
-	r.Route("/api/auth", func(ar chi.Router) {
+	// 4. API Routes Grouping
+	r.Route("/api/auth", setupAuthRoutes(h))
+	r.Route("/api/users", setupUserRoutes(h))
+	r.Route("/api/concerts", setupConcertRoutes(h))
+	r.Route("/api/admin", setupAdminRoutes(h))
+
+	// 5. Global APIs
+	r.Get("/api/homepage", h.HomepageGet)
+	r.With(h.RequireAdmin).Put("/api/homepage", h.HomepageUpdate)
+	r.Get("/api/carousel", h.CarouselList)
+	r.Get("/api/download/windows", h.DownloadWindows)
+	r.Get("/api/download/android", h.DownloadAndroid)
+
+	return r
+}
+
+func setupAuthRoutes(h *handlers.Handler) func(chi.Router) {
+	return func(ar chi.Router) {
 		ar.Use(rateLimit(100, 15*time.Minute, func(req *http.Request) (string, error) { return GetClientIP(req), nil }))
 		ar.Post("/register", h.AuthRegister)
 		ar.Post("/verify-code", h.AuthVerifyCode)
@@ -53,24 +75,21 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 		ar.Get("/google", h.AuthGoogleStart)
 		ar.Get("/google/callback", h.AuthGoogleCallback)
 		ar.Post("/google-mobile", h.AuthGoogleMobileCallback)
-	})
+	}
+}
 
-	r.Get("/api/homepage", h.HomepageGet)
-	r.With(h.RequireAdmin).Put("/api/homepage", h.HomepageUpdate)
-	r.Get("/api/carousel", h.CarouselList)
-	r.Get("/api/download/windows", h.DownloadWindows)
-	r.Get("/api/download/android", h.DownloadAndroid)
-	
-	r.Route("/api/users", func(ur chi.Router) {
+func setupUserRoutes(h *handlers.Handler) func(chi.Router) {
+	return func(ur chi.Router) {
 		ur.Use(h.RequireAuth)
 		ur.Get("/me", h.UsersMeGet)
 		ur.Put("/me", h.UsersMePut)
 		ur.Post("/me/avatar", h.UsersMeAvatar)
 		ur.Delete("/me", h.UsersMeDelete)
-	})
+	}
+}
 
-	// ---- Concerts (User) ----
-	r.Route("/api/concerts", func(cr chi.Router) {
+func setupConcertRoutes(h *handlers.Handler) func(chi.Router) {
+	return func(cr chi.Router) {
 		cr.Get("/news/latest", h.GetLatestNews)
 		cr.Get("/list", h.GetConcerts)
 		
@@ -83,10 +102,11 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 		cr.With(h.RequireAuth).Post("/book", h.BookSeat)
 		cr.With(h.RequireAuth).Get("/my-bookings", h.GetMyBookings)
 		cr.With(h.RequireAuth).Put("/bookings/{id}/cancel", h.CancelMyBooking)
-	})
+	}
+}
 
-	// ---- Admin ----
-	r.Route("/api/admin", func(ad chi.Router) {
+func setupAdminRoutes(h *handlers.Handler) func(chi.Router) {
+	return func(ad chi.Router) {
 		ad.Use(h.RequireAdmin)
 
 		ad.Get("/users", h.AdminUsersList)
@@ -118,7 +138,5 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 		ad.Post("/news", h.AdminCreateNews)
 		ad.Put("/news/{id}", h.AdminUpdateNews)
 		ad.Delete("/news/{id}", h.AdminDeleteNews)
-	})
-
-	return r
+	}
 }

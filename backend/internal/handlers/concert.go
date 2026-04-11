@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"golang.org/x/sync/errgroup"
 )
 
 // ===== CONCERT FUNCTIONS =====
@@ -69,6 +70,7 @@ func (h *Handler) GetConcertDetails(w http.ResponseWriter, r *http.Request) {
 	accessCode := chi.URLParam(r, "id")
 	var res ConcertDetailsResponse
 	
+	// 1. Fetch Concert Info first
 	err := h.ConcertDB.QueryRowContext(ctx, `
 		SELECT c.id, c.access_code, c.name, COALESCE(c.description, ''), c.show_date, c.venue_id, COALESCE(v.name, ''), c.ticket_price, COALESCE(v.svg_content, ''), COALESCE(c.layout_image_url, ''), c.is_active
 		FROM concerts c LEFT JOIN venues v ON c.venue_id = v.id WHERE c.access_code = $1`, accessCode).
@@ -79,31 +81,45 @@ func (h *Handler) GetConcertDetails(w http.ResponseWriter, r *http.Request) {
 	}
 
 	concertID := res.Concert.ID 
+	res.ConfiguredSeats = []ConcertSeatConfig{}
+	res.BookedSeats = []string{}
 
-	rows, err := h.ConcertDB.QueryContext(ctx, `SELECT seat_code, zone_name, price, color FROM concert_seats WHERE concert_id = $1`, concertID)
-	if err != nil {
-		h.writeError(w, http.StatusInternalServerError, "Failed to load configured seats")
+	// 2. Fetch Seats & Bookings concurrently using errgroup
+	g, gCtx := errgroup.WithContext(ctx)
+
+	// Routine 1: Fetch configured seats
+	g.Go(func() error {
+		rows, err := h.ConcertDB.QueryContext(gCtx, `SELECT seat_code, zone_name, price, color FROM concert_seats WHERE concert_id = $1`, concertID)
+		if err != nil { return err }
+		defer rows.Close() 
+		for rows.Next() {
+			var s ConcertSeatConfig
+			if err := rows.Scan(&s.SeatCode, &s.ZoneName, &s.Price, &s.Color); err == nil { 
+				res.ConfiguredSeats = append(res.ConfiguredSeats, s) 
+			}
+		}
+		return nil
+	})
+
+	// Routine 2: Fetch booked seats
+	g.Go(func() error {
+		rows2, err := h.ConcertDB.QueryContext(gCtx, `SELECT seat_code FROM bookings WHERE concert_id = $1 AND status IN ('confirmed', 'used')`, concertID)
+		if err != nil { return err }
+		defer rows2.Close()
+		for rows2.Next() {
+			var sc string
+			if err := rows2.Scan(&sc); err == nil { 
+				res.BookedSeats = append(res.BookedSeats, sc) 
+			}
+		}
+		return nil
+	})
+
+	// Wait for both routines to complete
+	if err := g.Wait(); err != nil {
+		h.writeError(w, http.StatusInternalServerError, "Failed to load seats data")
 		return
 	}
-	defer rows.Close() 
-	for rows.Next() {
-		var s ConcertSeatConfig
-		if err := rows.Scan(&s.SeatCode, &s.ZoneName, &s.Price, &s.Color); err == nil { res.ConfiguredSeats = append(res.ConfiguredSeats, s) }
-	}
-	if res.ConfiguredSeats == nil { res.ConfiguredSeats = []ConcertSeatConfig{} }
-
-	// แก้ไข: ดึงตั๋วที่มีสถานะ 'confirmed' หรือ 'used' ให้นับเป็นที่นั่งที่ไม่ว่างทั้งหมด
-	rows2, err := h.ConcertDB.QueryContext(ctx, `SELECT seat_code FROM bookings WHERE concert_id = $1 AND status IN ('confirmed', 'used')`, concertID)
-	if err != nil {
-		h.writeError(w, http.StatusInternalServerError, "Failed to load booked seats")
-		return
-	}
-	defer rows2.Close()
-	for rows2.Next() {
-		var sc string
-		if err := rows2.Scan(&sc); err == nil { res.BookedSeats = append(res.BookedSeats, sc) }
-	}
-	if res.BookedSeats == nil { res.BookedSeats = []string{} }
 
 	WriteJSON(w, http.StatusOK, res)
 }

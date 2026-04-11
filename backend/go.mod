@@ -10,3 +10,5 @@ require (
 )
 
 require github.com/lib/pq v1.12.0
+
+require golang.org/x/sync v0.20.0
