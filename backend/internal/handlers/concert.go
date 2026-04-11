@@ -80,7 +80,6 @@ func (h *Handler) GetConcertDetails(w http.ResponseWriter, r *http.Request) {
 
 	concertID := res.Concert.ID 
 
-	// [FIXED] เพิ่มการเช็ค Error ป้องกันเซิร์ฟเวอร์ล่ม
 	rows, err := h.ConcertDB.QueryContext(ctx, `SELECT seat_code, zone_name, price, color FROM concert_seats WHERE concert_id = $1`, concertID)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "Failed to load configured seats")
@@ -93,8 +92,8 @@ func (h *Handler) GetConcertDetails(w http.ResponseWriter, r *http.Request) {
 	}
 	if res.ConfiguredSeats == nil { res.ConfiguredSeats = []ConcertSeatConfig{} }
 
-	// [FIXED] เพิ่มการเช็ค Error ป้องกันเซิร์ฟเวอร์ล่ม
-	rows2, err := h.ConcertDB.QueryContext(ctx, `SELECT seat_code FROM bookings WHERE concert_id = $1 AND status = 'confirmed'`, concertID)
+	// แก้ไข: ดึงตั๋วที่มีสถานะ 'confirmed' หรือ 'used' ให้นับเป็นที่นั่งที่ไม่ว่างทั้งหมด
+	rows2, err := h.ConcertDB.QueryContext(ctx, `SELECT seat_code FROM bookings WHERE concert_id = $1 AND status IN ('confirmed', 'used')`, concertID)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "Failed to load booked seats")
 		return

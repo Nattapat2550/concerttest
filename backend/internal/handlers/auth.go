@@ -351,10 +351,23 @@ func (h *Handler) AuthStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
+	// แก้ไข: เพิ่ม object 'user' กลับไปให้ระบบสามารถเก็บลง localStorage สำหรับ Google Login ได้
 	WriteJSON(w, http.StatusOK, map[string]any{
 		"authenticated": true,
 		"id":            user.ID,
 		"role":          user.Role,
+		"user": map[string]any{
+			"id":                  user.ID,
+			"user_id":             user.UserID,
+			"email":               user.Email,
+			"username":            user.Username,
+			"first_name":          user.FirstName,
+			"last_name":           user.LastName,
+			"tel":                 user.Tel,
+			"status":              user.Status,
+			"role":                user.Role,
+			"profile_picture_url": user.ProfilePictureURL,
+		},
 	})
 }
 
@@ -389,7 +402,6 @@ func (h *Handler) AuthForgotPassword(w http.ResponseWriter, r *http.Request) {
 	token := randomTokenHex(32)
 	expiresAt := time.Now().Add(30 * time.Minute).Format(time.RFC3339)
 
-	// ✅ แก้ไข: เปลี่ยนจาก userId เป็น email เพื่อให้ตรงกับฝั่ง Rust (CreateResetTokenBody)
 	_ = h.Pure.Post(ctx, "/api/internal/create-reset-token", map[string]any{
 		"email":     user.Email,
 		"token":     token,
@@ -440,7 +452,6 @@ func (h *Handler) AuthResetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ✅ แก้ไข: เปลี่ยน keys จาก "id" เป็น "userId" และ "password" เป็น "newPassword" เพื่อให้ตรงกับ SetPasswordBody ของ Rust
 	if err := h.Pure.Post(ctx, "/api/internal/set-password", map[string]any{"userId": user.ID, "newPassword": newPass}, nil); err != nil {
 		h.writeErrFrom(w, err)
 		return

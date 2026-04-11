@@ -33,7 +33,7 @@ const App = () => {
       try {
         await api.get('/api/homepage');
         if (isMounted) setServerReady(true);
-      } catch (err: any) { // แก้ err เป็น err: any
+      } catch (err: any) { 
         if (isMounted) {
           setWakingUp(true);
           setTimeout(wakeUpServers, 3000);
@@ -55,8 +55,20 @@ const App = () => {
       if (token) {
         localStorage.setItem('token', token);
         if (role) localStorage.setItem('role', role);
-        window.history.replaceState(null, '', window.location.pathname);
-        window.location.href = '/home';
+        
+        // แก้ไข: ดึงข้อมูล User จาก backend ทันทีเพราะ Google OAuth ไม่ได้ส่งข้อมูลนี้มาใน URL
+        api.get('/api/auth/status')
+          .then((res) => {
+            if (res.data && res.data.user) {
+              localStorage.setItem('user', JSON.stringify(res.data.user));
+            }
+            window.history.replaceState(null, '', window.location.pathname);
+            window.location.href = role === 'admin' ? '/admin' : '/home';
+          })
+          .catch(() => {
+            window.history.replaceState(null, '', window.location.pathname);
+            window.location.href = '/home';
+          });
       }
     }
   }, []);
