@@ -66,6 +66,6 @@ CREATE TABLE bookings (
     booked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE UNIQUE INDEX idx_unique_svg_booking ON bookings (concert_id, seat_code) WHERE status = 'confirmed' AND seat_code IS NOT NULL;
+CREATE UNIQUE INDEX idx_unique_svg_booking ON bookings (concert_id, seat_code) WHERE status = ('confirmed', 'used') AND seat_code IS NOT NULL;
 
 INSERT INTO news (title, content) VALUES ('ยินดีต้อนรับสู่ ConcertTick!', 'ระบบจองตั๋วคอนเสิร์ต Interactive Map เปิดให้บริการแล้ว');

@@ -71,7 +71,7 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 		var existingID int
 		err := tx.QueryRowContext(ctx, `
 			SELECT id FROM bookings 
-			WHERE concert_id = $1 AND seat_code = $2 AND status = 'confirmed' 
+			WHERE concert_id = $1 AND seat_code = $2 AND status IN ('confirmed', 'used') 
 			FOR UPDATE`, req.ConcertID, req.SeatCode).Scan(&existingID)
 			
 		if err == nil {
