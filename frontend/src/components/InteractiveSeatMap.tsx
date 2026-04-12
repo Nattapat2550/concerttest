@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { injectMapStyles, buildVectorZones } from './seatMapUtils'; 
-import { usePanZoom } from '../hooks/usePanZoom'; // ดึง Hook เข้ามา
+import { usePanZoom } from '../hooks/usePanZoom'; 
 
 interface SeatConfig {
   seat_code: string;
@@ -14,6 +14,7 @@ interface InteractiveSeatMapProps {
   svgContent: string;
   configuredSeats?: SeatConfig[];
   bookedSeats?: string[];
+  waitSeats?: string[]; // เพิ่มรับที่นั่งที่กำลังรอจ่ายเงิน
   mode?: 'booking' | 'admin';
   onSeatSelect?: (seat: any) => void;
   selectedSeat?: any;
@@ -25,14 +26,13 @@ export default function InteractiveSeatMap({
   svgContent,
   configuredSeats = [],
   bookedSeats = [],
+  waitSeats = [], 
   mode = 'booking',
   onSeatSelect,
 }: InteractiveSeatMapProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const transformWrapperRef = useRef<HTMLDivElement>(null);
   const [lasso, setLasso] = useState<{x: number, y: number, w: number, h: number} | null>(null); 
-  
-  // เรียกใช้งาน Custom Hook สำหรับ Pan & Zoom
   const { transform, applyTransform, handleZoom, handleReset, showZoomHint, rafRef } = usePanZoom(containerRef, transformWrapperRef, ZOOM_THRESHOLD);
   
   const dragState = useRef({ isDragging: false, startX: 0, startY: 0, mapX: 0, mapY: 0, target: null as EventTarget | null });
@@ -42,16 +42,15 @@ export default function InteractiveSeatMap({
   useEffect(() => {
     const container = transformWrapperRef.current;
     if (!container || !svgContent) return;
-
     container.innerHTML = svgContent;
     const svgEl = container.querySelector('svg');
     if (!svgEl) return;
-
+    
     svgEl.style.width = '100%';
     svgEl.style.height = '100%';
     svgEl.style.transformOrigin = '0 0';
     svgEl.setAttribute('draggable', 'false');
-
+    
     seatElementsCache.current.clear();
 
     const allShapes = svgEl.querySelectorAll('circle, ellipse, rect, path');
@@ -63,14 +62,10 @@ export default function InteractiveSeatMap({
             let id = el.getAttribute('id') || `seat-auto-${idx}`;
             el.setAttribute('id', id);
             el.classList.add('smart-seat');
-            
-            seatElementsCache.current.set(id, { 
-              node: el, 
-              box: { x: box.x, y: box.y, width: box.width, height: box.height } 
-            });
+            seatElementsCache.current.set(id, { node: el, box: { x: box.x, y: box.y, width: box.width, height: box.height } });
           }
         }
-      } catch (e) { /* ข้าม */ }
+      } catch (e) { }
     });
 
     injectMapStyles(svgEl, mode);
@@ -82,6 +77,7 @@ export default function InteractiveSeatMap({
     if (!svgEl || seatElementsCache.current.size === 0) return;
 
     const bookedSet = new Set(bookedSeats);
+    const waitSet = new Set(waitSeats); 
     const configuredMap = new Map();
     configuredSeats.forEach(c => configuredMap.set(c.seat_code, c));
 
@@ -95,20 +91,30 @@ export default function InteractiveSeatMap({
         seatData.node.style.visibility = 'visible';
         seatData.node.style.pointerEvents = '';
       }
+
+      // 💡 [สถานะ Wait] ให้เป็นสีเหลือง (10 นาที)
+      if (mode === 'booking' && waitSet.has(seatId)) {
+        seatData.node.style.fill = '#eab308'; // สีเหลือง
+        seatData.node.style.opacity = '0.9';
+        seatData.node.style.stroke = '#ffffff';
+        seatData.node.style.strokeWidth = '1';
+        seatData.node.style.cursor = 'not-allowed';
+      }
     });
 
-  }, [configuredSeats, bookedSeats, mode]);
+  }, [configuredSeats, bookedSeats, waitSeats, mode]);
 
   const handleMapClick = (target: EventTarget | null, clientX: number, clientY: number) => {
     if (!target) return;
     const element = target as Element;
-
     const seat = element.closest('.smart-seat');
+    
     if (seat && transform.current.scale >= ZOOM_THRESHOLD) {
       const seatId = seat.getAttribute('id');
       if (!seatId) return;
 
-      if (mode === 'booking' && bookedSeats.includes(seatId)) return;
+      // ❌ ห้ามกดจองถ้าที่นั่งนั้นถูก Book หรือ Wait ไปแล้ว
+      if (mode === 'booking' && (bookedSeats.includes(seatId) || waitSeats.includes(seatId))) return;
       
       const config = configuredSeats.find(c => c.seat_code === seatId);
       if (mode === 'booking' && !config) return;
@@ -122,14 +128,11 @@ export default function InteractiveSeatMap({
       const rect = containerRef.current.getBoundingClientRect();
       const clickX = clientX - rect.left;
       const clickY = clientY - rect.top;
-
       const newScale = 2.5; 
       const scaleRatio = newScale / transform.current.scale;
-      
       transform.current.x = clickX - (clickX - transform.current.x) * scaleRatio;
       transform.current.y = clickY - (clickY - transform.current.y) * scaleRatio;
       transform.current.scale = newScale;
-
       applyTransform(true);
       
       if (mode === 'admin' && overlay) {
@@ -158,35 +161,23 @@ export default function InteractiveSeatMap({
       setLasso({ x: startX, y: startY, w: 0, h: 0 });
       return;
     }
-    dragState.current = { 
-      isDragging: false, startX: e.clientX, startY: e.clientY, 
-      mapX: transform.current.x, mapY: transform.current.y,
-      target: e.target 
-    };
+    dragState.current = { isDragging: false, startX: e.clientX, startY: e.clientY, mapX: transform.current.x, mapY: transform.current.y, target: e.target };
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (lassoRef.current.active && containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
-      const currentX = e.clientX - rect.left;
-      const currentY = e.clientY - rect.top;
       const { startX, startY } = lassoRef.current;
-      setLasso({
-        x: Math.min(currentX, startX), y: Math.min(currentY, startY),
-        w: Math.abs(currentX - startX), h: Math.abs(currentY - startY)
-      });
+      setLasso({ x: Math.min(e.clientX - rect.left, startX), y: Math.min(e.clientY - rect.top, startY), w: Math.abs(e.clientX - rect.left - startX), h: Math.abs(e.clientY - rect.top - startY) });
       return;
     }
     if (e.buttons !== 1) return;
     const dx = e.clientX - dragState.current.startX;
     const dy = e.clientY - dragState.current.startY;
-
     if (!dragState.current.isDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) dragState.current.isDragging = true;
-    
     if (dragState.current.isDragging) {
       transform.current.x = dragState.current.mapX + dx;
       transform.current.y = dragState.current.mapY + dy;
-      
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => applyTransform());
     }
@@ -211,14 +202,10 @@ export default function InteractiveSeatMap({
         });
         if (selectedGroup.length > 0 && onSeatSelect) onSeatSelect(selectedGroup);
       }
-      setLasso(null);
-      lassoRef.current.active = false;
+      setLasso(null); lassoRef.current.active = false;
       return;
     }
-
-    if (!dragState.current.isDragging) {
-      handleMapClick(dragState.current.target, e.clientX, e.clientY);
-    }
+    if (!dragState.current.isDragging) handleMapClick(dragState.current.target, e.clientX, e.clientY);
     dragState.current.isDragging = false;
   };
 
@@ -230,29 +217,22 @@ export default function InteractiveSeatMap({
           <button onClick={handleReset} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded text-sm font-bold hover:bg-gray-300 transition">RESET</button>
           <button onClick={() => handleZoom(0.5)} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded font-bold hover:bg-gray-300 transition">+</button>
         </div>
-        {mode === 'admin' && (
-          <div className="bg-blue-600/90 text-white text-xs px-3 py-2 rounded-lg shadow-lg">
-            🛠 กด <kbd className="bg-blue-800 px-1 py-0.5 rounded shadow-inner font-mono">Shift</kbd> ค้าง + ลากเพื่อคลุมพื้นที่
-          </div>
-        )}
       </div>
 
       <div className={`absolute top-4 left-1/2 -translate-x-1/2 bg-black/80 text-white px-5 py-2.5 rounded-full shadow-lg pointer-events-none z-20 font-bold text-sm transition-all duration-300 transform ${showZoomHint ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
         💡 กด <kbd className="bg-gray-700 px-2 py-0.5 rounded text-xs border border-gray-600">Ctrl</kbd> ค้าง + เลื่อนลูกกลิ้งเพื่อซูม
       </div>
 
-      <div 
-        ref={containerRef}
-        className="bg-[#0f172a] rounded-xl border dark:border-gray-600 shadow-inner overflow-hidden relative w-full h-full min-h-150 touch-none cursor-grab active:cursor-grabbing"
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-      >
+      {/* 💡 คำใบ้สถานะที่นั่ง */}
+      <div className="absolute bottom-4 left-4 z-20 flex gap-3 bg-white/90 dark:bg-gray-800/90 p-3 rounded-xl shadow-lg border dark:border-gray-600 text-xs font-bold pointer-events-none">
+        <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-gray-300"></div> ว่าง</div>
+        <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-[#eab308]"></div> รอจ่ายเงิน (10 นาที)</div>
+        <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-red-500"></div> จองแล้ว</div>
+      </div>
+
+      <div ref={containerRef} className="bg-[#0f172a] rounded-xl border dark:border-gray-600 shadow-inner overflow-hidden relative w-full h-full min-h-150 touch-none cursor-grab active:cursor-grabbing" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}>
         {lasso && (
-          <div 
-            className="absolute border-2 border-blue-400 bg-blue-400/30 z-50 pointer-events-none shadow-[0_0_10px_rgba(96,165,250,0.5)]"
-            style={{ left: lasso.x, top: lasso.y, width: lasso.w, height: lasso.h }}
-          />
+          <div className="absolute border-2 border-blue-400 bg-blue-400/30 z-50 pointer-events-none shadow-[0_0_10px_rgba(96,165,250,0.5)]" style={{ left: lasso.x, top: lasso.y, width: lasso.w, height: lasso.h }} />
         )}
 
         {(!svgContent && mode !== 'admin') ? (

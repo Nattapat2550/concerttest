@@ -16,8 +16,9 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// ===== Helper for QR Token =====
 func generateQRToken(bookingID int) string {
-	secret := "concerttick_super_secret"
+	secret := "concerttick_super_secret" // คีย์สำหรับการเข้ารหัส (ใน Production ควรใส่ใน ENV)
 	msg := fmt.Sprintf("%d", bookingID)
 	h := hmac.New(sha256.New, []byte(secret))
 	h.Write([]byte(msg))
@@ -30,6 +31,10 @@ func generateQRToken(bookingID int) string {
 func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 7*time.Second)
 	defer cancel()
+
+	// [AUTO-CANCEL] ทำความสะอาดที่นั่งที่หมดอายุ 10 นาที ก่อนเริ่มกระบวนการจองใหม่เพื่อป้องกันบัคที่นั่งค้าง
+	h.ConcertDB.ExecContext(ctx, `UPDATE seats SET is_booked = false WHERE id IN (SELECT seat_id FROM bookings WHERE status = 'wait' AND booked_at < NOW() - INTERVAL '10 minutes' AND seat_id IS NOT NULL)`)
+	h.ConcertDB.ExecContext(ctx, `UPDATE bookings SET status = 'cancelled' WHERE status = 'wait' AND booked_at < NOW() - INTERVAL '10 minutes'`)
 
 	var req BookSeatRequest
 	if err := ReadJSON(r, &req); err != nil { return }
@@ -44,6 +49,7 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 🛑 ระบบหมดเวลา
 	if time.Now().After(showDate) {
 		h.writeError(w, http.StatusBadRequest, "คอนเสิร์ตนี้ได้เริ่มหรือจบลงแล้ว ไม่สามารถจองที่นั่งได้")
 		return
@@ -79,7 +85,7 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// เปลียนสถานะเริ่มต้นเป็น wait
+		// ให้สถานะเริ่มต้นเป็น wait
 		_, err = tx.ExecContext(ctx, `INSERT INTO bookings (user_id, concert_id, seat_code, price, status) VALUES ($1, $2, $3, $4, 'wait')`, fmt.Sprint(u.ID), req.ConcertID, req.SeatCode, req.Price)
 		if err != nil { 
 			h.writeError(w, http.StatusConflict, "ที่นั่งนี้เพิ่งถูกจองไป กรุณาเลือกใหม่")
@@ -165,7 +171,6 @@ func (h *Handler) GetWallet(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, map[string]interface{}{"balance": balance})
 }
 
-// จำลองการเติมเงินเข้า GTYCoin
 func (h *Handler) TopupWallet(w http.ResponseWriter, r *http.Request) {
 	u := GetUser(r)
 	if u == nil { return }
@@ -182,7 +187,6 @@ func (h *Handler) TopupWallet(w http.ResponseWriter, r *http.Request) {
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "Topup successful"})
 }
 
-// ชำระเงินค่าตั๋วด้วย GTYCoin
 func (h *Handler) PayBooking(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
@@ -195,12 +199,12 @@ func (h *Handler) PayBooking(w http.ResponseWriter, r *http.Request) {
 	if err != nil { h.writeError(w, http.StatusInternalServerError, "System busy"); return }
 	defer tx.Rollback()
 
-	// 1. ตรวจสอบสถานะและราคา
+	// 1. ตรวจสอบสถานะตั๋วว่ายัง wait อยู่ไหม
 	var price float64
 	var status string
 	err = tx.QueryRowContext(ctx, "SELECT price, status FROM bookings WHERE id = $1 AND user_id = $2 FOR UPDATE", bookingID, fmt.Sprint(u.ID)).Scan(&price, &status)
 	if err != nil { h.writeError(w, http.StatusNotFound, "Booking not found"); return }
-	if status != "wait" { h.writeError(w, http.StatusBadRequest, "ไม่สามารถชำระเงินได้ (สถานะไม่ใช่รอชำระ)"); return }
+	if status != "wait" { h.writeError(w, http.StatusBadRequest, "ไม่สามารถชำระเงินได้ (สถานะไม่ใช่รอชำระ หรือตั๋วหมดอายุแล้ว)"); return }
 
 	// 2. หักเงินในกระเป๋า
 	var balance float64
