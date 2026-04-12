@@ -131,8 +131,21 @@ export default function MyBookingPage() {
     if (config && config.bgUrl) {
       return (
         <div className="relative mx-auto bg-cover bg-center shadow-lg rounded-xl overflow-hidden bg-white" style={{ width: config.width || 350, height: config.height || 500, backgroundImage: `url(${config.bgUrl})` }}>
-          <div style={{ position: 'absolute', top: config.qr?.y || 50, left: config.qr?.x || 50 }}>
-            <QRCodeCanvas className="qr-code-canvas" value={ticket.qr_token} size={config.qr?.size || 100} level="H" />
+          <div style={{ 
+            position: 'absolute', 
+            top: config.qr?.y || 50, 
+            left: config.qr?.x || 50,
+            backgroundColor: '#ffffff', /* บังคับพื้นหลังกล่องเป็นสีขาว */
+            padding: '10px', /* สร้างขอบขาวรอบๆ ตัว QR Code */
+            borderRadius: '8px' /* (ตัวเลือกเสริม) ลบมุมให้สวยงาม */
+          }}>
+            <QRCodeCanvas 
+              className="qr-code-canvas" 
+              value={ticket.qr_token} 
+              size={config.qr?.size ? config.qr.size - 20 : 80} /* ลดขนาดตัว QR ลงนิดหน่อยเพื่อเผื่อพื้นที่ให้ padding */
+              level="M" /* แนะนำให้เปลี่ยนจาก "H" เป็น "M" */
+              includeMargin={true} /* บังคับให้สร้างขอบขาวจากตัวไลบรารีด้วย */
+            />
           </div>
           <div style={{ position: 'absolute', top: config.seat?.y || 200, left: config.seat?.x || 50, color: config.seat?.color || '#000', fontSize: config.seat?.size || 16, fontWeight: 'bold' }}>{ticket.seat_code}</div>
           <div style={{ position: 'absolute', top: config.name?.y || 230, left: config.name?.x || 50, color: config.name?.color || '#000', fontSize: config.name?.size || 14, fontWeight: 'bold' }}>{ticket.concert_name}</div>
