@@ -20,41 +20,51 @@ export default function ScanTicketTab() {
 
   // ตั้งค่ากล้องเมื่อเลือกโหมด Camera
   useEffect(() => {
-    let scanner: Html5QrcodeScanner | null = null;
+    // ถ้าไม่ได้อยู่โหมดกล้อง ไม่ต้องทำอะไร
+    if (scanMode !== 'camera') return;
 
-    if (scanMode === 'camera') {
-      // ป้องกันการแสกนซ้ำซ้อนขณะโหลด
-      let isProcessing = false;
+    let isProcessing = false;
 
-      scanner = new Html5QrcodeScanner(
-        "qr-reader",
-        { fps: 10, qrbox: { width: 250, height: 250 } },
-        false
-      );
+    const scanner = new Html5QrcodeScanner(
+      "qr-reader",
+      { 
+        fps: 10, 
+        qrbox: { width: 250, height: 250 },
+        rememberLastUsedCamera: true
+      },
+      false
+    );
 
-      scanner.render(
-        async (decodedText) => {
-          if (isProcessing) return;
-          isProcessing = true;
+    scanner.render(
+      async (decodedText) => {
+        if (isProcessing) return;
+        isProcessing = true;
+        
+        try {
+          // เมื่อแสกนติด ให้สั่ง clear ปิดกล้องไปเลยป้องกันบั๊ก DOM ค้าง
+          await scanner.clear();
           
-          // เมื่อแสกนติด ให้ปิดกล้องชั่วคราวแล้วส่ง API
-          scanner?.pause(true);
+          // ส่งค่าไปตรวจสอบ API
           await processToken(decodedText);
           
-          // สลับกลับไปหน้าจอผลลัพธ์ (ให้คลิกแสกนใหม่เอาเองเพื่อความชัวร์)
+          // สลับกลับไปหน้าจอผลลัพธ์
           setScanMode('laser');
+        } catch (error) {
+          console.error("Scanner clear error:", error);
+        } finally {
           isProcessing = false;
-        },
-        (errorMessage) => {
-          // ignore errors while scanning
         }
-      );
-    }
-
-    return () => {
-      if (scanner) {
-        scanner.clear().catch(console.error);
+      },
+      (errorMessage) => {
+        // ignore errors while scanning (มี error ยิบย่อยโผล่มาเป็นปกติ)
       }
+    );
+
+    // Cleanup Function เมื่อ Component Unmount หรือเปลี่ยนโหมด
+    return () => {
+      scanner.clear().catch((error) => {
+        console.error("Failed to clear html5QrcodeScanner. ", error);
+      });
     };
   }, [scanMode]);
 
@@ -142,16 +152,15 @@ export default function ScanTicketTab() {
       )}
 
       {/* โหมดใช้กล้องมือถือ / Webcam */}
-      {scanMode === 'camera' && (
-        <div className="flex flex-col items-center animate-fade-in">
-          <div className="w-full max-w-sm rounded-2xl overflow-hidden border-2 border-blue-200 dark:border-blue-900 shadow-inner bg-black">
-            <div id="qr-reader" className="w-full"></div>
-          </div>
-          <p className="mt-4 text-sm text-gray-500 dark:text-gray-400 font-medium">
-            อนุญาตการเข้าถึงกล้อง แล้วนำ QR Code มาส่องในกรอบ
-          </p>
+      {/* ⚠️ การแก้ไข: ใช้ CSS ซ่อน (display: none) แทนการลบ Component เพื่อป้องกัน clear() ทำงานพลาด */}
+      <div className={`flex flex-col items-center animate-fade-in ${scanMode === 'camera' ? 'block' : 'hidden'}`}>
+        <div className="w-full max-w-sm rounded-2xl overflow-hidden border-2 border-blue-200 dark:border-blue-900 shadow-inner bg-black">
+          <div id="qr-reader" className="w-full bg-white"></div>
         </div>
-      )}
+        <p className="mt-4 text-sm text-gray-500 dark:text-gray-400 font-medium text-center">
+          อนุญาตการเข้าถึงกล้อง แล้วนำ QR Code มาส่องในกรอบ
+        </p>
+      </div>
 
       {/* กล่องแสดงผลลัพธ์การแสกน */}
       {message && scanMode === 'laser' && (
