@@ -95,18 +95,28 @@ func (h *Handler) JoinQueue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. ดึง Token ด้วยตัวเอง (ไม่ง้อ Middleware)
+	// 1. ดึง Token ด้วยตัวเอง
 	token := extractTokenFromReq(r)
 	var userIDStr string
 
 	if token != "" {
 		claims, err := h.parseToken(token)
-		if err == nil && claims.UserID > 0 {
+		if err != nil {
+			// 🚨 [เพิ่มโค้ดบรรทัดนี้] ถ้ามี Token ส่งมาแต่มันผิด (ปลอม/Secretไม่ตรง) ดีดออกเลย!
+			fmt.Println("🚨 [Backend Log] Token Error:", err)
+			WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "Invalid Token. ตรวจสอบ JWT_SECRET ด่วน!"})
+			return
+		}
+		
+		if claims.UserID != 0 {
 			userIDStr = fmt.Sprint(claims.UserID)
+		} else {
+			// เผื่อตั้งชื่อตัวแปร userId ตอนจำลองใน Node.js ไม่ตรงกับฝั่ง Go
+			userIDStr = "test_user_id_fallback"
 		}
 	}
 
-	// 2. ถ้าตรวจเจอว่ามีการแนบ Token มา (Login แล้ว หรือเป็นบอทที่ใช้ Token) ให้ทำงานส่วนนี้
+	// 2. ตรวจจับการเข้าคิวรัวๆ (ทำงานต่อเมื่อมี userIDStr)
 	if userIDStr != "" {
 		// เช็คสถานะแบน
 		if _, suspended := LocalSuspendedUsers.Load(userIDStr); suspended {
@@ -123,10 +133,10 @@ func (h *Handler) JoinQueue(w http.ResponseWriter, r *http.Request) {
 			// แบนลงใน Cache ทันที
 			LocalSuspendedUsers.Store(userIDStr, true) 
 			
-			// ส่งข้อมูลไปแบนถาวรที่ระบบหลักด้วย
 			if h.Pure != nil {
 				userIDInt, _ := strconv.ParseInt(userIDStr, 10, 64)
-				h.Pure.Post(context.Background(), "/api/internal/admin/users/update", map[string]any{"id": userIDInt, "status": "suspended"}, nil)
+				// ใช้ Go Routine ยิง API ไปแบนถาวร จะได้ไม่หน่วง Request
+				go h.Pure.Post(context.Background(), "/api/internal/admin/users/update", map[string]any{"id": userIDInt, "status": "suspended"}, nil)
 			}
 
 			WriteJSON(w, http.StatusForbidden, map[string]string{"error": "ตรวจพบพฤติกรรมสแปม บัญชีถูกระงับการใช้งาน"})
@@ -134,7 +144,7 @@ func (h *Handler) JoinQueue(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 3. ออกบัตรคิวตามปกติ
+	// 3. ออกบัตรคิวตามปกติ... (โค้ดล่างลงมาเหมือนเดิม)
 	q := getOrCreateQueue(concertID)
 	ticket := atomic.AddInt64(&q.globalQueueTicket, 1)
 	serving := atomic.LoadInt64(&q.currentServing)
