@@ -66,7 +66,19 @@ export default function ConcertBookPage() {
           queueInterval = setInterval(() => checkStatus(data.ticket), 3000);
         }
       } catch (err: any) {
-        alert("ไม่สามารถเข้าร่วมคิวได้ ระบบอาจจะเต็ม");
+        console.error("Join Queue Error:", err.response || err); // เพิ่ม Log ดูว่าพังเพราะอะไร
+        const status = err.response?.status;
+        
+        if (status === 401) {
+          alert("กรุณาเข้าสู่ระบบก่อนทำการจองที่นั่ง");
+          navigate('/login');
+        } else if (status === 403) {
+          // ดึงข้อความ Error จาก Backend มาแสดง (เช่น "บัญชีถูกระงับ")
+          alert(err.response?.data?.error || "บัญชีของคุณถูกระงับ หรือไม่มีสิทธิ์เข้าคิว");
+          navigate('/');
+        } else {
+          alert(`ไม่สามารถเข้าร่วมคิวได้ (Error: ${status || 'Network'})`);
+        }
       }
     };
 
