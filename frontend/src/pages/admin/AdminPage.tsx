@@ -9,6 +9,7 @@ import BookingsTab from './tabs/BookingsTab';
 import UsersTab from './tabs/UsersTab';
 import NewsTab from './tabs/NewsTab';
 import ScanTicketTab from './tabs/ScanTicketTab'; 
+import AppealsTab from './tabs/AppealsTab';
 
 // นำเข้าไอคอนสำหรับเมนู
 import placeImg from '../../assets/place.png';
@@ -45,9 +46,8 @@ export default function AdminPage() {
             <TabButton icon={calendarImg} id="bookings" label="ดูการจองตั๋ว" active={activeTab} onClick={setActiveTab} />
             <TabButton icon={userImg} id="users" label="จัดการผู้ใช้" active={activeTab} onClick={setActiveTab} />
             <TabButton icon={ideaImg} id="news" label="จัดการข่าวสาร" active={activeTab} onClick={setActiveTab} />
-            
-            {/* 👈 เพิ่มปุ่มเมนูสำหรับแสกนบัตร */}
             <TabButton icon={ticketImg} id="scan" label="แสกนบัตรเข้างาน (Scan)" active={activeTab} onClick={setActiveTab} />
+            <TabButton icon={userImg} id="appeals" label="คำร้องปลดแบน" active={activeTab} onClick={setActiveTab} />
           </div>
         </div>
 
@@ -58,9 +58,8 @@ export default function AdminPage() {
           {activeTab === 'bookings' && <BookingsTab />}
           {activeTab === 'users' && <UsersTab />}
           {activeTab === 'news' && <NewsTab />}
-          
-          {/* 👈 แสดงหน้า Scan เมื่อเลือก Tab */}
           {activeTab === 'scan' && <ScanTicketTab />}
+          {activeTab === 'appeals' && <AppealsTab />}
         </div>
         
       </div>

@@ -18,7 +18,6 @@ import (
 func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 	r := chi.NewRouter()
 
-	// 1. Middlewares
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Logger)
@@ -30,7 +29,6 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 	}
 	r.Use(cors(allowedOrigins, true))
 
-	// 2. Base Routes
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
 		if cfg.FrontendURL != "" {
@@ -41,22 +39,22 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 	})
 	r.Get("/favicon.ico", func(w http.ResponseWriter, req *http.Request) { w.WriteHeader(http.StatusNoContent) })
 
-	// 3. Initialize Handlers
 	p := pureapi.NewClient(cfg.PureAPIBaseURL, cfg.PureAPIKey, cfg.PureAPIInternalURL)
 	h := handlers.New(cfg, p, concertDB)
 
-	// 4. API Routes Grouping
 	r.Route("/api/auth", setupAuthRoutes(h))
 	r.Route("/api/users", setupUserRoutes(h))
 	r.Route("/api/concerts", setupConcertRoutes(h))
 	r.Route("/api/admin", setupAdminRoutes(h))
 
-	// 5. Global APIs
 	r.Get("/api/homepage", h.HomepageGet)
 	r.With(h.RequireAdmin).Put("/api/homepage", h.HomepageUpdate)
 	r.Get("/api/carousel", h.CarouselList)
 	r.Get("/api/download/windows", h.DownloadWindows)
 	r.Get("/api/download/android", h.DownloadAndroid)
+
+	// 🛑 เพิ่ม Route สาธารณะสำหรับคนโดนแบนเข้ามายื่นคำร้องโดยไม่ต้อง Login
+	r.Post("/api/appeals", h.SubmitAppeal)
 
 	return r
 }
@@ -143,5 +141,8 @@ func setupAdminRoutes(h *handlers.Handler) func(chi.Router) {
 		ad.Put("/news/{id}", h.AdminUpdateNews)
 		ad.Delete("/news/{id}", h.AdminDeleteNews)
 		
+		// 🛑 เพิ่ม Route ให้ Admin ตรวจสอบและอนุมัติคำร้อง
+		ad.Get("/appeals", h.AdminGetAppeals)
+		ad.Put("/appeals/{id}", h.AdminReviewAppeal)
 	}
 }

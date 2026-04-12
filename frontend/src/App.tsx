@@ -22,6 +22,7 @@ const AdminPage = lazy(() => import('./pages/admin/AdminPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 const DownloadPage = lazy(() => import('./pages/DownloadPage'));
+const AppealsPage = lazy(() => import('./pages/AppealPage'));
 
 const App = () => {
   const [serverReady, setServerReady] = useState(false);
@@ -111,6 +112,7 @@ const App = () => {
           <Route path="/my-bookings" element={<ProtectedRoute><MyBookingPage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route path="/download" element={<ProtectedRoute><DownloadPage /></ProtectedRoute>} />
+          <Route path="/appeals" element={<ProtectedRoute><AppealsPage /></ProtectedRoute>} />
 
           <Route path="/admin" element={<ProtectedRoute roles={['admin']}><AdminPage /></ProtectedRoute>} />
 

@@ -67,10 +67,19 @@ CREATE TABLE bookings (
     booked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 1. สร้างตารางกระเป๋าเงิน GTYCoin
-CREATE TABLE IF NOT EXISTS user_wallets (
+-- 7. สร้างตารางกระเป๋าเงิน GTYCoin
+CREATE TABLE user_wallets (
     user_id VARCHAR(255) PRIMARY KEY,
     balance DECIMAL(15, 2) DEFAULT 0.00
+);
+
+-- 8. สร้างตารางตรวจสอบ
+CREATE TABLE user_appeals (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    reason TEXT NOT NULL,
+    status VARCHAR(50) DEFAULT 'pending', 
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE UNIQUE INDEX idx_unique_svg_booking ON bookings (concert_id, seat_code) 

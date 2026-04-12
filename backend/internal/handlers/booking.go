@@ -18,7 +18,7 @@ import (
 
 // ===== Helper for QR Token =====
 func generateQRToken(bookingID int) string {
-	secret := "concerttick_super_secret" // คีย์สำหรับการเข้ารหัส (ใน Production ควรใส่ใน ENV)
+	secret := "concerttick_super_secret" 
 	msg := fmt.Sprintf("%d", bookingID)
 	h := hmac.New(sha256.New, []byte(secret))
 	h.Write([]byte(msg))
@@ -32,7 +32,6 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 7*time.Second)
 	defer cancel()
 
-	// [AUTO-CANCEL] ทำความสะอาดที่นั่งที่หมดอายุ 10 นาที ก่อนเริ่มกระบวนการจองใหม่เพื่อป้องกันบัคที่นั่งค้าง
 	h.ConcertDB.ExecContext(ctx, `UPDATE seats SET is_booked = false WHERE id IN (SELECT seat_id FROM bookings WHERE status = 'wait' AND booked_at < NOW() - INTERVAL '10 minutes' AND seat_id IS NOT NULL)`)
 	h.ConcertDB.ExecContext(ctx, `UPDATE bookings SET status = 'cancelled' WHERE status = 'wait' AND booked_at < NOW() - INTERVAL '10 minutes'`)
 
@@ -40,6 +39,15 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 	if err := ReadJSON(r, &req); err != nil { return }
 	u := GetUser(r)
 	if u == nil { return }
+
+	// 🛑 [SECURITY] ตรวจสอบสถานะ User ป้องกันคนติด Suspend มาจอง
+	var userStatusData map[string]any
+	if err := h.Pure.Post(ctx, "/api/internal/find-user", map[string]any{"id": u.ID}, &userStatusData); err == nil {
+		if status, ok := userStatusData["status"].(string); ok && status == "suspended" {
+			h.writeError(w, http.StatusForbidden, "บัญชีของคุณถูกระงับการใช้งาน (Suspended) ไม่สามารถจองที่นั่งได้")
+			return
+		}
+	}
 
 	var accessCode string
 	var showDate time.Time
@@ -49,7 +57,6 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 🛑 ระบบหมดเวลา
 	if time.Now().After(showDate) {
 		h.writeError(w, http.StatusBadRequest, "คอนเสิร์ตนี้ได้เริ่มหรือจบลงแล้ว ไม่สามารถจองที่นั่งได้")
 		return
@@ -71,6 +78,16 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 
 	if req.SeatCode != "" {
+		// 🛑 [SECURITY CHECK 1] ป้องกันการแก้ราคาจาก Frontend (Price Manipulation)
+		var actualPrice float64
+		errPrice := tx.QueryRowContext(ctx, "SELECT price FROM concert_seats WHERE concert_id = $1 AND seat_code = $2", req.ConcertID, req.SeatCode).Scan(&actualPrice)
+		if errPrice == nil && actualPrice != req.Price {
+			// ทุจริต! ระงับบัญชีทันที (Auto-Suspend)
+			h.Pure.Post(context.Background(), "/api/internal/admin/users/update", map[string]any{"id": u.ID, "status": "suspended"}, nil)
+			h.writeError(w, http.StatusForbidden, "ตรวจพบความผิดปกติของข้อมูล (Price manipulation) บัญชีของคุณถูกระงับการใช้งานทันที")
+			return
+		}
+
 		var existingID int
 		err := tx.QueryRowContext(ctx, `
 			SELECT id FROM bookings 
@@ -85,8 +102,8 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// ให้สถานะเริ่มต้นเป็น wait
-		_, err = tx.ExecContext(ctx, `INSERT INTO bookings (user_id, concert_id, seat_code, price, status) VALUES ($1, $2, $3, $4, 'wait')`, fmt.Sprint(u.ID), req.ConcertID, req.SeatCode, req.Price)
+		// ใช้ actualPrice เสมอเพื่อความปลอดภัยขั้นสูงสุด
+		_, err = tx.ExecContext(ctx, `INSERT INTO bookings (user_id, concert_id, seat_code, price, status) VALUES ($1, $2, $3, $4, 'wait')`, fmt.Sprint(u.ID), req.ConcertID, req.SeatCode, actualPrice)
 		if err != nil { 
 			h.writeError(w, http.StatusConflict, "ที่นั่งนี้เพิ่งถูกจองไป กรุณาเลือกใหม่")
 			return 
@@ -96,12 +113,19 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 		err := tx.QueryRowContext(ctx, `SELECT is_booked FROM seats WHERE id = $1 AND concert_id = $2 FOR UPDATE`, req.SeatID, req.ConcertID).Scan(&isBooked)
 		if err != nil || isBooked { h.writeError(w, http.StatusConflict, "Seat unavailable"); return }
 		
-		var sCode string; var sPrice float64
-		err = tx.QueryRowContext(ctx, `SELECT seat_code, price FROM seats WHERE id = $1`, req.SeatID).Scan(&sCode, &sPrice)
+		var sCode string; var actualPrice float64
+		err = tx.QueryRowContext(ctx, `SELECT seat_code, price FROM seats WHERE id = $1`, req.SeatID).Scan(&sCode, &actualPrice)
 		if err != nil { h.writeError(w, http.StatusInternalServerError, "Seat error"); return }
 
+		// 🛑 [SECURITY CHECK 2]
+		if actualPrice != req.Price {
+			h.Pure.Post(context.Background(), "/api/internal/admin/users/update", map[string]any{"id": u.ID, "status": "suspended"}, nil)
+			h.writeError(w, http.StatusForbidden, "ตรวจพบความผิดปกติของข้อมูล บัญชีของคุณถูกระงับการใช้งานทันที")
+			return
+		}
+
 		tx.ExecContext(ctx, "UPDATE seats SET is_booked = true WHERE id = $1", req.SeatID)
-		tx.ExecContext(ctx, `INSERT INTO bookings (user_id, concert_id, seat_id, seat_code, price, status) VALUES ($1, $2, $3, $4, $5, 'wait')`, fmt.Sprint(u.ID), req.ConcertID, req.SeatID, sCode, sPrice)
+		tx.ExecContext(ctx, `INSERT INTO bookings (user_id, concert_id, seat_id, seat_code, price, status) VALUES ($1, $2, $3, $4, $5, 'wait')`, fmt.Sprint(u.ID), req.ConcertID, req.SeatID, sCode, actualPrice)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -199,14 +223,12 @@ func (h *Handler) PayBooking(w http.ResponseWriter, r *http.Request) {
 	if err != nil { h.writeError(w, http.StatusInternalServerError, "System busy"); return }
 	defer tx.Rollback()
 
-	// 1. ตรวจสอบสถานะตั๋วว่ายัง wait อยู่ไหม
 	var price float64
 	var status string
 	err = tx.QueryRowContext(ctx, "SELECT price, status FROM bookings WHERE id = $1 AND user_id = $2 FOR UPDATE", bookingID, fmt.Sprint(u.ID)).Scan(&price, &status)
 	if err != nil { h.writeError(w, http.StatusNotFound, "Booking not found"); return }
 	if status != "wait" { h.writeError(w, http.StatusBadRequest, "ไม่สามารถชำระเงินได้ (สถานะไม่ใช่รอชำระ หรือตั๋วหมดอายุแล้ว)"); return }
 
-	// 2. หักเงินในกระเป๋า
 	var balance float64
 	err = tx.QueryRowContext(ctx, "SELECT balance FROM user_wallets WHERE user_id = $1 FOR UPDATE", fmt.Sprint(u.ID)).Scan(&balance)
 	if err == sql.ErrNoRows { balance = 0 }
@@ -219,7 +241,6 @@ func (h *Handler) PayBooking(w http.ResponseWriter, r *http.Request) {
 	_, err = tx.ExecContext(ctx, "UPDATE user_wallets SET balance = balance - $1 WHERE user_id = $2", price, fmt.Sprint(u.ID))
 	if err != nil { h.writeError(w, http.StatusInternalServerError, "Payment error"); return }
 
-	// 3. เปลี่ยนสถานะตั๋วเป็น Confirmed
 	_, err = tx.ExecContext(ctx, "UPDATE bookings SET status = 'confirmed' WHERE id = $1", bookingID)
 	if err != nil { h.writeError(w, http.StatusInternalServerError, "Update status error"); return }
 
