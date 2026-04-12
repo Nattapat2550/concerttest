@@ -12,6 +12,7 @@ export default function ConcertBookPage() {
   const [svgContent, setSvgContent] = useState<string>('');
   const [configuredSeats, setConfiguredSeats] = useState<any[]>([]);
   const [bookedSeats, setBookedSeats] = useState<string[]>([]);
+  const [waitSeats, setWaitSeats] = useState<string[]>([]); // 💡 เพิ่ม State สำหรับที่นั่งสถานะรอ
   const [selectedSeat, setSelectedSeat] = useState<any>(null);
   
   const [isBooking, setIsBooking] = useState(false);
@@ -30,6 +31,7 @@ export default function ConcertBookPage() {
         setSvgContent(data.svg_content || '');
         setConfiguredSeats(data.configured_seats || []);
         setBookedSeats(data.booked_seats || []);
+        setWaitSeats(data.wait_seats || []); // 💡 รับค่าที่นั่งที่กำลังรอจ่ายเงินจาก API
       } catch (err: any) { 
         console.error("Error loading concert map"); 
       }
@@ -82,12 +84,12 @@ export default function ConcertBookPage() {
     
     try {
       await api.post('/api/concerts/book', { 
-        concert_id: concert.id, // ต้องใช้ ID จริงสำหรับการจองในฐานข้อมูล
+        concert_id: concert.id, 
         seat_code: selectedSeat.seat_code, 
         price: selectedSeat.price,
         queue_ticket: myTicket
       });
-      alert("🎉 จองที่นั่งสำเร็จ!");
+      alert("🎉 จองที่นั่งสำเร็จ! กรุณาชำระเงินภายใน 10 นาที");
       navigate('/my-bookings');
     } catch (err: any) {
       const status = err.response?.status;
@@ -99,6 +101,7 @@ export default function ConcertBookPage() {
       try {
         const { data } = await api.get(`/api/concerts/${id}`);
         setBookedSeats(data.booked_seats || []);
+        setWaitSeats(data.wait_seats || []); // อัปเดตที่นั่งรอด้วยเวลาที่พลาด
       } catch (e: any) {}
       setSelectedSeat(null);
     } finally {
@@ -126,15 +129,18 @@ export default function ConcertBookPage() {
           svgContent={svgContent}
           configuredSeats={configuredSeats}
           bookedSeats={bookedSeats}
+          waitSeats={waitSeats} // 💡 ส่งค่า waitSeats ไปให้แผนผัง
           selectedSeat={selectedSeat}
           onSeatSelect={setSelectedSeat}
         />
       </div>
 
+      {/* 💡 อัปเดตคำอธิบายสีสัญลักษณ์ */}
       <div className="flex flex-wrap gap-3 md:gap-4 justify-center mt-6 text-xs md:text-sm font-bold dark:text-gray-300 px-2">
          <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-gray-400 rounded-full"></div> ที่นั่งโซนต่างๆ</span>
          <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-white border-2 border-red-500 rounded-full"></div> กำลังเลือก</span>
-         <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-gray-400 opacity-40 rounded-full"></div> ถูกจองแล้ว</span>
+         <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-[#eab308] rounded-full"></div> รอชำระเงิน</span>
+         <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-red-500 rounded-full"></div> ถูกจองแล้ว</span>
       </div>
 
       <div className="fixed md:static bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md dark:bg-gray-900/95 md:bg-blue-50 md:dark:bg-gray-900 p-4 md:p-6 md:rounded-xl flex flex-row justify-between items-center border-t md:border border-gray-200 dark:border-gray-700 md:border-blue-200 mt-0 md:mt-6 shadow-[0_-10px_30px_rgba(0,0,0,0.1)] md:shadow-md transition-all">
