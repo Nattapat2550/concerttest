@@ -38,12 +38,18 @@ test.describe('Mocked Security E2E Flow (ไม่ใช้ฐานข้อม
     });
     
     await page.route('**/api/auth/status', async route => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({ isAuthenticated: true, user: { id: 999, email: 'hacker@mock.com', role: 'user' } })
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          // 💡 แก้จาก isAuthenticated เป็น authenticated และดึง role, id ออกมาไว้ระดับนอกสุด
+          body: JSON.stringify({ 
+            authenticated: true, 
+            role: 'user',
+            id: 999,
+            user: { id: 999, email: 'hacker@mock.com', role: 'user' } 
+          })
+        });
       });
-    });
 
     // 4. ปลอมระบบคิว (Waiting Room) เพื่อให้ข้ามคิวเข้าไปหน้าเลือกที่นั่งได้ทันที
     await page.route('**/api/concerts/*/queue/join', async route => {
