@@ -8,13 +8,19 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(false);
   const [error, setError] = useState('');
+  const [isBanned, setIsBanned] = useState(false); // เพิ่ม State เช็คแบน
   
   const handleLogin = async (e: any) => {
     e.preventDefault();
     setError('');
+    setIsBanned(false);
     try {
       const { data } = await api.post('/api/auth/login', { email, password, remember });
-      if (data.user.status === 'banned') return setError('บัญชีของคุณถูกระงับการใช้งานถาวร');
+      
+      if (data.user.status === 'banned') {
+        setIsBanned(true); // เซ็ตแบนเป็น true เพื่อโชว์ปุ่มอุทธรณ์
+        return setError('บัญชีของคุณถูกระงับการใช้งานถาวร');
+      }
       if (data.reactivated) alert('กู้คืนบัญชีสำเร็จ! ยินดีต้อนรับกลับมา');
 
       localStorage.setItem('token', data.token);
@@ -33,7 +39,18 @@ export default function LoginPage() {
     <div className="flex justify-center items-center min-h-[80vh]">
       <div className="w-full max-w-md bg-white dark:bg-gray-800 p-8 rounded-lg shadow-xl border dark:border-gray-700">
         <h2 className="text-2xl font-bold text-center mb-6 text-gray-800 dark:text-white">เข้าสู่ระบบ</h2>
-        {error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm">{error}</div>}
+        
+        {/* เพิ่มเงื่อนไขเพื่อแสดงปุ่ม ยื่นคำร้องปลดแบน เมื่อ isBanned = true */}
+        {error && (
+          <div className="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm flex flex-col items-center">
+            <span className="text-center">{error}</span>
+            {isBanned && (
+              <Link to="/appeals" className="mt-2 text-blue-700 hover:text-blue-900 font-bold underline">
+                ยื่นคำร้องปลดแบนคลิกที่นี่
+              </Link>
+            )}
+          </div>
+        )}
         
         <form onSubmit={handleLogin}>
           <div className="mb-4">
@@ -50,7 +67,6 @@ export default function LoginPage() {
             </button>
           </div>
           
-          {/* อัปเดตส่วน Remember Me และปุ่มลืมรหัสผ่าน */}
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center">
               <input 

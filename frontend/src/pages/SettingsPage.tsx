@@ -1,5 +1,6 @@
 // frontend/src/pages/SettingsPage.tsx
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom'; // เพิ่ม Import Link ตรงนี้
 import api from '../services/api';
 
 export default function SettingsPage() {
@@ -124,7 +125,27 @@ export default function SettingsPage() {
         </form>
       </div>
 
-      <div className="mt-12 pt-6 border-t border-red-200 dark:border-red-900 flex justify-between items-center">
+      {/* --- ส่วนที่เพิ่มเข้ามา: ปุ่มยื่นคำร้อง --- */}
+      <div className="mt-10 pt-6 border-t border-gray-200 dark:border-gray-700">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">การช่วยเหลือและการร้องเรียน</h3>
+        <div className="bg-orange-50 dark:bg-orange-900/20 p-4 rounded-xl border border-orange-100 dark:border-orange-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div>
+            <h4 className="font-bold text-orange-800 dark:text-orange-400">ยื่นคำร้องปลดแบน / รายงานปัญหา</h4>
+            <p className="text-sm text-orange-600 dark:text-orange-300 mt-1">
+              หากคุณถูกระงับการใช้งานหรือต้องการส่งเรื่องให้ทีมงานตรวจสอบ
+            </p>
+          </div>
+          <Link 
+            to="/appeals" 
+            className="px-5 py-2.5 bg-orange-600 text-white font-bold rounded-xl hover:bg-orange-700 transition shadow-sm whitespace-nowrap"
+          >
+            ยื่นคำร้อง
+          </Link>
+        </div>
+      </div>
+      {/* ---------------------------------- */}
+
+      <div className="mt-8 pt-6 border-t border-red-200 dark:border-red-900 flex justify-between items-center">
         <div>
           <h3 className="text-xl font-bold text-red-600 dark:text-red-500">Danger Zone</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">ปิดการใช้งานบัญชี หากล็อกอินกลับมาภายใน 30 วันบัญชีจะถูกกู้คืน</p>
