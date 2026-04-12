@@ -20,7 +20,9 @@ export function usePanZoom(
       svgEl.style.transition = 'none';
     }
     
-    svgEl.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
+    // เพิ่ม translateZ(0) และ willChange เพื่อเปิด GPU Acceleration
+    svgEl.style.willChange = 'transform';
+    svgEl.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale}) translateZ(0)`;
     
     const currentZoom = transform.current.scale < ZOOM_THRESHOLD ? 'low' : 'high';
     if (svgEl.getAttribute('data-zoom') !== currentZoom) {
