@@ -39,11 +39,19 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 	if err := ReadJSON(r, &req); err != nil { return }
 	u := GetUser(r)
 	if u == nil { return }
+	userID := fmt.Sprint(u.ID)
 
-	// 🛑 [SECURITY] ตรวจสอบสถานะ User ป้องกันคนติด Suspend มาจอง
+	// 🛑 [SECURITY 1] ดักด้วย In-Memory Cache ก่อน เพื่อสู้กับ Load Test 
+	if _, suspended := LocalSuspendedUsers.Load(userID); suspended {
+		h.writeError(w, http.StatusForbidden, "บัญชีของคุณถูกระงับการใช้งาน (Suspended) ไม่สามารถจองที่นั่งได้")
+		return
+	}
+
+	// 🛑 [SECURITY 2] เช็ค API หากไม่มีใน Cache
 	var userStatusData map[string]any
 	if err := h.Pure.Post(ctx, "/api/internal/find-user", map[string]any{"id": u.ID}, &userStatusData); err == nil {
 		if status, ok := userStatusData["status"].(string); ok && status == "suspended" {
+			LocalSuspendedUsers.Store(userID, true) // แคชไว้ใช้รอบหน้า
 			h.writeError(w, http.StatusForbidden, "บัญชีของคุณถูกระงับการใช้งาน (Suspended) ไม่สามารถจองที่นั่งได้")
 			return
 		}
@@ -82,7 +90,8 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 		var actualPrice float64
 		errPrice := tx.QueryRowContext(ctx, "SELECT price FROM concert_seats WHERE concert_id = $1 AND seat_code = $2", req.ConcertID, req.SeatCode).Scan(&actualPrice)
 		if errPrice == nil && actualPrice != req.Price {
-			// ทุจริต! ระงับบัญชีทันที (Auto-Suspend)
+			// ทุจริต! แบนลง Cache ทันที + ยิง API
+			LocalSuspendedUsers.Store(userID, true)
 			h.Pure.Post(context.Background(), "/api/internal/admin/users/update", map[string]any{"id": u.ID, "status": "suspended"}, nil)
 			h.writeError(w, http.StatusForbidden, "ตรวจพบความผิดปกติของข้อมูล (Price manipulation) บัญชีของคุณถูกระงับการใช้งานทันที")
 			return
@@ -103,7 +112,7 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// ใช้ actualPrice เสมอเพื่อความปลอดภัยขั้นสูงสุด
-		_, err = tx.ExecContext(ctx, `INSERT INTO bookings (user_id, concert_id, seat_code, price, status) VALUES ($1, $2, $3, $4, 'wait')`, fmt.Sprint(u.ID), req.ConcertID, req.SeatCode, actualPrice)
+		_, err = tx.ExecContext(ctx, `INSERT INTO bookings (user_id, concert_id, seat_code, price, status) VALUES ($1, $2, $3, $4, 'wait')`, userID, req.ConcertID, req.SeatCode, actualPrice)
 		if err != nil { 
 			h.writeError(w, http.StatusConflict, "ที่นั่งนี้เพิ่งถูกจองไป กรุณาเลือกใหม่")
 			return 
@@ -119,13 +128,14 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 
 		// 🛑 [SECURITY CHECK 2]
 		if actualPrice != req.Price {
+			LocalSuspendedUsers.Store(userID, true)
 			h.Pure.Post(context.Background(), "/api/internal/admin/users/update", map[string]any{"id": u.ID, "status": "suspended"}, nil)
 			h.writeError(w, http.StatusForbidden, "ตรวจพบความผิดปกติของข้อมูล บัญชีของคุณถูกระงับการใช้งานทันที")
 			return
 		}
 
 		tx.ExecContext(ctx, "UPDATE seats SET is_booked = true WHERE id = $1", req.SeatID)
-		tx.ExecContext(ctx, `INSERT INTO bookings (user_id, concert_id, seat_id, seat_code, price, status) VALUES ($1, $2, $3, $4, $5, 'wait')`, fmt.Sprint(u.ID), req.ConcertID, req.SeatID, sCode, actualPrice)
+		tx.ExecContext(ctx, `INSERT INTO bookings (user_id, concert_id, seat_id, seat_code, price, status) VALUES ($1, $2, $3, $4, $5, 'wait')`, userID, req.ConcertID, req.SeatID, sCode, actualPrice)
 	}
 
 	if err := tx.Commit(); err != nil {

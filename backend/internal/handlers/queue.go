@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 	"sync"
@@ -9,6 +11,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 )
+
+// LocalSuspendedUsers ทำหน้าที่เป็น In-Memory Cache เพื่อแบนทันทีตอน Load Test โดยไม่ต้องรอ API
+var LocalSuspendedUsers sync.Map
+
+// userQueueRequests เช็คว่า User ขอคิวรัวเกินไปหรือไม่
+var userQueueRequests sync.Map // key: userID_concertID, value: *int32
 
 // ConcertQueue เก็บข้อมูลคิวของแต่ละคอนเสิร์ต
 type ConcertQueue struct {
@@ -33,7 +41,6 @@ func getOrCreateQueue(concertID string) *ConcertQueue {
 
 	queuesMutex.Lock()
 	defer queuesMutex.Unlock()
-	// เช็คอีกรอบเผื่อมี goroutine อื่นสร้างไปแล้วระหว่างรอ Lock
 	if q, exists := queues[concertID]; exists {
 		return q
 	}
@@ -51,7 +58,6 @@ func init() {
 		for {
 			time.Sleep(2 * time.Second)
 			
-			// ดึงคิวทั้งหมดที่มีการ active อยู่ เพื่อมาอัปเดตคนเข้า
 			queuesMutex.RLock()
 			var activeQueues []*ConcertQueue
 			for _, q := range queues {
@@ -91,8 +97,42 @@ func (h *Handler) JoinQueue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	q := getOrCreateQueue(concertID)
+	u := GetUser(r)
+	if u == nil {
+		WriteJSON(w, http.StatusUnauthorized, map[string]string{"error": "Unauthorized"})
+		return
+	}
+	userID := fmt.Sprint(u.ID)
 
+	// 🛑 [SECURITY 1] ตรวจสอบสถานะ User จาก Cache ทันที (ป้องกัน Load Test ทำ API หน่วง)
+	if _, suspended := LocalSuspendedUsers.Load(userID); suspended {
+		WriteJSON(w, http.StatusForbidden, map[string]string{"error": "บัญชีของคุณถูกระงับการใช้งาน (Suspended)"})
+		return
+	}
+
+	// 🛑 [SECURITY 2] เช็คจาก API หลัก
+	var userStatusData map[string]any
+	if err := h.Pure.Post(r.Context(), "/api/internal/find-user", map[string]any{"id": u.ID}, &userStatusData); err == nil {
+		if status, ok := userStatusData["status"].(string); ok && status == "suspended" {
+			LocalSuspendedUsers.Store(userID, true) // บันทึกลง Cache
+			WriteJSON(w, http.StatusForbidden, map[string]string{"error": "บัญชีของคุณถูกระงับการใช้งาน (Suspended)"})
+			return
+		}
+	}
+
+	// 🛑 [BOT PREVENTION] ตรวจจับถ้ายิงขอคิวรัวเกิน 5 ครั้ง ถือว่าเป็น Bot ระงับทันที
+	requestKey := fmt.Sprintf("%s_%s", userID, concertID)
+	val, _ := userQueueRequests.LoadOrStore(requestKey, new(int32))
+	reqCount := atomic.AddInt32(val.(*int32), 1)
+
+	if reqCount > 5 {
+		LocalSuspendedUsers.Store(userID, true) // จำแบนทันที
+		h.Pure.Post(context.Background(), "/api/internal/admin/users/update", map[string]any{"id": u.ID, "status": "suspended"}, nil)
+		WriteJSON(w, http.StatusForbidden, map[string]string{"error": "ตรวจพบพฤติกรรมสแปม (Bot) บัญชีของคุณถูกระงับการใช้งานทันที"})
+		return
+	}
+
+	q := getOrCreateQueue(concertID)
 	ticket := atomic.AddInt64(&q.globalQueueTicket, 1)
 	serving := atomic.LoadInt64(&q.currentServing)
 	
