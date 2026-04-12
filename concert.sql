@@ -30,7 +30,8 @@ CREATE TABLE concerts (
     ticket_price DECIMAL(10, 2) DEFAULT 2500.00,
     layout_image_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    is_active BOOLEAN DEFAULT FALSE
+    is_active BOOLEAN DEFAULT FALSE,
+    eticket_config TEXT DEFAULT '{}'
 );
 
 -- 4. ตารางกำหนดที่นั่งรายคอนเสิร์ต (Concert Seats)
@@ -66,6 +67,13 @@ CREATE TABLE bookings (
     booked_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE UNIQUE INDEX idx_unique_svg_booking ON bookings (concert_id, seat_code) WHERE status IN ('confirmed', 'used') AND seat_code IS NOT NULL;
+-- 1. สร้างตารางกระเป๋าเงิน GTYCoin
+CREATE TABLE IF NOT EXISTS user_wallets (
+    user_id VARCHAR(255) PRIMARY KEY,
+    balance DECIMAL(15, 2) DEFAULT 0.00
+);
+
+CREATE UNIQUE INDEX idx_unique_svg_booking ON bookings (concert_id, seat_code) 
+WHERE status IN ('confirmed', 'used', 'wait') AND seat_code IS NOT NULL;
 
 INSERT INTO news (title, content) VALUES ('ยินดีต้อนรับสู่ ConcertTick!', 'ระบบจองตั๋วคอนเสิร์ต Interactive Map เปิดให้บริการแล้ว');

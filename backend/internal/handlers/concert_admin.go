@@ -26,7 +26,6 @@ type AdminSaveSeatsRequest struct {
 	Seats []ConcertSeatConfig `json:"seats"`
 }
 
-// สร้างรหัสสุ่มความยาว 16 ตัวอักษร
 func generateAccessCode() string {
 	b := make([]byte, 8)
 	rand.Read(b)
@@ -67,7 +66,6 @@ func (h *Handler) AdminCancelBooking(w http.ResponseWriter, r *http.Request) {
 
 	bookingID := chi.URLParam(r, "id")
 	
-	// [FIXED] เพิ่มการเช็ค Error สำหรับ Transaction
 	tx, err := h.ConcertDB.BeginTx(ctx, nil)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "Failed to start transaction")
@@ -90,7 +88,6 @@ func (h *Handler) AdminGetVenues(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 	
-	// [FIXED] เพิ่มการเช็ค Error ป้องกันเซิร์ฟเวอร์ล่ม
 	rows, err := h.ConcertDB.QueryContext(ctx, `SELECT id, name, svg_content FROM venues ORDER BY id DESC`)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "Failed to fetch venues")
@@ -138,6 +135,10 @@ func (h *Handler) AdminCreateConcert(w http.ResponseWriter, r *http.Request) {
 	showDate := r.FormValue("show_date")
 	isActive := r.FormValue("is_active") == "true"
 	
+	// รับค่า eticket_config
+	eticketConfig := r.FormValue("eticket_config")
+	if eticketConfig == "" { eticketConfig = "{}" }
+	
 	imageURL, _ := tryReadImageDataURL(r, "image", 5*1024*1024)
 
 	var vID interface{}
@@ -145,7 +146,11 @@ func (h *Handler) AdminCreateConcert(w http.ResponseWriter, r *http.Request) {
 
 	accessCode := generateAccessCode()
 
-	_, err := h.ConcertDB.Exec(`INSERT INTO concerts (access_code, name, description, venue, venue_id, ticket_price, show_date, layout_image_url, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, accessCode, name, description, venue, vID, price, showDate, imageURL, isActive)
+	_, err := h.ConcertDB.Exec(`
+		INSERT INTO concerts (access_code, name, description, venue, venue_id, ticket_price, show_date, layout_image_url, is_active, eticket_config) 
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, 
+		accessCode, name, description, venue, vID, price, showDate, imageURL, isActive, eticketConfig)
+	
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "Failed to create concert")
 		return
@@ -166,15 +171,27 @@ func (h *Handler) AdminUpdateConcert(w http.ResponseWriter, r *http.Request) {
 	isActive := r.FormValue("is_active") == "true"
 	id := chi.URLParam(r, "id")
 	
+	// รับค่า eticket_config
+	eticketConfig := r.FormValue("eticket_config")
+	if eticketConfig == "" { eticketConfig = "{}" }
+	
 	imageURL, _ := tryReadImageDataURL(r, "image", 5*1024*1024)
 	var vID interface{}
 	if venueID == "" { vID = nil } else { vID = venueID }
 
 	var err error
 	if imageURL != "" {
-		_, err = h.ConcertDB.Exec(`UPDATE concerts SET name=$1, description=$2, venue=$3, venue_id=$4, ticket_price=$5, show_date=$6, layout_image_url=$7, is_active=$8 WHERE id=$9`, name, description, venue, vID, price, showDate, imageURL, isActive, id)
+		_, err = h.ConcertDB.Exec(`
+			UPDATE concerts 
+			SET name=$1, description=$2, venue=$3, venue_id=$4, ticket_price=$5, show_date=$6, layout_image_url=$7, is_active=$8, eticket_config=$9 
+			WHERE id=$10`, 
+			name, description, venue, vID, price, showDate, imageURL, isActive, eticketConfig, id)
 	} else {
-		_, err = h.ConcertDB.Exec(`UPDATE concerts SET name=$1, description=$2, venue=$3, venue_id=$4, ticket_price=$5, show_date=$6, is_active=$7 WHERE id=$8`, name, description, venue, vID, price, showDate, isActive, id)
+		_, err = h.ConcertDB.Exec(`
+			UPDATE concerts 
+			SET name=$1, description=$2, venue=$3, venue_id=$4, ticket_price=$5, show_date=$6, is_active=$7, eticket_config=$8 
+			WHERE id=$9`, 
+			name, description, venue, vID, price, showDate, isActive, eticketConfig, id)
 	}
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "Failed to update concert")
@@ -194,7 +211,6 @@ func (h *Handler) AdminSaveConcertSeats(w http.ResponseWriter, r *http.Request) 
 	var req AdminSaveSeatsRequest
 	if err := ReadJSON(r, &req); err != nil { return }
 
-	// [FIXED] เพิ่มการเช็ค Error สำหรับ Transaction
 	tx, err := h.ConcertDB.Begin()
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "Failed to start transaction")
@@ -213,7 +229,6 @@ func (h *Handler) AdminSaveConcertSeats(w http.ResponseWriter, r *http.Request) 
 
 // ---- News ----
 func (h *Handler) AdminGetNewsList(w http.ResponseWriter, r *http.Request) {
-	// [FIXED] เพิ่มการเช็ค Error ป้องกันเซิร์ฟเวอร์ล่ม
 	rows, err := h.ConcertDB.Query(`SELECT id, title, content, COALESCE(image_url, ''), is_active, created_at FROM news ORDER BY created_at DESC`)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "Failed to fetch news")

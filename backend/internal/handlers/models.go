@@ -30,6 +30,7 @@ type Concert struct {
 	TicketPrice    float64   `json:"ticket_price"`
 	LayoutImageURL string    `json:"layout_image_url"`
 	IsActive       bool      `json:"is_active"`
+	EticketConfig  string    `json:"eticket_config"` // เพิ่มสำหรับระบบ E-Ticket Template
 }
 
 type ConcertSeatConfig struct {
@@ -63,10 +64,21 @@ type BookSeatRequest struct {
 }
 
 type MyBooking struct {
-	ID          int       `json:"id"`
-	ConcertName string    `json:"concert_name"`
-	SeatCode    string    `json:"seat_code"`
-	Price       float64   `json:"price"`
-	Status      string    `json:"status"`
-	QRToken     string    `json:"qr_token"`
+	ID            int       `json:"id"`
+	ConcertName   string    `json:"concert_name"`
+	SeatCode      string    `json:"seat_code"`
+	Price         float64   `json:"price"`
+	Status        string    `json:"status"`
+	QRToken       string    `json:"qr_token"`
+	EticketConfig string    `json:"eticket_config"` // ส่งไปให้ Frontend Render
+}
+
+// ===== เพิ่ม Models สำหรับ GTYCoin =====
+type UserWallet struct {
+	UserID  string  `json:"user_id"`
+	Balance float64 `json:"balance"`
+}
+
+type TopupWalletRequest struct {
+	Amount float64 `json:"amount"`
 }

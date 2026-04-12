@@ -16,14 +16,12 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// ===== Helper for QR Token =====
 func generateQRToken(bookingID int) string {
-	secret := "concerttick_super_secret" // คีย์สำหรับการเข้ารหัส (ใน Production ควรใส่ใน ENV)
+	secret := "concerttick_super_secret"
 	msg := fmt.Sprintf("%d", bookingID)
 	h := hmac.New(sha256.New, []byte(secret))
 	h.Write([]byte(msg))
 	sig := hex.EncodeToString(h.Sum(nil))
-	// รูปแบบ: base64( ID | HMAC_Signature )
 	return base64.StdEncoding.EncodeToString([]byte(msg + "|" + sig))
 }
 
@@ -46,7 +44,6 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 🛑 ระบบหมดเวลา: ถ้าเวลาปัจจุบัน เลยเวลาแสดงคอนเสิร์ตไปแล้ว จะจองไม่ได้
 	if time.Now().After(showDate) {
 		h.writeError(w, http.StatusBadRequest, "คอนเสิร์ตนี้ได้เริ่มหรือจบลงแล้ว ไม่สามารถจองที่นั่งได้")
 		return
@@ -71,7 +68,7 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 		var existingID int
 		err := tx.QueryRowContext(ctx, `
 			SELECT id FROM bookings 
-			WHERE concert_id = $1 AND seat_code = $2 AND status IN ('confirmed', 'used') 
+			WHERE concert_id = $1 AND seat_code = $2 AND status IN ('confirmed', 'used', 'wait') 
 			FOR UPDATE`, req.ConcertID, req.SeatCode).Scan(&existingID)
 			
 		if err == nil {
@@ -82,7 +79,8 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		_, err = tx.ExecContext(ctx, `INSERT INTO bookings (user_id, concert_id, seat_code, price, status) VALUES ($1, $2, $3, $4, 'confirmed')`, fmt.Sprint(u.ID), req.ConcertID, req.SeatCode, req.Price)
+		// เปลียนสถานะเริ่มต้นเป็น wait
+		_, err = tx.ExecContext(ctx, `INSERT INTO bookings (user_id, concert_id, seat_code, price, status) VALUES ($1, $2, $3, $4, 'wait')`, fmt.Sprint(u.ID), req.ConcertID, req.SeatCode, req.Price)
 		if err != nil { 
 			h.writeError(w, http.StatusConflict, "ที่นั่งนี้เพิ่งถูกจองไป กรุณาเลือกใหม่")
 			return 
@@ -97,7 +95,7 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 		if err != nil { h.writeError(w, http.StatusInternalServerError, "Seat error"); return }
 
 		tx.ExecContext(ctx, "UPDATE seats SET is_booked = true WHERE id = $1", req.SeatID)
-		tx.ExecContext(ctx, `INSERT INTO bookings (user_id, concert_id, seat_id, seat_code, price, status) VALUES ($1, $2, $3, $4, $5, 'confirmed')`, fmt.Sprint(u.ID), req.ConcertID, req.SeatID, sCode, sPrice)
+		tx.ExecContext(ctx, `INSERT INTO bookings (user_id, concert_id, seat_id, seat_code, price, status) VALUES ($1, $2, $3, $4, $5, 'wait')`, fmt.Sprint(u.ID), req.ConcertID, req.SeatID, sCode, sPrice)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -115,7 +113,7 @@ func (h *Handler) GetMyBookings(w http.ResponseWriter, r *http.Request) {
 	u := GetUser(r)
 	if u == nil { return }
 	rows, _ := h.ConcertDB.QueryContext(ctx, `
-		SELECT b.id, c.name, COALESCE(b.seat_code, ''), COALESCE(b.price, 0), b.status 
+		SELECT b.id, c.name, COALESCE(b.seat_code, ''), COALESCE(b.price, 0), b.status, COALESCE(c.eticket_config, '{}')
 		FROM bookings b JOIN concerts c ON b.concert_id = c.id 
 		WHERE b.user_id = $1 ORDER BY b.booked_at DESC`, fmt.Sprint(u.ID))
 	defer rows.Close()
@@ -123,8 +121,7 @@ func (h *Handler) GetMyBookings(w http.ResponseWriter, r *http.Request) {
 	var bookings []MyBooking
 	for rows.Next() {
 		var b MyBooking
-		if err := rows.Scan(&b.ID, &b.ConcertName, &b.SeatCode, &b.Price, &b.Status); err == nil { 
-			// สร้างรหัส QR พิเศษสำหรับแต่ละการจอง
+		if err := rows.Scan(&b.ID, &b.ConcertName, &b.SeatCode, &b.Price, &b.Status, &b.EticketConfig); err == nil { 
 			b.QRToken = generateQRToken(b.ID)
 			bookings = append(bookings, b) 
 		}
@@ -145,7 +142,7 @@ func (h *Handler) CancelMyBooking(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 
 	var seatID sql.NullInt64
-	err := tx.QueryRowContext(ctx, `SELECT seat_id FROM bookings WHERE id = $1 AND user_id = $2 AND status = 'confirmed' FOR UPDATE`, bookingID, fmt.Sprint(u.ID)).Scan(&seatID)
+	err := tx.QueryRowContext(ctx, `SELECT seat_id FROM bookings WHERE id = $1 AND user_id = $2 AND status IN ('wait', 'confirmed') FOR UPDATE`, bookingID, fmt.Sprint(u.ID)).Scan(&seatID)
 	if err != nil { h.writeError(w, http.StatusNotFound, "Booking not found"); return }
 
 	tx.ExecContext(ctx, "UPDATE bookings SET status = 'cancelled' WHERE id = $1", bookingID)
@@ -155,4 +152,73 @@ func (h *Handler) CancelMyBooking(w http.ResponseWriter, r *http.Request) {
 	tx.Commit()
 
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "Booking cancelled"})
+}
+
+// ===== GTYCoin / Wallet Functions =====
+
+func (h *Handler) GetWallet(w http.ResponseWriter, r *http.Request) {
+	u := GetUser(r)
+	if u == nil { return }
+	var balance float64
+	err := h.ConcertDB.QueryRow("SELECT balance FROM user_wallets WHERE user_id = $1", fmt.Sprint(u.ID)).Scan(&balance)
+	if err != nil { balance = 0 }
+	WriteJSON(w, http.StatusOK, map[string]interface{}{"balance": balance})
+}
+
+// จำลองการเติมเงินเข้า GTYCoin
+func (h *Handler) TopupWallet(w http.ResponseWriter, r *http.Request) {
+	u := GetUser(r)
+	if u == nil { return }
+	var req TopupWalletRequest
+	if err := ReadJSON(r, &req); err != nil { return }
+	if req.Amount <= 0 { h.writeError(w, http.StatusBadRequest, "Invalid amount"); return }
+	
+	_, err := h.ConcertDB.Exec(`
+		INSERT INTO user_wallets (user_id, balance) VALUES ($1, $2)
+		ON CONFLICT (user_id) DO UPDATE SET balance = user_wallets.balance + $2
+	`, fmt.Sprint(u.ID), req.Amount)
+	
+	if err != nil { h.writeError(w, http.StatusInternalServerError, "Topup failed"); return }
+	WriteJSON(w, http.StatusOK, map[string]string{"message": "Topup successful"})
+}
+
+// ชำระเงินค่าตั๋วด้วย GTYCoin
+func (h *Handler) PayBooking(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	bookingID := chi.URLParam(r, "id")
+	u := GetUser(r)
+	if u == nil { return }
+
+	tx, err := h.ConcertDB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	if err != nil { h.writeError(w, http.StatusInternalServerError, "System busy"); return }
+	defer tx.Rollback()
+
+	// 1. ตรวจสอบสถานะและราคา
+	var price float64
+	var status string
+	err = tx.QueryRowContext(ctx, "SELECT price, status FROM bookings WHERE id = $1 AND user_id = $2 FOR UPDATE", bookingID, fmt.Sprint(u.ID)).Scan(&price, &status)
+	if err != nil { h.writeError(w, http.StatusNotFound, "Booking not found"); return }
+	if status != "wait" { h.writeError(w, http.StatusBadRequest, "ไม่สามารถชำระเงินได้ (สถานะไม่ใช่รอชำระ)"); return }
+
+	// 2. หักเงินในกระเป๋า
+	var balance float64
+	err = tx.QueryRowContext(ctx, "SELECT balance FROM user_wallets WHERE user_id = $1 FOR UPDATE", fmt.Sprint(u.ID)).Scan(&balance)
+	if err == sql.ErrNoRows { balance = 0 }
+
+	if balance < price {
+		h.writeError(w, http.StatusBadRequest, "GTYCoin ไม่เพียงพอ กรุณาเติมเงินเข้าระบบ")
+		return
+	}
+
+	_, err = tx.ExecContext(ctx, "UPDATE user_wallets SET balance = balance - $1 WHERE user_id = $2", price, fmt.Sprint(u.ID))
+	if err != nil { h.writeError(w, http.StatusInternalServerError, "Payment error"); return }
+
+	// 3. เปลี่ยนสถานะตั๋วเป็น Confirmed
+	_, err = tx.ExecContext(ctx, "UPDATE bookings SET status = 'confirmed' WHERE id = $1", bookingID)
+	if err != nil { h.writeError(w, http.StatusInternalServerError, "Update status error"); return }
+
+	tx.Commit()
+	WriteJSON(w, http.StatusOK, map[string]string{"message": "Payment successful"})
 }

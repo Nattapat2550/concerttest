@@ -214,6 +214,32 @@ func (h *Handler) AdminCarouselDelete(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ---------- Admin: Wallet (NEW) ----------
+// POST /api/admin/users/{id}/wallet
+func (h *Handler) AdminUpdateWallet(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	userID := chi.URLParam(r, "id")
+	
+	var req struct {
+		Balance float64 `json:"balance"`
+	}
+	if err := ReadJSON(r, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "Invalid JSON")
+		return
+	}
+
+	_, err := h.ConcertDB.ExecContext(ctx, `
+		INSERT INTO user_wallets (user_id, balance) VALUES ($1, $2)
+		ON CONFLICT (user_id) DO UPDATE SET balance = $2
+	`, userID, req.Balance)
+	
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, "Failed to update wallet")
+		return
+	}
+	WriteJSON(w, http.StatusOK, map[string]string{"message": "Wallet updated successfully"})
+}
+
 // ---------- Admin: Scan Ticket (NEW) ----------
 // POST /api/admin/bookings/scan
 func (h *Handler) AdminScanTicket(w http.ResponseWriter, r *http.Request) {

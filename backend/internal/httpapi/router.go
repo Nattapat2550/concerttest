@@ -102,6 +102,9 @@ func setupConcertRoutes(h *handlers.Handler) func(chi.Router) {
 		cr.With(h.RequireAuth).Post("/book", h.BookSeat)
 		cr.With(h.RequireAuth).Get("/my-bookings", h.GetMyBookings)
 		cr.With(h.RequireAuth).Put("/bookings/{id}/cancel", h.CancelMyBooking)
+		cr.With(h.RequireAuth).Get("/wallet", h.GetWallet)
+		cr.With(h.RequireAuth).Post("/wallet/topup", h.TopupWallet)
+		cr.With(h.RequireAuth).Post("/bookings/{id}/pay", h.PayBooking)
 	}
 }
 
@@ -112,6 +115,7 @@ func setupAdminRoutes(h *handlers.Handler) func(chi.Router) {
 		ad.Get("/users", h.AdminUsersList)
 		ad.Put("/users/{id}", h.AdminUsersUpdateByID)
 		ad.Post("/users/update", h.AdminUsersUpdate)
+		ad.Post("/users/{id}/wallet", h.AdminUpdateWallet)
 		
 		ad.Get("/carousel", h.AdminCarouselList)
 		ad.Post("/carousel", h.AdminCarouselCreate)
@@ -138,5 +142,6 @@ func setupAdminRoutes(h *handlers.Handler) func(chi.Router) {
 		ad.Post("/news", h.AdminCreateNews)
 		ad.Put("/news/{id}", h.AdminUpdateNews)
 		ad.Delete("/news/{id}", h.AdminDeleteNews)
+		
 	}
 }
