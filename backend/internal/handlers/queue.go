@@ -33,15 +33,19 @@ func getOrCreateQueue(concertID string) *ConcertQueue {
 	q, exists := queues[concertID]
 	queuesMutex.RUnlock()
 
-	if exists { return q }
+	if exists {
+		return q
+	}
 
 	queuesMutex.Lock()
 	defer queuesMutex.Unlock()
-	if q, exists := queues[concertID]; exists { return q }
+	if q, exists := queues[concertID]; exists {
+		return q
+	}
 	
 	newQueue := &ConcertQueue{
 		globalQueueTicket: 0,
-		currentServing:    100, 
+		currentServing:    100,
 	}
 	queues[concertID] = newQueue
 	return newQueue
@@ -91,31 +95,46 @@ func (h *Handler) JoinQueue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 🟢 ดึงข้อมูล User (ถ้าไม่มีก็ไม่เป็นไร ปล่อยผ่านไปรับคิวได้เหมือนเดิม ป้องกันการเกิด 401)
-	u := GetUser(r)
-	if u != nil {
-		userID := fmt.Sprint(u.ID)
+	// 1. ดึง Token ด้วยตัวเอง (ไม่ง้อ Middleware)
+	token := extractTokenFromReq(r)
+	var userIDStr string
 
+	if token != "" {
+		claims, err := h.parseToken(token)
+		if err == nil && claims.UserID > 0 {
+			userIDStr = fmt.Sprint(claims.UserID)
+		}
+	}
+
+	// 2. ถ้าตรวจเจอว่ามีการแนบ Token มา (Login แล้ว หรือเป็นบอทที่ใช้ Token) ให้ทำงานส่วนนี้
+	if userIDStr != "" {
 		// เช็คสถานะแบน
-		if _, suspended := LocalSuspendedUsers.Load(userID); suspended {
+		if _, suspended := LocalSuspendedUsers.Load(userIDStr); suspended {
 			WriteJSON(w, http.StatusForbidden, map[string]string{"error": "บัญชีของคุณถูกระงับการใช้งาน"})
 			return
 		}
 
-		// ดักจับ Bot ถ้ายิงขอคิวรัวๆ (ให้โควต้า 15 ครั้งเผื่อ Hot Reload)
-		requestKey := fmt.Sprintf("%s_%s", userID, concertID)
+		// ดักจับ Bot ถ้ายิงขอคิวรัวๆ (จำกัด 15 ครั้ง)
+		requestKey := fmt.Sprintf("%s_%s", userIDStr, concertID)
 		val, _ := userQueueRequests.LoadOrStore(requestKey, new(int32))
 		reqCount := atomic.AddInt32(val.(*int32), 1)
 
 		if reqCount > 15 {
-			LocalSuspendedUsers.Store(userID, true) 
-			h.Pure.Post(context.Background(), "/api/internal/admin/users/update", map[string]any{"id": u.ID, "status": "suspended"}, nil)
+			// แบนลงใน Cache ทันที
+			LocalSuspendedUsers.Store(userIDStr, true) 
+			
+			// ส่งข้อมูลไปแบนถาวรที่ระบบหลักด้วย
+			if h.Pure != nil {
+				userIDInt, _ := strconv.ParseInt(userIDStr, 10, 64)
+				h.Pure.Post(context.Background(), "/api/internal/admin/users/update", map[string]any{"id": userIDInt, "status": "suspended"}, nil)
+			}
+
 			WriteJSON(w, http.StatusForbidden, map[string]string{"error": "ตรวจพบพฤติกรรมสแปม บัญชีถูกระงับการใช้งาน"})
 			return
 		}
 	}
 
-	// 🟢 ออกบัตรคิวตามปกติให้ทุกคน 
+	// 3. ออกบัตรคิวตามปกติ
 	q := getOrCreateQueue(concertID)
 	ticket := atomic.AddInt64(&q.globalQueueTicket, 1)
 	serving := atomic.LoadInt64(&q.currentServing)
