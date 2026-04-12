@@ -174,11 +174,7 @@ export default function InteractiveSeatMap({
     if (e.buttons !== 1) return;
     const dx = e.clientX - dragState.current.startX;
     const dy = e.clientY - dragState.current.startY;
-    if (!dragState.current.isDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
-        dragState.current.isDragging = true;
-        // เพิ่ม: ปิด pointerEvents ตอนเริ่มลาก
-        if (transformWrapperRef.current) transformWrapperRef.current.style.pointerEvents = 'none';
-    }
+    if (!dragState.current.isDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) dragState.current.isDragging = true;
     if (dragState.current.isDragging) {
       transform.current.x = dragState.current.mapX + dx;
       transform.current.y = dragState.current.mapY + dy;
@@ -189,9 +185,6 @@ export default function InteractiveSeatMap({
 
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     e.currentTarget.releasePointerCapture(e.pointerId);
-    // เพิ่ม: เปิด pointerEvents กลับมาตอนปล่อยคลิก
-    if (transformWrapperRef.current) transformWrapperRef.current.style.pointerEvents = 'auto';
-    
     if (lassoRef.current.active) {
       if (lasso && lasso.w > 5 && lasso.h > 5) {
         const lRect = {

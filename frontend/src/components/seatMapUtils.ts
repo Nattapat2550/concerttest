@@ -75,39 +75,33 @@ export const buildVectorZones = (
     const overlayG = document.createElementNS('http://www.w3.org/2000/svg', 'g');
     overlayG.setAttribute('class', 'zone-overlay');
 
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    let zoneColor = '#3b82f6';
+    let sumX = 0, sumY = 0, count = 0;
 
-    // คำนวณขอบเขต (Bounding Box) ของทั้งโซน
     zoneData.seats.forEach((s: any) => {
-      if (s.box.x < minX) minX = s.box.x;
-      if (s.box.y < minY) minY = s.box.y;
-      if (s.box.x + s.box.width > maxX) maxX = s.box.x + s.box.width;
-      if (s.box.y + s.box.height > maxY) maxY = s.box.y + s.box.height;
-      zoneColor = s.color;
-    });
-
-    if (minX !== Infinity) {
-      // สร้างสี่เหลี่ยม 1 อันครอบทั้งโซน
       const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-      rect.setAttribute('x', String(minX - PADDING));
-      rect.setAttribute('y', String(minY - PADDING));
-      rect.setAttribute('width', String((maxX - minX) + PADDING * 2));
-      rect.setAttribute('height', String((maxY - minY) + PADDING * 2));
-      rect.setAttribute('rx', '8'); 
+      rect.setAttribute('x', String(s.box.x - PADDING));
+      rect.setAttribute('y', String(s.box.y - PADDING));
+      rect.setAttribute('width', String(s.box.width + PADDING * 2));
+      rect.setAttribute('height', String(s.box.height + PADDING * 2));
+      rect.setAttribute('rx', '4'); 
       rect.setAttribute('class', 'zone-sub-rect');
       
-      rect.style.fill = zoneColor;
-      rect.style.opacity = '0.8'; // ปรับให้โปร่งแสงเล็กน้อย
-      rect.style.stroke = zoneColor;
+      rect.style.fill = s.color;
+      rect.style.stroke = s.color;
       rect.style.strokeWidth = '1px';
       
       overlayG.appendChild(rect);
 
+      sumX += (s.box.x + s.box.width / 2);
+      sumY += (s.box.y + s.box.height / 2);
+      count++;
+    });
+
+    if (count > 0) {
       const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
       text.textContent = zoneId.replace(/[_-]/g, ' ').toUpperCase();
-      text.setAttribute('x', String(minX + (maxX - minX) / 2));
-      text.setAttribute('y', String(minY + (maxY - minY) / 2));
+      text.setAttribute('x', String(sumX / count));
+      text.setAttribute('y', String(sumY / count));
       text.setAttribute('text-anchor', 'middle');
       text.setAttribute('dominant-baseline', 'middle');
       text.setAttribute('class', 'zone-blob-text');
