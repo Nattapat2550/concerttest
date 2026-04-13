@@ -81,7 +81,26 @@ CREATE TABLE user_appeals (
     status VARCHAR(50) DEFAULT 'pending', 
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+-- 9. ตาราง Carousel
+CREATE TABLE carousels (
+    id SERIAL PRIMARY KEY,
+    image_url TEXT NOT NULL,
+    link_url TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    sort_order INT DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 
+-- 10. ตาราง Documents (ข้อมูลและแกลเลอรี)
+CREATE TABLE documents (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    cover_image TEXT,
+    gallery_urls TEXT DEFAULT '[]', -- เก็บเป็น JSON Array ของ URL รูปภาพ ["url1", "url2"]
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
 CREATE UNIQUE INDEX idx_unique_svg_booking ON bookings (concert_id, seat_code) 
 WHERE status IN ('confirmed', 'used', 'wait') AND seat_code IS NOT NULL;
 

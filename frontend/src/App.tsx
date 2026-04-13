@@ -23,6 +23,9 @@ const ContactPage = lazy(() => import('./pages/ContactPage'));
 const DownloadPage = lazy(() => import('./pages/DownloadPage'));
 const AppealsPage = lazy(() => import('./pages/AppealPage'));
 
+// เพิ่มบรรทัดนี้สำหรับโหลดหน้า DocumentDetailsPage
+const DocumentDetailsPage = lazy(() => import('./pages/DocumentDetailsPage'));
+
 const App = () => {
   const [serverReady, setServerReady] = useState(false);
   const [wakingUp, setWakingUp] = useState(false);
@@ -104,7 +107,11 @@ const App = () => {
           <Route path="/reset" element={<ResetPasswordPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
+          
           <Route path="/concerts/:accessCode" element={<ConcertDetailsPage />} />
+          
+          {/* เพิ่ม Route สำหรับดูหน้ารายละเอียดข้อมูลและแกลเลอรีแบบ Public */}
+          <Route path="/documents/:id" element={<DocumentDetailsPage />} />
           
           {/* เอา ProtectedRoute ออกเพื่อให้คนที่โดนแบนเข้าได้ */}
           <Route path="/appeals" element={<AppealsPage />} />

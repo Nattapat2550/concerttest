@@ -49,7 +49,12 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 
 	r.Get("/api/homepage", h.HomepageGet)
 	r.With(h.RequireAdmin).Put("/api/homepage", h.HomepageUpdate)
+	
+	// ดึงข้อมูลแสดงหน้าเว็บ (Public)
 	r.Get("/api/carousel", h.CarouselList)
+	r.Get("/api/documents/list", h.DocumentList)
+	r.Get("/api/documents/{id}", h.GetDocumentDetail)
+
 	r.Get("/api/download/windows", h.DownloadWindows)
 	r.Get("/api/download/android", h.DownloadAndroid)
 
@@ -115,10 +120,16 @@ func setupAdminRoutes(h *handlers.Handler) func(chi.Router) {
 		ad.Post("/users/update", h.AdminUsersUpdate)
 		ad.Post("/users/{id}/wallet", h.AdminUpdateWallet)
 		
+		// จัดการ Carousel
 		ad.Get("/carousel", h.AdminCarouselList)
 		ad.Post("/carousel", h.AdminCarouselCreate)
 		ad.Put("/carousel/{id}", h.AdminCarouselUpdate)
 		ad.Delete("/carousel/{id}", h.AdminCarouselDelete)
+
+		// จัดการ Documents/Gallery
+		ad.Post("/documents", h.AdminCreateDocument)
+		ad.Put("/documents/{id}", h.AdminUpdateDocument)
+		ad.Delete("/documents/{id}", h.AdminDeleteDocument)
 
 		ad.Put("/homepage", h.HomepageUpdate)
 		

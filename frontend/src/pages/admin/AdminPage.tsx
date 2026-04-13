@@ -11,13 +11,17 @@ import NewsTab from './tabs/NewsTab';
 import ScanTicketTab from './tabs/ScanTicketTab'; 
 import AppealsTab from './tabs/AppealsTab';
 
+// Import Tab ตัวใหม่ที่สร้างขึ้น
+import CarouselTab from './tabs/CarouselTab';
+import DocumentsTab from './tabs/DocumentsTab';
+
 // นำเข้าไอคอนสำหรับเมนู
 import placeImg from '../../assets/place.png';
 import ticketImg from '../../assets/ticket.png';
 import calendarImg from '../../assets/calendar.png';
 import userImg from '../../assets/user.png';
 import ideaImg from '../../assets/idea.png';
-import settingsImg from '../../assets/settings.png'; // ย้ายขึ้นมาด้านบนเพื่อไม่ให้เกิด Error
+import settingsImg from '../../assets/settings.png'; 
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState('bookings'); 
@@ -48,6 +52,10 @@ export default function AdminPage() {
             <TabButton icon={ideaImg} id="news" label="จัดการข่าวสาร" active={activeTab} onClick={setActiveTab} />
             <TabButton icon={ticketImg} id="scan" label="แสกนบัตรเข้างาน (Scan)" active={activeTab} onClick={setActiveTab} />
             <TabButton icon={userImg} id="appeals" label="คำร้องปลดแบน" active={activeTab} onClick={setActiveTab} />
+            
+            {/* เพิ่มปุ่มเมนูใหม่ */}
+            <TabButton icon={ideaImg} id="carousels" label="จัดการหน้าแรก (Carousel)" active={activeTab} onClick={setActiveTab} />
+            <TabButton icon={calendarImg} id="documents" label="จัดการข้อมูล/แกลเลอรี" active={activeTab} onClick={setActiveTab} />
           </div>
         </div>
 
@@ -60,6 +68,10 @@ export default function AdminPage() {
           {activeTab === 'news' && <NewsTab />}
           {activeTab === 'scan' && <ScanTicketTab />}
           {activeTab === 'appeals' && <AppealsTab />}
+          
+          {/* แสดง Component ใหม่ตาม Tab */}
+          {activeTab === 'carousels' && <CarouselTab />}
+          {activeTab === 'documents' && <DocumentsTab />}
         </div>
         
       </div>

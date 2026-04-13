@@ -6,6 +6,7 @@ import heroImg from '../assets/hero.png';
 import calendarImg from '../assets/calendar.png';
 import placeImg from '../assets/place.png';
 import ticketImg from '../assets/ticket.png';
+import ideaImg from '../assets/idea.png'; // นำไอคอนมาใช้สำหรับกล่อง Document
 
 interface Concert {
   id: number;
@@ -17,27 +18,58 @@ interface Concert {
   is_active: boolean;
 }
 
+interface Carousel {
+  id: number;
+  image_url: string;
+  link_url: string;
+  is_active: boolean;
+}
+
+interface DocumentItem {
+  id: number;
+  title: string;
+  cover_image: string;
+  is_active: boolean;
+}
+
 export default function HomePage() {
   const [concerts, setConcerts] = useState<Concert[]>([]);
+  const [carousels, setCarousels] = useState<Carousel[]>([]);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
-    const fetchConcerts = async () => {
+    const fetchData = async () => {
       try {
-        const { data } = await api.get('/api/concerts/list');
-        setConcerts(data || []);
+        const [concertRes, carouselRes, docRes] = await Promise.all([
+          api.get('/api/concerts/list'),
+          api.get('/api/carousels/list').catch(() => ({ data: [] })), // Fallback if API missing
+          api.get('/api/documents/list').catch(() => ({ data: [] }))
+        ]);
+        setConcerts(concertRes.data || []);
+        setCarousels(carouselRes.data || []);
+        setDocuments(docRes.data || []);
       } catch (err: any) { 
-        console.error("Failed to load concerts");
+        console.error("Failed to load initial data");
       }
     };
-    fetchConcerts();
+    fetchData();
   }, []);
+
+  // Carousel Auto Slide
+  useEffect(() => {
+    if (carousels.length <= 1) return;
+    const timer = setInterval(() => {
+      setCurrentSlide(prev => (prev + 1) % carousels.length);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [carousels.length]);
 
   return (
     <div className="w-full overflow-x-hidden bg-bg-main pb-20">
-      {/* Premium Hero Banner - Full Width */}
+      {/* Premium Hero Banner */}
       <div className="relative bg-linear-to-br from-indigo-900 via-purple-900 to-black text-white overflow-hidden">
-        {/* Abstract Background Effects */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-30">
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden opacity-30 pointer-events-none">
           <div className="absolute -top-[20%] -left-[10%] w-[50%] h-[150%] bg-brand rounded-full blur-[120px] mix-blend-screen"></div>
           <div className="absolute top-[20%] -right-[10%] w-[40%] h-[120%] bg-pink-600 rounded-full blur-[150px] mix-blend-screen"></div>
         </div>
@@ -64,8 +96,47 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Concerts Grid Section - Full Width Container */}
-      <div className="w-full px-6 lg:px-12 2xl:px-20 mt-16 md:mt-24">
+      {/* Admin Editable Carousel Section */}
+      {carousels.length > 0 && (
+        <div className="w-full px-6 lg:px-12 2xl:px-20 mt-10">
+          <div className="relative w-full h-62.5 md:h-100 lg:h-112.5 rounded-3xl overflow-hidden shadow-xl bg-bg-card border border-outline">
+            {carousels.map((c, idx) => (
+              <div
+                key={c.id}
+                className={`absolute inset-0 transition-opacity duration-1000 ${idx === currentSlide ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}
+              >
+                {c.link_url ? (
+                  <a href={c.link_url} target="_blank" rel="noopener noreferrer" className="w-full h-full block">
+                    <img src={c.image_url} alt={`Banner ${idx}`} className="w-full h-full object-cover" />
+                  </a>
+                ) : (
+                  <img src={c.image_url} alt={`Banner ${idx}`} className="w-full h-full object-cover" />
+                )}
+              </div>
+            ))}
+            
+            {/* Carousel Navigation */}
+            {carousels.length > 1 && (
+              <>
+                <button onClick={() => setCurrentSlide(prev => (prev - 1 + carousels.length) % carousels.length)} className="absolute left-4 top-1/2 -translate-y-1/2 z-20 bg-black/40 hover:bg-brand backdrop-blur text-white w-10 h-10 rounded-full transition-all flex items-center justify-center font-bold">
+                  &lt;
+                </button>
+                <button onClick={() => setCurrentSlide(prev => (prev + 1) % carousels.length)} className="absolute right-4 top-1/2 -translate-y-1/2 z-20 bg-black/40 hover:bg-brand backdrop-blur text-white w-10 h-10 rounded-full transition-all flex items-center justify-center font-bold">
+                  &gt;
+                </button>
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex gap-2">
+                  {carousels.map((_, idx) => (
+                    <button key={idx} onClick={() => setCurrentSlide(idx)} className={`w-2.5 h-2.5 rounded-full transition-all ${idx === currentSlide ? 'bg-white scale-125 w-6' : 'bg-white/50 hover:bg-white'}`} />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Concerts Grid Section */}
+      <div className="w-full px-6 lg:px-12 2xl:px-20 mt-16 md:mt-20">
         <div className="flex items-center gap-4 mb-10">
           <div className="p-3 bg-brand/10 rounded-2xl">
             <img src={ticketImg} className="w-6 h-6 object-contain dark:invert" alt="Concerts" />
@@ -84,15 +155,11 @@ export default function HomePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
             {concerts.map(c => (
               <div key={c.id} className={`group bg-bg-card rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-none overflow-hidden border border-outline flex flex-col h-full transition-all duration-300 ${!c.is_active ? 'opacity-70 grayscale' : 'hover:shadow-2xl hover:shadow-brand/10 hover:-translate-y-2 hover:border-brand/30'}`}>
-                
-                {/* Image Cover */}
                 <div className="h-56 bg-bg-main relative overflow-hidden">
                   {c.layout_image_url ? 
                     <img src={c.layout_image_url} alt="Cover" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"/> : 
                     <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800"><span className="text-text-sub font-bold">No Image</span></div>
                   }
-                  
-                  {/* Status Badge */}
                   <div className="absolute top-4 right-4 z-10">
                     {c.is_active ? (
                       <span className="bg-white/90 dark:bg-gray-900/90 backdrop-blur text-brand text-xs font-black px-4 py-1.5 rounded-full shadow-lg">เปิดจองแล้ว</span>
@@ -102,10 +169,8 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                {/* Details */}
                 <div className="p-6 flex flex-col flex-1">
                   <h3 className="text-xl font-black mb-4 text-text-main leading-snug line-clamp-2">{c.name}</h3>
-                  
                   <div className="space-y-3 mb-6">
                     <div className="flex items-center text-text-sub text-sm font-medium">
                       <div className="w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center mr-3 shrink-0">
@@ -113,7 +178,6 @@ export default function HomePage() {
                       </div>
                       <span>{new Date(c.show_date).toLocaleString('th-TH', { dateStyle: 'medium', timeStyle: 'short' })} น.</span>
                     </div>
-                    
                     <div className="flex items-center text-text-sub text-sm font-medium">
                       <div className="w-8 h-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center mr-3 shrink-0">
                         <img src={placeImg} alt="Venue" className="w-4 h-4 object-contain opacity-70 dark:invert" />
@@ -121,8 +185,6 @@ export default function HomePage() {
                       <span className="truncate">{c.venue}</span>
                     </div>
                   </div>
-                  
-                  {/* Button */}
                   <div className="mt-auto pt-4 border-t border-outline">
                     {c.is_active ? (
                       <Link to={`/concerts/${c.access_code}`} className="flex justify-center items-center w-full bg-bg-main group-hover:bg-brand text-text-main group-hover:text-white font-bold py-3.5 rounded-xl transition-all duration-300">
@@ -140,6 +202,42 @@ export default function HomePage() {
           </div>
         )}
       </div>
+
+      {/* Documents/Gallery Section */}
+      <div className="w-full px-6 lg:px-12 2xl:px-20 mt-16 md:mt-24">
+        <div className="flex items-center gap-4 mb-10">
+          <div className="p-3 bg-blue-500/10 rounded-2xl">
+            <img src={ideaImg} className="w-6 h-6 object-contain dark:invert" alt="Documents" />
+          </div>
+          <h2 className="text-2xl md:text-4xl font-black text-text-main tracking-tight">
+            ข่าวสาร & ข้อมูลแกลเลอรี
+          </h2>
+        </div>
+        
+        {documents.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+            {documents.map(d => (
+              <div key={d.id} className="group bg-bg-card rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-none overflow-hidden border border-outline flex flex-col h-full transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/10 hover:-translate-y-2 hover:border-blue-500/30">
+                <div className="h-48 bg-bg-main relative overflow-hidden">
+                  {d.cover_image ? 
+                    <img src={d.cover_image} alt="Cover" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"/> : 
+                    <div className="w-full h-full flex items-center justify-center bg-gray-100 dark:bg-gray-800"><span className="text-text-sub font-bold">No Image</span></div>
+                  }
+                </div>
+                <div className="p-6 flex flex-col flex-1">
+                  <h3 className="text-xl font-black mb-4 text-text-main leading-snug line-clamp-2">{d.title}</h3>
+                  <div className="mt-auto pt-4 border-t border-outline">
+                    <Link to={`/documents/${d.id}`} className="flex justify-center items-center w-full bg-bg-main group-hover:bg-blue-600 text-text-main group-hover:text-white font-bold py-3.5 rounded-xl transition-all duration-300">
+                      อ่านรายละเอียด & แกลเลอรี
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }

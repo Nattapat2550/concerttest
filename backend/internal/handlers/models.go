@@ -83,3 +83,22 @@ type UserWallet struct {
 type TopupWalletRequest struct {
 	Amount float64 `json:"amount"`
 }
+
+type Carousel struct {
+	ID        int       `json:"id"`
+	ImageURL  string    `json:"image_url"`
+	LinkURL   string    `json:"link_url"`
+	IsActive  bool      `json:"is_active"`
+	SortOrder int       `json:"sort_order"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type Document struct {
+	ID          int       `json:"id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	CoverImage  string    `json:"cover_image"`
+	GalleryURLs string    `json:"gallery_urls"`
+	IsActive    bool      `json:"is_active"`
+	CreatedAt   time.Time `json:"created_at"`
+}
