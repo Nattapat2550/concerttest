@@ -15,6 +15,9 @@ export function useSeatWebSocket(concertId?: string) {
     if (!concertId) return;
 
     const wsUrl = `wss://gtyconcerttestbe.onrender.com/api/concerts/${concertId}/ws`;
+    
+    // 🌟 เพิ่มบรรทัดนี้เพื่อจับผิด React
+    console.log("React กำลังพยายามต่อ WebSocket ไปที่:", wsUrl);
     const connect = () => {
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
