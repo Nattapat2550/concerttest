@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -29,11 +28,10 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 	}
 	r.Use(cors(allowedOrigins, true))
 
-	// 🌟 ย้ายการสร้างตัวแปร h ขึ้นมาไว้ตรงนี้ก่อน เพื่อให้เรียกใช้งาน h.Health ด้านล่างได้
 	p := pureapi.NewClient(cfg.PureAPIBaseURL, cfg.PureAPIKey, cfg.PureAPIInternalURL)
 	h := handlers.New(cfg, p, concertDB)
 
-	r.Get("/api/health", h.Health) // 🌟 ตอนนี้ h ถูกสร้างแล้ว จึงเรียกใช้งานได้อย่างถูกต้อง
+	r.Get("/api/health", h.Health)
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
 		if cfg.FrontendURL != "" {
 			http.Redirect(w, req, cfg.FrontendURL, http.StatusFound)
@@ -43,117 +41,21 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 	})
 	r.Get("/favicon.ico", func(w http.ResponseWriter, req *http.Request) { w.WriteHeader(http.StatusNoContent) })
 
+	// เรียกใช้ Route ย่อยที่แยกไปตามไฟล์ต่างๆ
 	r.Route("/api/auth", setupAuthRoutes(h))
 	r.Route("/api/users", setupUserRoutes(h))
 	r.Route("/api/concerts", setupConcertRoutes(h))
 	r.Route("/api/admin", setupAdminRoutes(h))
 
+	// Global / Public Routes
 	r.Get("/api/homepage", h.HomepageGet)
 	r.With(h.RequireAdmin).Put("/api/homepage", h.HomepageUpdate)
-	
-	// ดึงข้อมูลแสดงหน้าเว็บ (Public)
 	r.Get("/api/carousel", h.CarouselList)
 	r.Get("/api/documents/list", h.DocumentList)
 	r.Get("/api/documents/{id}", h.GetDocumentDetail)
-
 	r.Get("/api/download/windows", h.DownloadWindows)
 	r.Get("/api/download/android", h.DownloadAndroid)
-
 	r.Post("/api/appeals", h.SubmitAppeal)
 
 	return r
-}
-
-func setupAuthRoutes(h *handlers.Handler) func(chi.Router) {
-	return func(ar chi.Router) {
-		ar.Use(rateLimit(100, 15*time.Minute, func(req *http.Request) (string, error) { return GetClientIP(req), nil }))
-		ar.Post("/register", h.AuthRegister)
-		ar.Post("/verify-code", h.AuthVerifyCode)
-		ar.Post("/complete-profile", h.AuthCompleteProfile)
-		ar.Post("/login", h.AuthLogin)
-		ar.Get("/status", h.AuthStatus)
-		ar.Post("/logout", h.AuthLogout)
-		ar.Post("/forgot-password", h.AuthForgotPassword)
-		ar.Post("/reset-password", h.AuthResetPassword)
-		ar.Get("/google", h.AuthGoogleStart)
-		ar.Get("/google/callback", h.AuthGoogleCallback)
-		ar.Post("/google-mobile", h.AuthGoogleMobileCallback)
-	}
-}
-
-func setupUserRoutes(h *handlers.Handler) func(chi.Router) {
-	return func(ur chi.Router) {
-		ur.Use(h.RequireAuth)
-		ur.Get("/me", h.UsersMeGet)
-		ur.Put("/me", h.UsersMePut)
-		ur.Post("/me/avatar", h.UsersMeAvatar)
-		ur.Delete("/me", h.UsersMeDelete)
-	}
-}
-
-func setupConcertRoutes(h *handlers.Handler) func(chi.Router) {
-	return func(cr chi.Router) {
-		cr.Get("/news/latest", h.GetLatestNews)
-		cr.Get("/list", h.GetConcerts)
-		
-		cr.Get("/{id}/queue/join", h.JoinQueue)
-		cr.Get("/{id}/queue/status", h.CheckQueueStatus)
-
-		cr.Get("/{id}/seats", h.GetConcertSeats)
-		cr.Get("/{id}", h.GetConcertDetails)
-		
-		// 🌟 Route สำหรับ WebSocket (Real-time Seat Locking)
-		cr.Get("/{id}/ws", h.SeatWebSocketHandler)
-		
-		cr.With(h.RequireAuth).Post("/book", h.BookSeat)
-		cr.With(h.RequireAuth).Get("/my-bookings", h.GetMyBookings)
-		cr.With(h.RequireAuth).Put("/bookings/{id}/cancel", h.CancelMyBooking)
-		cr.With(h.RequireAuth).Get("/wallet", h.GetWallet)
-		cr.With(h.RequireAuth).Post("/wallet/topup", h.TopupWallet)
-		cr.With(h.RequireAuth).Post("/bookings/{id}/pay", h.PayBooking)
-	}
-}
-
-func setupAdminRoutes(h *handlers.Handler) func(chi.Router) {
-	return func(ad chi.Router) {
-		ad.Use(h.RequireAdmin)
-
-		ad.Get("/users", h.AdminUsersList)
-		ad.Put("/users/{id}", h.AdminUsersUpdateByID)
-		ad.Post("/users/update", h.AdminUsersUpdate)
-		ad.Post("/users/{id}/wallet", h.AdminUpdateWallet)
-		
-		ad.Get("/carousel", h.AdminCarouselListNew)
-		ad.Post("/carousel", h.AdminCarouselCreateNew)
-		ad.Put("/carousel/{id}", h.AdminCarouselUpdateNew)
-		ad.Delete("/carousel/{id}", h.AdminCarouselDeleteNew)
-
-		ad.Post("/documents", h.AdminCreateDocument)
-		ad.Put("/documents/{id}", h.AdminUpdateDocument) 
-		ad.Delete("/documents/{id}", h.AdminDeleteDocument)
-
-		ad.Put("/homepage", h.HomepageUpdate)
-		
-		ad.Get("/bookings", h.AdminGetAllBookings)
-		ad.Put("/bookings/{id}/cancel", h.AdminCancelBooking)
-		ad.Post("/bookings/scan", h.AdminScanTicket)
-		
-		ad.Get("/venues", h.AdminGetVenues)
-		ad.Post("/venues", h.AdminCreateVenue)
-		ad.Delete("/venues/{id}", h.AdminDeleteVenue)
-
-		ad.Get("/concerts", h.GetConcerts)
-		ad.Post("/concerts", h.AdminCreateConcert)
-		ad.Put("/concerts/{id}", h.AdminUpdateConcert)
-		ad.Delete("/concerts/{id}", h.AdminDeleteConcert)
-		ad.Post("/concerts/{id}/seats", h.AdminSaveConcertSeats)
-
-		ad.Get("/news", h.AdminGetNewsList)
-		ad.Post("/news", h.AdminCreateNews)
-		ad.Put("/news/{id}", h.AdminUpdateNews)
-		ad.Delete("/news/{id}", h.AdminDeleteNews)
-		
-		ad.Get("/appeals", h.AdminGetAppeals)
-		ad.Put("/appeals/{id}", h.AdminReviewAppeal)
-	}
 }
