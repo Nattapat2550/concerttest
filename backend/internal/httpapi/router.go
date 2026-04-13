@@ -120,15 +120,15 @@ func setupAdminRoutes(h *handlers.Handler) func(chi.Router) {
 		ad.Post("/users/update", h.AdminUsersUpdate)
 		ad.Post("/users/{id}/wallet", h.AdminUpdateWallet)
 		
-		// จัดการ Carousel
-		ad.Get("/carousel", h.AdminCarouselList)
-		ad.Post("/carousel", h.AdminCarouselCreate)
-		ad.Put("/carousel/{id}", h.AdminCarouselUpdate)
-		ad.Delete("/carousel/{id}", h.AdminCarouselDelete)
+		// จัดการ Carousel (เรียกใช้ตัว New แทน)
+		ad.Get("/carousel", h.AdminCarouselListNew)
+		ad.Post("/carousel", h.AdminCarouselCreateNew)
+		ad.Put("/carousel/{id}", h.AdminCarouselUpdateNew)
+		ad.Delete("/carousel/{id}", h.AdminCarouselDeleteNew)
 
 		// จัดการ Documents/Gallery
 		ad.Post("/documents", h.AdminCreateDocument)
-		ad.Put("/documents/{id}", h.AdminUpdateDocument)
+		ad.Put("/documents/{id}", h.AdminUpdateDocument) 
 		ad.Delete("/documents/{id}", h.AdminDeleteDocument)
 
 		ad.Put("/homepage", h.HomepageUpdate)

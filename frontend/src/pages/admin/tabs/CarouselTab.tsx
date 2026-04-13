@@ -1,4 +1,3 @@
-// frontend/src/pages/admin/tabs/CarouselTab.tsx
 import React, { useState, useEffect } from 'react';
 import api from '../../../services/api';
 
@@ -15,7 +14,8 @@ export default function CarouselTab() {
 
   const fetchItems = async () => {
     try {
-      const { data } = await api.get('/api/carousels/list');
+      // ดึงข้อมูลผ่าน Endpoint นี้ (ตรงกับ router.go)
+      const { data } = await api.get('/api/carousel');
       setItems(data || []);
     } catch (err) {
       console.error("Failed to fetch carousels");
@@ -27,7 +27,8 @@ export default function CarouselTab() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await api.post('/api/admin/carousels', { ...form, is_active: true });
+      // ส่งข้อมูลผ่าน Endpoint นี้
+      await api.post('/api/admin/carousel', { ...form, is_active: true });
       setForm({ image_url: '', link_url: '', sort_order: 0 });
       fetchItems();
     } catch (err) {
@@ -38,7 +39,8 @@ export default function CarouselTab() {
   const handleDelete = async (id: number) => {
     if (!confirm('ยืนยันการลบแบนเนอร์นี้?')) return;
     try {
-      await api.delete(`/api/admin/carousels/${id}`);
+      // ส่งคำสั่งลบผ่าน Endpoint นี้
+      await api.delete(`/api/admin/carousel/${id}`);
       fetchItems();
     } catch (err) {
       alert("ไม่สามารถลบได้");
