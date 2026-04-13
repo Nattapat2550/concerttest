@@ -106,10 +106,10 @@ export default function InteractiveSeatMap({
 
       // 💡 [สถานะ Wait/Lock] ให้เป็นสีเหลือง
       if (mode === 'booking' && waitSet.has(seatId)) {
-        seatData.node.style.fill = '#eab308'; // สีเหลือง (คงตาม CSS เดิมของคุณ)
-        seatData.node.style.opacity = '0.9';
-        seatData.node.style.stroke = '#ffffff';
-        seatData.node.style.strokeWidth = '1';
+        seatData.node.style.setProperty('fill', '#eab308', 'important');
+        seatData.node.style.setProperty('opacity', '0.9', 'important');
+        seatData.node.style.setProperty('stroke', '#ffffff', 'important');
+        seatData.node.style.setProperty('stroke-width', '1', 'important');
         seatData.node.style.cursor = 'not-allowed';
       }
     });
