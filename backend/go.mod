@@ -12,3 +12,5 @@ require (
 require github.com/lib/pq v1.12.0
 
 require golang.org/x/sync v0.20.0
+
+require github.com/gorilla/websocket v1.5.3

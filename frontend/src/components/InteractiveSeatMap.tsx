@@ -1,6 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+// frontend/src/components/InteractiveSeatMap.tsx
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { injectMapStyles, buildVectorZones } from './seatMapUtils'; 
 import { usePanZoom } from '../hooks/usePanZoom'; 
+import { useSeatWebSocket } from '../hooks/useSeatWebSocket'; // 🌟 นำเข้า Hook
 
 interface SeatConfig {
   seat_code: string;
@@ -11,10 +13,11 @@ interface SeatConfig {
 }
 
 interface InteractiveSeatMapProps {
+  concertId?: string; // 🌟 เพิ่มสำหรับโยง WebSocket
   svgContent: string;
   configuredSeats?: SeatConfig[];
   bookedSeats?: string[];
-  waitSeats?: string[]; // เพิ่มรับที่นั่งที่กำลังรอจ่ายเงิน
+  waitSeats?: string[]; 
   mode?: 'booking' | 'admin';
   onSeatSelect?: (seat: any) => void;
   selectedSeat?: any;
@@ -23,6 +26,7 @@ interface InteractiveSeatMapProps {
 const ZOOM_THRESHOLD = 1.2;
 
 export default function InteractiveSeatMap({
+  concertId,
   svgContent,
   configuredSeats = [],
   bookedSeats = [],
@@ -35,6 +39,14 @@ export default function InteractiveSeatMap({
   const [lasso, setLasso] = useState<{x: number, y: number, w: number, h: number} | null>(null); 
   const { transform, applyTransform, handleZoom, handleReset, showZoomHint, rafRef } = usePanZoom(containerRef, transformWrapperRef, ZOOM_THRESHOLD);
   
+  // 🌟 เรียกใช้ WebSocket Hook
+  const { lockedSeats: wsLockedSeats, lockSeat } = useSeatWebSocket(mode === 'booking' ? concertId : undefined);
+
+  // 🌟 นำที่นั่งที่รอจ่าย (ระบบหลัก) และ ล็อคชั่วคราว (WS) มารวมเป็น Set เดียวกันเพื่อแสดงผลสีเหลือง (#eab308)
+  const combinedWaitSeats = useMemo(() => {
+    return Array.from(new Set([...waitSeats, ...wsLockedSeats]));
+  }, [waitSeats, wsLockedSeats]);
+
   const dragState = useRef({ isDragging: false, startX: 0, startY: 0, mapX: 0, mapY: 0, target: null as EventTarget | null });
   const lassoRef = useRef({ active: false, startX: 0, startY: 0, clientStartX: 0, clientStartY: 0 });
   const seatElementsCache = useRef(new Map<string, any>());
@@ -77,7 +89,7 @@ export default function InteractiveSeatMap({
     if (!svgEl || seatElementsCache.current.size === 0) return;
 
     const bookedSet = new Set(bookedSeats);
-    const waitSet = new Set(waitSeats); 
+    const waitSet = new Set(combinedWaitSeats); // 🌟 ใช้ combinedWaitSeats แทน 
     const configuredMap = new Map();
     configuredSeats.forEach(c => configuredMap.set(c.seat_code, c));
 
@@ -92,9 +104,9 @@ export default function InteractiveSeatMap({
         seatData.node.style.pointerEvents = '';
       }
 
-      // 💡 [สถานะ Wait] ให้เป็นสีเหลือง (10 นาที)
+      // 💡 [สถานะ Wait/Lock] ให้เป็นสีเหลือง
       if (mode === 'booking' && waitSet.has(seatId)) {
-        seatData.node.style.fill = '#eab308'; // สีเหลือง
+        seatData.node.style.fill = '#eab308'; // สีเหลือง (คงตาม CSS เดิมของคุณ)
         seatData.node.style.opacity = '0.9';
         seatData.node.style.stroke = '#ffffff';
         seatData.node.style.strokeWidth = '1';
@@ -102,7 +114,7 @@ export default function InteractiveSeatMap({
       }
     });
 
-  }, [configuredSeats, bookedSeats, waitSeats, mode]);
+  }, [configuredSeats, bookedSeats, combinedWaitSeats, mode]); // 🌟 อัปเดต Dependency
 
   const handleMapClick = (target: EventTarget | null, clientX: number, clientY: number) => {
     if (!target) return;
@@ -114,10 +126,15 @@ export default function InteractiveSeatMap({
       if (!seatId) return;
 
       // ❌ ห้ามกดจองถ้าที่นั่งนั้นถูก Book หรือ Wait ไปแล้ว
-      if (mode === 'booking' && (bookedSeats.includes(seatId) || waitSeats.includes(seatId))) return;
+      if (mode === 'booking' && (bookedSeats.includes(seatId) || combinedWaitSeats.includes(seatId))) return;
       
       const config = configuredSeats.find(c => c.seat_code === seatId);
       if (mode === 'booking' && !config) return;
+
+      // 🌟 ทันทีที่เลือก ให้ส่งสัญญาณบอกเซิร์ฟเวอร์ทำการ Lock ชั่วคราว
+      if (mode === 'booking') {
+        lockSeat(seatId);
+      }
 
       if (onSeatSelect) onSeatSelect(config || { seat_code: seatId, status: 'available' });
       return;
@@ -223,10 +240,10 @@ export default function InteractiveSeatMap({
         💡 กด <kbd className="bg-gray-700 px-2 py-0.5 rounded text-xs border border-gray-600">Ctrl</kbd> ค้าง + เลื่อนลูกกลิ้งเพื่อซูม
       </div>
 
-      {/* 💡 คำใบ้สถานะที่นั่ง */}
+      {/* 💡 คำใบ้สถานะที่นั่ง อัปเดตข้อความให้รวมสถานะล็อกชั่วคราวด้วย */}
       <div className="absolute bottom-4 left-4 z-20 flex gap-3 bg-white/90 dark:bg-gray-800/90 p-3 rounded-xl shadow-lg border dark:border-gray-600 text-xs font-bold pointer-events-none">
         <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-gray-300"></div> ว่าง</div>
-        <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-[#eab308]"></div> รอจ่ายเงิน (10 นาที)</div>
+        <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-[#eab308]"></div> ล็อก/รอจ่ายเงิน</div>
         <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-red-500"></div> จองแล้ว</div>
       </div>
 

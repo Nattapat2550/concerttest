@@ -29,7 +29,11 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 	}
 	r.Use(cors(allowedOrigins, true))
 
-	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	// 🌟 ย้ายการสร้างตัวแปร h ขึ้นมาไว้ตรงนี้ก่อน เพื่อให้เรียกใช้งาน h.Health ด้านล่างได้
+	p := pureapi.NewClient(cfg.PureAPIBaseURL, cfg.PureAPIKey, cfg.PureAPIInternalURL)
+	h := handlers.New(cfg, p, concertDB)
+
+	r.Get("/health", h.Health) // 🌟 ตอนนี้ h ถูกสร้างแล้ว จึงเรียกใช้งานได้อย่างถูกต้อง
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
 		if cfg.FrontendURL != "" {
 			http.Redirect(w, req, cfg.FrontendURL, http.StatusFound)
@@ -38,9 +42,6 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 		w.Write([]byte("Backend API is running"))
 	})
 	r.Get("/favicon.ico", func(w http.ResponseWriter, req *http.Request) { w.WriteHeader(http.StatusNoContent) })
-
-	p := pureapi.NewClient(cfg.PureAPIBaseURL, cfg.PureAPIKey, cfg.PureAPIInternalURL)
-	h := handlers.New(cfg, p, concertDB)
 
 	r.Route("/api/auth", setupAuthRoutes(h))
 	r.Route("/api/users", setupUserRoutes(h))
@@ -58,7 +59,6 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 	r.Get("/api/download/windows", h.DownloadWindows)
 	r.Get("/api/download/android", h.DownloadAndroid)
 
-	// 🛑 เพิ่ม Route สาธารณะสำหรับคนโดนแบนเข้ามายื่นคำร้องโดยไม่ต้อง Login
 	r.Post("/api/appeals", h.SubmitAppeal)
 
 	return r
@@ -102,6 +102,9 @@ func setupConcertRoutes(h *handlers.Handler) func(chi.Router) {
 		cr.Get("/{id}/seats", h.GetConcertSeats)
 		cr.Get("/{id}", h.GetConcertDetails)
 		
+		// 🌟 Route สำหรับ WebSocket (Real-time Seat Locking)
+		cr.Get("/{id}/ws", h.SeatWebSocketHandler)
+		
 		cr.With(h.RequireAuth).Post("/book", h.BookSeat)
 		cr.With(h.RequireAuth).Get("/my-bookings", h.GetMyBookings)
 		cr.With(h.RequireAuth).Put("/bookings/{id}/cancel", h.CancelMyBooking)
@@ -120,13 +123,11 @@ func setupAdminRoutes(h *handlers.Handler) func(chi.Router) {
 		ad.Post("/users/update", h.AdminUsersUpdate)
 		ad.Post("/users/{id}/wallet", h.AdminUpdateWallet)
 		
-		// จัดการ Carousel (เรียกใช้ตัว New แทน)
 		ad.Get("/carousel", h.AdminCarouselListNew)
 		ad.Post("/carousel", h.AdminCarouselCreateNew)
 		ad.Put("/carousel/{id}", h.AdminCarouselUpdateNew)
 		ad.Delete("/carousel/{id}", h.AdminCarouselDeleteNew)
 
-		// จัดการ Documents/Gallery
 		ad.Post("/documents", h.AdminCreateDocument)
 		ad.Put("/documents/{id}", h.AdminUpdateDocument) 
 		ad.Delete("/documents/{id}", h.AdminDeleteDocument)
@@ -152,7 +153,6 @@ func setupAdminRoutes(h *handlers.Handler) func(chi.Router) {
 		ad.Put("/news/{id}", h.AdminUpdateNews)
 		ad.Delete("/news/{id}", h.AdminDeleteNews)
 		
-		// 🛑 เพิ่ม Route ให้ Admin ตรวจสอบและอนุมัติคำร้อง
 		ad.Get("/appeals", h.AdminGetAppeals)
 		ad.Put("/appeals/{id}", h.AdminReviewAppeal)
 	}

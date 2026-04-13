@@ -5,14 +5,14 @@ import InteractiveSeatMap from '../components/InteractiveSeatMap';
 import WaitingRoom from '../components/WaitingRoom';
 
 export default function ConcertBookPage() {
-  const { id } = useParams(); // id ตรงนี้จะกลายเป็น Access Code ตามที่ Router จ่ายมาให้
+  const { id } = useParams(); 
   const navigate = useNavigate();
   
   const [concert, setConcert] = useState<any>(null);
   const [svgContent, setSvgContent] = useState<string>('');
   const [configuredSeats, setConfiguredSeats] = useState<any[]>([]);
   const [bookedSeats, setBookedSeats] = useState<string[]>([]);
-  const [waitSeats, setWaitSeats] = useState<string[]>([]); // 💡 เพิ่ม State สำหรับที่นั่งสถานะรอ
+  const [waitSeats, setWaitSeats] = useState<string[]>([]); 
   const [selectedSeat, setSelectedSeat] = useState<any>(null);
   
   const [isBooking, setIsBooking] = useState(false);
@@ -31,7 +31,7 @@ export default function ConcertBookPage() {
         setSvgContent(data.svg_content || '');
         setConfiguredSeats(data.configured_seats || []);
         setBookedSeats(data.booked_seats || []);
-        setWaitSeats(data.wait_seats || []); // 💡 รับค่าที่นั่งที่กำลังรอจ่ายเงินจาก API
+        setWaitSeats(data.wait_seats || []); 
       } catch (err: any) { 
         console.error("Error loading concert map"); 
       }
@@ -66,14 +66,13 @@ export default function ConcertBookPage() {
           queueInterval = setInterval(() => checkStatus(data.ticket), 3000);
         }
       } catch (err: any) {
-        console.error("Join Queue Error:", err.response || err); // เพิ่ม Log ดูว่าพังเพราะอะไร
+        console.error("Join Queue Error:", err.response || err); 
         const status = err.response?.status;
         
         if (status === 401) {
           alert("กรุณาเข้าสู่ระบบก่อนทำการจองที่นั่ง");
           navigate('/login');
         } else if (status === 403) {
-          // ดึงข้อความ Error จาก Backend มาแสดง (เช่น "บัญชีถูกระงับ")
           alert(err.response?.data?.error || "บัญชีของคุณถูกระงับ หรือไม่มีสิทธิ์เข้าคิว");
           navigate('/');
         } else {
@@ -113,7 +112,7 @@ export default function ConcertBookPage() {
       try {
         const { data } = await api.get(`/api/concerts/${id}`);
         setBookedSeats(data.booked_seats || []);
-        setWaitSeats(data.wait_seats || []); // อัปเดตที่นั่งรอด้วยเวลาที่พลาด
+        setWaitSeats(data.wait_seats || []); 
       } catch (e: any) {}
       setSelectedSeat(null);
     } finally {
@@ -138,16 +137,16 @@ export default function ConcertBookPage() {
 
       <div className="w-full relative rounded-xl overflow-hidden border dark:border-gray-700">
         <InteractiveSeatMap 
+          concertId={id} /* 🌟 เพิ่มบรรทัดนี้ เพื่อส่ง ID ไปให้ WebSocket ทำงาน */
           svgContent={svgContent}
           configuredSeats={configuredSeats}
           bookedSeats={bookedSeats}
-          waitSeats={waitSeats} // 💡 ส่งค่า waitSeats ไปให้แผนผัง
+          waitSeats={waitSeats} 
           selectedSeat={selectedSeat}
           onSeatSelect={setSelectedSeat}
         />
       </div>
 
-      {/* 💡 อัปเดตคำอธิบายสีสัญลักษณ์ */}
       <div className="flex flex-wrap gap-3 md:gap-4 justify-center mt-6 text-xs md:text-sm font-bold dark:text-gray-300 px-2">
          <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-gray-400 rounded-full"></div> ที่นั่งโซนต่างๆ</span>
          <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-white border-2 border-red-500 rounded-full"></div> กำลังเลือก</span>
