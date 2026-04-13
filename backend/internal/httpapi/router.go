@@ -33,7 +33,7 @@ func NewRouter(cfg config.Config, concertDB *sql.DB) http.Handler {
 	p := pureapi.NewClient(cfg.PureAPIBaseURL, cfg.PureAPIKey, cfg.PureAPIInternalURL)
 	h := handlers.New(cfg, p, concertDB)
 
-	r.Get("/health", h.Health) // 🌟 ตอนนี้ h ถูกสร้างแล้ว จึงเรียกใช้งานได้อย่างถูกต้อง
+	r.Get("/api/health", h.Health) // 🌟 ตอนนี้ h ถูกสร้างแล้ว จึงเรียกใช้งานได้อย่างถูกต้อง
 	r.Get("/", func(w http.ResponseWriter, req *http.Request) {
 		if cfg.FrontendURL != "" {
 			http.Redirect(w, req, cfg.FrontendURL, http.StatusFound)

@@ -14,13 +14,7 @@ export function useSeatWebSocket(concertId?: string) {
   useEffect(() => {
     if (!concertId) return;
 
-    // คำนวณ URL ให้ตรงกับ Backend (อิงจากโฮสต์และพอร์ตของ API)
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = import.meta.env.VITE_API_URL 
-      ? new URL(import.meta.env.VITE_API_URL).host 
-      : window.location.host;
-    const wsUrl = `${protocol}//${host}/api/concerts/${concertId}/ws`;
-
+    const wsUrl = `wss://gtyconcerttestbe.onrender.com/api/concerts/${concertId}/ws`;
     const connect = () => {
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
