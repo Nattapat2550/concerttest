@@ -8,12 +8,25 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync" // เพิ่ม sync สำหรับจัดการ Memory OTP
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 var emailRe = regexp.MustCompile(`^\S+@\S+\.\S+$`)
+
+// ----- ระบบเก็บ OTP ใน Memory (เพื่อป้องกันการบันทึกลง DB ก่อนกรอกข้อมูลเสร็จ) -----
+var (
+	otpStoreMutex sync.RWMutex
+	otpStore      = make(map[string]otpEntry)
+)
+
+type otpEntry struct {
+	Code      string
+	ExpiresAt time.Time
+}
+// --------------------------------------------------------------------------
 
 type userDTO struct {
 	ID                int64   `json:"id"`
@@ -88,26 +101,34 @@ func (h *Handler) AuthRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var user userDTO
-	if err := h.Pure.Post(ctx, "/api/internal/create-user-email", map[string]any{"email": email}, &user); err != nil {
-		h.writeErrFrom(w, err)
-		return
+	// เช็คก่อนว่าอีเมลนี้ลงทะเบียนและกรอกโปรไฟล์ไปเรียบร้อยหรือยัง
+	var existingUser userDTO
+	err := h.Pure.Post(ctx, "/api/internal/find-user", map[string]any{"email": email}, &existingUser)
+	if err == nil && existingUser.ID != 0 {
+		if existingUser.Username != nil || existingUser.PasswordHash != nil {
+			h.writeError(w, http.StatusConflict, "อีเมลนี้ถูกลงทะเบียนไปแล้ว")
+			return
+		}
 	}
 
+	// สร้าง Code ยืนยัน
 	code := generateSixDigitCode()
-	expiresAt := time.Now().Add(10 * time.Minute).Format(time.RFC3339)
-	_ = h.Pure.Post(ctx, "/api/internal/store-verification-code", map[string]any{
-		"userId":    user.ID,
-		"code":      code,
-		"expiresAt": expiresAt,
-	}, nil)
+	expiresAt := time.Now().Add(10 * time.Minute)
+	
+	// เก็บลง Memory แทนการเซฟลง Database!
+	otpStoreMutex.Lock()
+	otpStore[email] = otpEntry{
+		Code:      code,
+		ExpiresAt: expiresAt,
+	}
+	otpStoreMutex.Unlock()
 
 	emailSent := false
 	if !h.Cfg.EmailDisable {
 		subject := "Your verification code"
 		text := "Your verification code is: " + code + "\n\nThis code will expire in 10 minutes."
 		if err := h.Mail.Send(ctx, MailMessage{
-			To:      user.Email,
+			To:      email,
 			Subject: subject,
 			Text:    text,
 			HTML:    "",
@@ -121,7 +142,6 @@ func (h *Handler) AuthRegister(w http.ResponseWriter, r *http.Request) {
 
 // ------ VERIFY CODE ------
 func (h *Handler) AuthVerifyCode(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
 	var req verifyReq
 	if err := ReadJSON(r, &req); err != nil {
 		h.writeError(w, http.StatusBadRequest, "Invalid JSON")
@@ -134,20 +154,20 @@ func (h *Handler) AuthVerifyCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var resp verifyResp
-	if err := h.Pure.Post(ctx, "/api/internal/verify-code", map[string]any{"email": email, "code": code}, &resp); err != nil {
+	// ตรวจสอบ Code จาก Memory แทน Database
+	otpStoreMutex.RLock()
+	entry, exists := otpStore[email]
+	otpStoreMutex.RUnlock()
+
+	if !exists || entry.Code != code || time.Now().After(entry.ExpiresAt) {
 		h.writeError(w, http.StatusBadRequest, "Invalid or expired code")
 		return
 	}
 	
-	if !resp.OK {
-		if resp.Reason != nil && *resp.Reason == "no_user" {
-			h.writeError(w, http.StatusNotFound, "User not found")
-		} else {
-			h.writeError(w, http.StatusBadRequest, "Invalid or expired code")
-		}
-		return
-	}
+	// ลบ Code ออกจาก Memory หลังจากใช้สำเร็จ เพื่อความปลอดภัย
+	otpStoreMutex.Lock()
+	delete(otpStore, email)
+	otpStoreMutex.Unlock()
 	
 	WriteJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
@@ -178,6 +198,7 @@ func (h *Handler) AuthCompleteProfile(w http.ResponseWriter, r *http.Request) {
 	var user userDTO
 	
 	err := h.Pure.Post(ctx, "/api/internal/find-user", map[string]any{"email": email}, &user)
+	// ถ้ายังไม่มี User ค่อยบันทึกลง Database (ตรงตามที่ต้องการว่า ห้ามอัปข้อมูลจนกว่าจะถึงจุดนี้)
 	if err != nil || user.ID == 0 {
 		if req.OAuthId != "" {
 			payloadOAuth := map[string]any{
@@ -351,7 +372,6 @@ func (h *Handler) AuthStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	
-	// แก้ไข: เพิ่ม object 'user' กลับไปให้ระบบสามารถเก็บลง localStorage สำหรับ Google Login ได้
 	WriteJSON(w, http.StatusOK, map[string]any{
 		"authenticated": true,
 		"id":            user.ID,

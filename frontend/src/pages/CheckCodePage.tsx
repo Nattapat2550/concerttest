@@ -22,9 +22,10 @@ const CheckCodePage = () => {
     setMsg(null);
     try {
       await api.post('/api/auth/verify-code', { email, code: code.trim() });
-      navigate(`/form?email=${encodeURIComponent(email)}`);
+      // แก้ไข: เปลี่ยนจาก /form เป็น /complete-profile ให้ตรงกับ Route ใน App.tsx
+      navigate(`/complete-profile?email=${encodeURIComponent(email)}`);
     } catch (err: any) {
-      setMsg(err.response?.data?.error || 'Invalid code');
+      setMsg(err.response?.data?.error || 'รหัสยืนยันไม่ถูกต้อง หรือหมดอายุ');
     }
   };
 
