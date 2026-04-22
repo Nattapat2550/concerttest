@@ -4,6 +4,7 @@ test.describe('Login Page', () => {
   test.beforeEach(async ({ page }) => {
     // 🌟 1. ดักจับ API ให้อยู่ "ก่อน" page.goto() เสมอ!
     // ถ้าแอพยิง API ไปแล้วไม่มีคนตอบ มันจะค้าง 30 วินาทีจนหน้าเว็บโหลดไม่ขึ้น
+    await page.route('**/api/homepage', route => route.fulfill({ status: 200, json: {} }));
     await page.route('**/api/auth/status', route => route.fulfill({ status: 200, json: { authenticated: false } }));
     await page.route('**/api/concerts/news/latest', route => route.fulfill({ status: 200, json: [] }));
 
