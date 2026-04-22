@@ -25,6 +25,8 @@ test.describe('Admin Page Protection & Functionality', () => {
   
   test.beforeEach(async ({ page }) => {
     // ปิด News Popup ป้องกันการมาบดบัง UI ระหว่างการเทสต์
+    await mockApi(page, '**/api/homepage', { status: 200, json: {} });
+
     await mockApi(page, '**/api/concerts/news/latest', []);
   });
 

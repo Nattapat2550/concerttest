@@ -8,7 +8,8 @@ test.describe('Mocked Security E2E Flow (ไม่ใช้ฐานข้อม
     // ==========================================================
     // 🛑 1. ตั้งด่าน MOCK API (ดักและปลอมการตอบกลับจาก Backend)
     // ==========================================================
-
+    // เพิ่มบรรทัดนี้เพื่อหลอก App.tsx ให้คิดว่าเซิร์ฟเวอร์ตื่นแล้ว
+await page.route('**/api/homepage', route => route.fulfill({ status: 200, json: {} }));
     // 1. ดักข่าวสาร (ส่ง Array ว่างกลับไป เพื่อไม่ให้ NewsPopup เด้งขึ้นมาบังจอ)
     await page.route('**/api/concerts/news/latest', async route => {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) });

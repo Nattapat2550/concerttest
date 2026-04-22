@@ -3,8 +3,10 @@ import { test, expect } from '@playwright/test';
 test.describe('Authentication Flow', () => {
   test.beforeEach(async ({ page }) => {
     // 🌟 ใช้การ Mock แบบ json: {} เสมอ
-    await page.route('**/api/auth/status', route => route.fulfill({ json: { authenticated: false } }));
-    await page.route('**/api/concerts/news/latest', route => route.fulfill({ json: [] }));
+    // เพิ่มบรรทัดนี้เพื่อหลอก App.tsx ให้คิดว่าเซิร์ฟเวอร์ตื่นแล้ว
+await page.route('**/api/homepage', route => route.fulfill({ status: 200, json: {} }));
+    await page.route('**/api/auth/status', route => route.fulfill({ status: 200, json: { authenticated: false } }));
+    await page.route('**/api/concerts/news/latest', route => route.fulfill({ status: 200, json: [] }));
   });
 
   test('should login successfully with correct credentials', async ({ page }) => {

@@ -33,6 +33,9 @@ test.describe('Concerts Display, Booking & Flow', () => {
 
   test.beforeEach(async ({ page }) => {
     // 🌟 ดัก API Auth 
+
+    // เพิ่มบรรทัดนี้เพื่อหลอก App.tsx ให้คิดว่าเซิร์ฟเวอร์ตื่นแล้ว
+    await page.route('**/api/homepage', route => route.fulfill({ status: 200, json: {} }));
     await mockApi(page, '**/api/auth/status', { authenticated: true, id: 1, role: 'user', user: { id: 1, role: 'user' } });
     
     // Mock ข้อมูลคอนเสิร์ตจำลอง

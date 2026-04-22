@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Reset Password Page', () => {
   test.beforeEach(async ({ page }) => {
     // 🌟 ดักจับ API เพื่อไม่ให้ Popup ข่าวสารเด้งบังจอ
+    await page.route('**/api/homepage', route => route.fulfill({ status: 200, json: {} }));
     await page.route('**/api/auth/status', route => route.fulfill({ status: 200, json: { authenticated: false } }));
     await page.route('**/api/concerts/news/latest', route => route.fulfill({ status: 200, json: [] }));
   });

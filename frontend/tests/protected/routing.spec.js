@@ -3,6 +3,8 @@ import { test, expect } from '@playwright/test';
 test.describe('Protected Routing', () => {
   test('เข้า /admin โดยไม่ได้ล็อกอิน โดนเตะกลับไปหน้าเข้าสู่ระบบ', async ({ page }) => {
     // 1. จำลอง API ด่านตรวจสถานะการล็อกอิน ว่ายังไม่ได้เข้าสู่ระบบ
+    // เพิ่มบรรทัดนี้เพื่อหลอก App.tsx ให้คิดว่าเซิร์ฟเวอร์ตื่นแล้ว
+await page.route('**/api/homepage', route => route.fulfill({ status: 200, json: {} }));
     await page.route('**/api/auth/status', route => {
       route.fulfill({ status: 200, json: { authenticated: false } });
     });
