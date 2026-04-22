@@ -33,8 +33,6 @@ test.describe('Concerts Display, Booking & Flow', () => {
 
   test.beforeEach(async ({ page }) => {
     // 🌟 ดัก API Auth 
-
-    // เพิ่มบรรทัดนี้เพื่อหลอก App.tsx ให้คิดว่าเซิร์ฟเวอร์ตื่นแล้ว
     await page.route('**/api/homepage', route => route.fulfill({ status: 200, json: {} }));
     await mockApi(page, '**/api/auth/status', { authenticated: true, id: 1, role: 'user', user: { id: 1, role: 'user' } });
     
@@ -42,6 +40,10 @@ test.describe('Concerts Display, Booking & Flow', () => {
     await mockApi(page, '**/api/concerts/list', [
       { id: 1, access_code: 'TEST2026', name: 'Premium Concert Test', show_date: '2026-12-31T20:00:00Z', venue: 'Impact Arena', is_active: true }
     ]);
+
+    // 💡 [เพิ่มตรงนี้] ดัก API สำหรับ Carousel และ Documents เพื่อไม่ให้ Promise.all ค้าง
+    await mockApi(page, '**/api/carousel', []);
+    await mockApi(page, '**/api/documents/list', []);
 
     await page.addInitScript(() => {
       localStorage.setItem('token', 'fake-jwt-token');
