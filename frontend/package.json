@@ -12,8 +12,8 @@
   "dependencies": {
     "@react-oauth/google": "^0.13.4",
     "@reduxjs/toolkit": "^2.11.2",
-    "axios": "^1.13.6",
-    "dompurify": "^3.3.3",
+    "axios": "^1.15.0",
+    "dompurify": "^3.4.0",
     "html5-qrcode": "^2.3.8",
     "jwt-decode": "^4.0.0",
     "qrcode.react": "^4.2.0",
@@ -42,5 +42,8 @@
     "tailwindcss": "^4.2.2",
     "typescript": "^6.0.2",
     "vite": "^8.0.1"
+  },
+  "overrides": {
+    "follow-redirects": "^1.16.0"
   }
 }
