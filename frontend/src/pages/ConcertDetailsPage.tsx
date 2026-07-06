@@ -69,7 +69,7 @@ export default function ConcertDetailsPage() {
     <div className="bg-bg-main min-h-screen pb-36 relative selection:bg-brand selection:text-white w-full">
       
       {/* Immersive Hero Cover */}
-      <div className="relative w-full h-[50vh] md:h-[60vh] bg-black overflow-hidden group">
+      <div className="relative w-full h-[50vh] md:h-[60vh] bg-slate-900 overflow-hidden group">
         {concert.layout_image_url ? (
           <>
             <img 

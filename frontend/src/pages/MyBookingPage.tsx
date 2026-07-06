@@ -221,7 +221,7 @@ export default function MyBookingPage() {
       )}
 
       {selectedTicket && (
-        <div className="fixed inset-0 z-100 flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-100 flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
           <button onClick={() => setSelectedTicket(null)} className="absolute top-6 right-6 text-white hover:text-gray-300 text-4xl leading-none">&times;</button>
           
           <div className="mb-6">{renderEticket(selectedTicket)}</div>

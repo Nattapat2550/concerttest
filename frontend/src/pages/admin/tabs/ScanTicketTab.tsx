@@ -154,7 +154,7 @@ export default function ScanTicketTab() {
       {/* โหมดใช้กล้องมือถือ / Webcam */}
       {/* ⚠️ การแก้ไข: ใช้ CSS ซ่อน (display: none) แทนการลบ Component เพื่อป้องกัน clear() ทำงานพลาด */}
       <div className={`flex flex-col items-center animate-fade-in ${scanMode === 'camera' ? 'block' : 'hidden'}`}>
-        <div className="w-full max-w-sm rounded-2xl overflow-hidden border-2 border-blue-200 dark:border-blue-900 shadow-inner bg-black">
+        <div className="w-full max-w-sm rounded-2xl overflow-hidden border-2 border-blue-200 dark:border-blue-900 shadow-inner bg-slate-900">
           <div id="qr-reader" className="w-full bg-white"></div>
         </div>
         <p className="mt-4 text-sm text-gray-500 dark:text-gray-400 font-medium text-center">

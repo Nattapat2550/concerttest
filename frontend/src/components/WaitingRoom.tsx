@@ -11,7 +11,7 @@ export default function WaitingRoom({ myTicket, currentTicket }: WaitingRoomProp
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] md:min-h-[70vh] text-center px-4">
       <div className="bg-white dark:bg-gray-800 p-6 md:p-8 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-700 max-w-md w-full animate-fade-in">
-        <div className="text-5xl mb-6 animate-bounce">🎟️</div>
+        <div className="text-5xl mb-6 animate-pulse duration-700 ease-out">🎟️</div>
         <h2 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white mb-2">Waiting Room</h2>
         <p className="text-sm md:text-base text-gray-500 dark:text-gray-400 font-bold mb-6">กรุณารอสักครู่ ระบบกำลังจัดคิวให้คุณ...</p>
         

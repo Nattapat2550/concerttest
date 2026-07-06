@@ -118,10 +118,10 @@ export default function HomePage() {
             
             {carousels.length > 1 && (
               <>
-                <button onClick={() => setCurrentSlide(prev => (prev - 1 + carousels.length) % carousels.length)} className="absolute left-4 top-1/2 -translate-y-1/2 z-20 bg-black/40 hover:bg-blue-600 backdrop-blur text-white w-10 h-10 rounded-full transition-all flex items-center justify-center font-bold shadow-lg">
+                <button onClick={() => setCurrentSlide(prev => (prev - 1 + carousels.length) % carousels.length)} className="absolute left-4 top-1/2 -translate-y-1/2 z-20 bg-slate-900/40 hover:bg-blue-600 backdrop-blur text-white w-10 h-10 rounded-full transition-all flex items-center justify-center font-bold shadow-lg">
                   &lt;
                 </button>
-                <button onClick={() => setCurrentSlide(prev => (prev + 1) % carousels.length)} className="absolute right-4 top-1/2 -translate-y-1/2 z-20 bg-black/40 hover:bg-blue-600 backdrop-blur text-white w-10 h-10 rounded-full transition-all flex items-center justify-center font-bold shadow-lg">
+                <button onClick={() => setCurrentSlide(prev => (prev + 1) % carousels.length)} className="absolute right-4 top-1/2 -translate-y-1/2 z-20 bg-slate-900/40 hover:bg-blue-600 backdrop-blur text-white w-10 h-10 rounded-full transition-all flex items-center justify-center font-bold shadow-lg">
                   &gt;
                 </button>
                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex gap-2">
@@ -165,7 +165,7 @@ export default function HomePage() {
                     {c.is_active ? (
                       <span className="bg-white/90 dark:bg-gray-900/90 backdrop-blur text-blue-600 dark:text-blue-400 text-xs font-black px-4 py-1.5 rounded-full shadow-lg">เปิดจองแล้ว</span>
                     ) : (
-                      <span className="bg-black/80 backdrop-blur text-white text-xs font-black px-4 py-1.5 rounded-full shadow-lg uppercase tracking-wider">Coming Soon</span>
+                      <span className="bg-slate-900/80 backdrop-blur text-white text-xs font-black px-4 py-1.5 rounded-full shadow-lg uppercase tracking-wider">Coming Soon</span>
                     )}
                   </div>
                 </div>
@@ -188,7 +188,7 @@ export default function HomePage() {
                   </div>
                   <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-700">
                     {c.is_active ? (
-                      <Link to={`/concerts/${c.access_code}`} className="flex justify-center items-center w-full bg-gray-50 dark:bg-gray-900 group-hover:bg-blue-600 text-gray-900 dark:text-white group-hover:text-white font-bold py-3.5 rounded-xl transition-all duration-300">
+                      <Link to={`/concerts/${c.access_code}`} className="flex justify-center items-center w-full bg-gray-50 dark:bg-gray-900 group-hover:bg-blue-600 text-white dark:text-white group-hover:text-white font-bold py-3.5 rounded-xl transition-all duration-300">
                         ดูรายละเอียด & จองตั๋ว
                       </Link>
                     ) : (
