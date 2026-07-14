@@ -1,5 +1,6 @@
 // frontend/src/hooks/useSeatWebSocket.ts
 import { useEffect, useRef, useState, useCallback } from 'react';
+import api from '../services/api';
 
 interface WsMessage {
   action: 'init' | 'locked' | 'unlocked';
@@ -14,7 +15,8 @@ export function useSeatWebSocket(concertId?: string) {
   useEffect(() => {
     if (!concertId) return;
 
-    const wsUrl = `wss://gtyconcerttestbe.onrender.com/api/concerts/${concertId}/ws`;
+    const baseUrl = (api.defaults.baseURL as string || '').replace(/^http/, 'ws');
+    const wsUrl = `${baseUrl}/api/concerts/${concertId}/ws`;
     
     // 🌟 เพิ่มบรรทัดนี้เพื่อจับผิด React
     console.log("React กำลังพยายามต่อ WebSocket ไปที่:", wsUrl);
