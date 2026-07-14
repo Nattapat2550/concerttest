@@ -1,7 +1,8 @@
 // frontend/src/pages/SettingsPage.tsx
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom'; // เพิ่ม Import Link ตรงนี้
+import { Link } from 'react-router-dom';
 import api from '../services/api';
+import { compressImage } from '../utils/imageCompression';
 
 export default function SettingsPage() {
   const [profile, setProfile] = useState({ username: '', first_name: '', last_name: '', tel: '', profile_picture_url: '' });
@@ -46,8 +47,9 @@ export default function SettingsPage() {
     const file = e.target.files[0];
     if (!file) return;
 
+    const compressedFile = await compressImage(file);
     const formData = new FormData();
-    formData.append('avatar', file);
+    formData.append('avatar', compressedFile);
 
     try {
       const { data } = await api.post('/api/users/me/avatar', formData, {

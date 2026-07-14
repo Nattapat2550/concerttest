@@ -59,5 +59,15 @@
   body {
     /* บังคับให้ทั้งเว็บใช้สีพื้นหลังและสีตัวอักษรที่เราตั้งไว้ด้านบนเสมอ */
     @apply bg-bg-main text-text-main antialiased transition-colors duration-300;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+    letter-spacing: -0.015em;
+  }
+
+  /* Apple Studio Glassmorphism Utilities */
+  .apple-glass {
+    @apply bg-white/70 backdrop-blur-xl border border-white/40 shadow-sm;
+  }
+  .dark .apple-glass {
+    @apply bg-black/50 backdrop-blur-xl border border-white/10 shadow-md;
   }
 }
