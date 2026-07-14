@@ -6,7 +6,7 @@ import api from '../services/api';
 import heroImg from '../assets/hero.png';
 
 interface Concert {
-  id: number;
+  id: string;
   access_code: string; 
   name: string;
   show_date: string;
@@ -16,14 +16,14 @@ interface Concert {
 }
 
 interface Carousel {
-  id: number;
+  id: string;
   image_url: string;
   link_url: string;
   is_active: boolean;
 }
 
 interface DocumentItem {
-  id: number;
+  id: string;
   title: string;
   cover_image: string;
   is_active: boolean;

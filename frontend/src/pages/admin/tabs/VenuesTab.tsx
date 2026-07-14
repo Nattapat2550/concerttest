@@ -38,7 +38,7 @@ export default function VenuesTab() {
     reader.readAsText(file);
   };
 
-  const handleDeleteVenue = async (id: number) => {
+  const handleDeleteVenue = async (id: string) => {
     if (window.confirm("ยืนยันการลบสถานที่?")) {
       await api.delete(`/api/admin/venues/${id}`);
       fetchVenues();

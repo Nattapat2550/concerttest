@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import api from '../../../services/api';
 
 interface Carousel {
-  id: number;
+  id: string;
   image_url: string;
   link_url: string;
   sort_order: number;
@@ -36,7 +36,7 @@ export default function CarouselTab() {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('ยืนยันการลบแบนเนอร์นี้?')) return;
     try {
       // ส่งคำสั่งลบผ่าน Endpoint นี้

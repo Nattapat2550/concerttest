@@ -5,7 +5,7 @@ import api from '../../../services/api';
 export default function DocumentsTab() {
   const [docs, setDocs] = useState<any[]>([]);
   // เพิ่ม state สำหรับติดตามว่ากำลังแก้ไข ID ไหนอยู่ (ถ้าเป็น null แปลว่าสร้างใหม่)
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ title: '', description: '', cover_image: '', gallery_urls: '' });
 
   const fetchDocs = async () => {
@@ -69,7 +69,7 @@ export default function DocumentsTab() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('ยืนยันการลบข้อมูลชุดนี้?')) return;
     try {
       await api.delete(`/api/admin/documents/${id}`);

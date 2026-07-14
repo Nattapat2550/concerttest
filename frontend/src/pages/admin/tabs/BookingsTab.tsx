@@ -21,7 +21,7 @@ export default function BookingsTab() {
 
   useEffect(() => { fetchBookings(); }, []);
 
-  const handleCancelBooking = async (bookingId: number) => {
+  const handleCancelBooking = async (bookingId: string) => {
     if (window.confirm("ต้องการยกเลิกการจองนี้ใช่หรือไม่?")) {
       try {
         await api.put(`/api/admin/bookings/${bookingId}/cancel`);

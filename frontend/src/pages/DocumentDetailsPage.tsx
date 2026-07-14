@@ -4,7 +4,7 @@ import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
 
 interface DocumentDetail {
-  id: number;
+  id: string;
   title: string;
   description: string;
   cover_image: string;

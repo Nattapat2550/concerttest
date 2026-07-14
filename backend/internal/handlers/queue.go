@@ -134,9 +134,8 @@ func (h *Handler) JoinQueue(w http.ResponseWriter, r *http.Request) {
 			LocalSuspendedUsers.Store(userIDStr, true) 
 			
 			if h.Pure != nil {
-				userIDInt, _ := strconv.ParseInt(userIDStr, 10, 64)
 				// ใช้ Go Routine ยิง API ไปแบนถาวร จะได้ไม่หน่วง Request
-				go h.Pure.Post(context.Background(), "/api/internal/admin/users/update", map[string]any{"id": userIDInt, "status": "suspended"}, nil)
+				go h.Pure.Post(context.Background(), "/api/internal/admin/users/update", map[string]any{"id": userIDStr, "status": "suspended"}, nil)
 			}
 
 			WriteJSON(w, http.StatusForbidden, map[string]string{"error": "ตรวจพบพฤติกรรมสแปม บัญชีถูกระงับการใช้งาน"})

@@ -3,7 +3,7 @@ import api from '../services/api';
 
 // 1. สร้าง Interface ให้ News
 interface News {
-  id: number;
+  id: string;
   title: string;
   content: string;
   image_url?: string;

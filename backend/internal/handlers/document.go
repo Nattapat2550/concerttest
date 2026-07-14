@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -78,16 +77,15 @@ func (h *Handler) AdminCreateDocument(w http.ResponseWriter, r *http.Request) {
 
 // DELETE /api/admin/documents/{id} (Admin ลบ Document)
 func (h *Handler) AdminDeleteDocument(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
+	id := chi.URLParam(r, "id")
+	if id == "" {
 		h.writeError(w, http.StatusBadRequest, "Invalid ID")
 		return
 	}
 
 	if h.ConcertDB == nil { return }
 
-	_, err = h.ConcertDB.ExecContext(r.Context(), `DELETE FROM documents WHERE id = $1`, id)
+	_, err := h.ConcertDB.ExecContext(r.Context(), `DELETE FROM documents WHERE id = $1`, id)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "Failed to delete document")
 		return
@@ -97,9 +95,8 @@ func (h *Handler) AdminDeleteDocument(w http.ResponseWriter, r *http.Request) {
 
 // PUT /api/admin/documents/{id} (Admin แก้ไข Document) -- เพิ่มใหม่!
 func (h *Handler) AdminUpdateDocument(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
+	id := chi.URLParam(r, "id")
+	if id == "" {
 		h.writeError(w, http.StatusBadRequest, "Invalid ID")
 		return
 	}
@@ -112,7 +109,7 @@ func (h *Handler) AdminUpdateDocument(w http.ResponseWriter, r *http.Request) {
 
 	if h.ConcertDB == nil { return }
 
-	_, err = h.ConcertDB.ExecContext(r.Context(), 
+	_, err := h.ConcertDB.ExecContext(r.Context(), 
 		`UPDATE documents SET title = $1, description = $2, cover_image = $3, gallery_urls = $4, is_active = $5 WHERE id = $6`,
 		d.Title, d.Description, d.CoverImage, d.GalleryURLs, d.IsActive, id)
 	

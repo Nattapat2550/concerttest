@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import api from '../../../services/api';
 
 interface Appeal {
-  id: number;
+  id: string;
   email: string;
   reason: string;
   status: string;
@@ -29,7 +29,7 @@ export default function AppealsTab() {
     fetchAppeals();
   }, []);
 
-  const handleReview = async (id: number, status: string) => {
+  const handleReview = async (id: string, status: string) => {
     if (!window.confirm(`คุณแน่ใจหรือไม่ที่จะ ${status === 'approved' ? 'อนุมัติ (ปลดแบน)' : 'ปฏิเสธ'} คำร้องนี้?`)) return;
     try {
       await api.put(`/api/admin/appeals/${id}`, { status });

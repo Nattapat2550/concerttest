@@ -46,7 +46,7 @@ export default function NewsTab() {
     } catch (err) { alert("เกิดข้อผิดพลาด"); }
   };
 
-  const handleDeleteNews = async (id: number) => {
+  const handleDeleteNews = async (id: string) => {
     if (window.confirm("ต้องการลบประกาศนี้?")) {
       await api.delete(`/api/admin/news/${id}`);
       fetchNews();

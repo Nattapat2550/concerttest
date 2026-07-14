@@ -17,9 +17,9 @@ import (
 )
 
 // ===== Helper for QR Token =====
-func generateQRToken(bookingID int) string {
+func generateQRToken(bookingID string) string {
 	secret := "concerttick_super_secret" 
-	msg := fmt.Sprintf("%d", bookingID)
+	msg := bookingID
 	h := hmac.New(sha256.New, []byte(secret))
 	h.Write([]byte(msg))
 	sig := hex.EncodeToString(h.Sum(nil))
@@ -97,7 +97,7 @@ func (h *Handler) BookSeat(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		var existingID int
+		var existingID string
 		err := tx.QueryRowContext(ctx, `
 			SELECT id FROM bookings 
 			WHERE concert_id = $1 AND seat_code = $2 AND status IN ('confirmed', 'used', 'wait') 
@@ -181,13 +181,13 @@ func (h *Handler) CancelMyBooking(w http.ResponseWriter, r *http.Request) {
 	tx, _ := h.ConcertDB.BeginTx(ctx, nil)
 	defer tx.Rollback()
 
-	var seatID sql.NullInt64
+	var seatID sql.NullString
 	err := tx.QueryRowContext(ctx, `SELECT seat_id FROM bookings WHERE id = $1 AND user_id = $2 AND status IN ('wait', 'confirmed') FOR UPDATE`, bookingID, fmt.Sprint(u.ID)).Scan(&seatID)
 	if err != nil { h.writeError(w, http.StatusNotFound, "Booking not found"); return }
 
 	tx.ExecContext(ctx, "UPDATE bookings SET status = 'cancelled' WHERE id = $1", bookingID)
 	if seatID.Valid {
-		tx.ExecContext(ctx, "UPDATE seats SET is_booked = false WHERE id = $1", seatID.Int64)
+		tx.ExecContext(ctx, "UPDATE seats SET is_booked = false WHERE id = $1", seatID.String)
 	}
 	tx.Commit()
 

@@ -8,14 +8,14 @@ import api from '../services/api';
 import ideaImg from '../assets/idea.png'; 
 
 interface Carousel {
-  id: number;
+  id: string;
   image_url: string;
   link_url: string;
   is_active: boolean;
 }
 
 interface DocumentItem {
-  id: number;
+  id: string;
   title: string;
   cover_image: string;
   is_active: boolean;

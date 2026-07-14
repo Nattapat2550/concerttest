@@ -2,7 +2,7 @@
 
 -- 1. ตารางข่าวสาร (News)
 CREATE TABLE news (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title VARCHAR(255) NOT NULL,
     content TEXT NOT NULL,
     image_url TEXT,
@@ -12,7 +12,7 @@ CREATE TABLE news (
 
 -- 2. ตารางสถานที่ (Venues) เก็บไฟล์ SVG ไฟล์เดียวครอบคลุมทั้งฮอลล์
 CREATE TABLE venues (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
     svg_content TEXT NOT NULL, 
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -20,13 +20,13 @@ CREATE TABLE venues (
 
 -- 3. ตารางคอนเสิร์ต (Concerts)
 CREATE TABLE concerts (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     access_code VARCHAR(50) UNIQUE NOT NULL, -- เพิ่มคอลัมน์รหัสสุ่ม
     name VARCHAR(255) NOT NULL,
     description TEXT,
     show_date TIMESTAMP WITH TIME ZONE NOT NULL,
     venue VARCHAR(255), 
-    venue_id INT REFERENCES venues(id) ON DELETE SET NULL, 
+    venue_id UUID REFERENCES venues(id) ON DELETE SET NULL, 
     ticket_price DECIMAL(10, 2) DEFAULT 2500.00,
     layout_image_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -36,8 +36,8 @@ CREATE TABLE concerts (
 
 -- 4. ตารางกำหนดที่นั่งรายคอนเสิร์ต (Concert Seats)
 CREATE TABLE concert_seats (
-    id SERIAL PRIMARY KEY,
-    concert_id INT REFERENCES concerts(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    concert_id UUID REFERENCES concerts(id) ON DELETE CASCADE,
     seat_code VARCHAR(50) NOT NULL,
     zone_name VARCHAR(100) NOT NULL,
     price DECIMAL(10, 2) NOT NULL,
@@ -47,8 +47,8 @@ CREATE TABLE concert_seats (
 
 -- 5. ตารางที่นั่ง (Seats) [ระบบเก่า]
 CREATE TABLE seats (
-    id SERIAL PRIMARY KEY,
-    concert_id INT REFERENCES concerts(id) ON DELETE CASCADE,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    concert_id UUID REFERENCES concerts(id) ON DELETE CASCADE,
     seat_code VARCHAR(10) NOT NULL,
     price DECIMAL(10, 2) NOT NULL,
     is_booked BOOLEAN DEFAULT FALSE,
@@ -57,10 +57,10 @@ CREATE TABLE seats (
 
 -- 6. ตารางการจองตั๋ว (Bookings)
 CREATE TABLE bookings (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id VARCHAR(255) NOT NULL,
-    concert_id INT REFERENCES concerts(id) ON DELETE CASCADE,
-    seat_id INT REFERENCES seats(id) ON DELETE CASCADE,
+    concert_id UUID REFERENCES concerts(id) ON DELETE CASCADE,
+    seat_id UUID REFERENCES seats(id) ON DELETE CASCADE,
     seat_code VARCHAR(50), 
     price DECIMAL(10, 2) DEFAULT 0.00,
     status VARCHAR(50) DEFAULT 'confirmed', 
@@ -75,7 +75,7 @@ CREATE TABLE user_wallets (
 
 -- 8. สร้างตารางตรวจสอบ
 CREATE TABLE user_appeals (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email VARCHAR(255) NOT NULL,
     reason TEXT NOT NULL,
     status VARCHAR(50) DEFAULT 'pending', 
@@ -83,7 +83,7 @@ CREATE TABLE user_appeals (
 );
 -- 9. ตาราง Carousel
 CREATE TABLE carousels (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     image_url TEXT NOT NULL,
     link_url TEXT,
     is_active BOOLEAN DEFAULT TRUE,
@@ -93,7 +93,7 @@ CREATE TABLE carousels (
 
 -- 10. ตาราง Documents (ข้อมูลและแกลเลอรี)
 CREATE TABLE documents (
-    id SERIAL PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     title VARCHAR(255) NOT NULL,
     description TEXT,
     cover_image TEXT,

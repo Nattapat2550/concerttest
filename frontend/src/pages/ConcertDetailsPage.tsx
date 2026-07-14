@@ -9,7 +9,7 @@ import ticketImg from '../assets/ticket.png';
 import waitImg from '../assets/wait.png';
 
 interface ConcertDetail {
-  id: number;
+  id: string;
   access_code: string;
   name: string;
   description: string;

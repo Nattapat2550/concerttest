@@ -5,7 +5,7 @@ import api from '../../services/api';
 interface AuthState {
   isAuthenticated: boolean;
   role: string | null;
-  userId: number | null;
+  userId: string | null;
   status: 'idle' | 'loading' | 'succeeded' | 'failed';
   error: string | null;
 }

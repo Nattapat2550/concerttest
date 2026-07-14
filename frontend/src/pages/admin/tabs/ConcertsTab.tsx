@@ -102,7 +102,7 @@ export default function ConcertsTab({ onOpenMapBuilder }: ConcertsTabProps) {
     } catch (err) { alert("เกิดข้อผิดพลาด"); }
   };
 
-  const handleDeleteConcert = async (id: number) => {
+  const handleDeleteConcert = async (id: string) => {
     if (window.confirm("ต้องการลบคอนเสิร์ตนี้?")) {
       await api.delete(`/api/admin/concerts/${id}`);
       fetchData();

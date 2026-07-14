@@ -17,7 +17,7 @@ export default function UsersTab() {
 
   useEffect(() => { fetchUsers(); }, []);
 
-  const handleUpdateUserStatus = async (userId: number, status: string) => {
+  const handleUpdateUserStatus = async (userId: string, status: string) => {
     try {
       await api.put(`/api/admin/users/${userId}`, { status });
       alert("อัปเดตสถานะผู้ใช้สำเร็จ");

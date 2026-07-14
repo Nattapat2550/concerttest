@@ -35,9 +35,8 @@ func (h *Handler) AdminUsersList(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AdminUsersUpdateByID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil || id <= 0 {
+	id := chi.URLParam(r, "id")
+	if id == "" {
 		h.writeError(w, http.StatusBadRequest, "Invalid user id")
 		return
 	}
@@ -147,9 +146,8 @@ func (h *Handler) AdminCarouselCreate(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AdminCarouselUpdate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil || id <= 0 {
+	id := chi.URLParam(r, "id")
+	if id == "" {
 		h.writeError(w, http.StatusBadRequest, "Invalid carousel id")
 		return
 	}
@@ -199,9 +197,8 @@ func (h *Handler) AdminCarouselUpdate(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AdminCarouselDelete(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil || id <= 0 {
+	id := chi.URLParam(r, "id")
+	if id == "" {
 		h.writeError(w, http.StatusBadRequest, "Invalid carousel id")
 		return
 	}

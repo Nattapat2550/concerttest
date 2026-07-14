@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -69,14 +68,13 @@ func (h *Handler) AdminCarouselUpdateNew(w http.ResponseWriter, r *http.Request)
 
 // DELETE /api/admin/carousel/{id} (Admin ลบแบนเนอร์)
 func (h *Handler) AdminCarouselDeleteNew(w http.ResponseWriter, r *http.Request) {
-	idStr := chi.URLParam(r, "id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
+	id := chi.URLParam(r, "id")
+	if id == "" {
 		h.writeError(w, http.StatusBadRequest, "Invalid ID")
 		return
 	}
 
-	_, err = h.ConcertDB.ExecContext(r.Context(), `DELETE FROM carousels WHERE id = $1`, id)
+	_, err := h.ConcertDB.ExecContext(r.Context(), `DELETE FROM carousels WHERE id = $1`, id)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, "Failed to delete carousel")
 		return

@@ -8,7 +8,7 @@ import eraserImg from '../assets/eraser.png';
 import calendarImg from '../assets/calendar.png';
 
 interface Booking {
-  id: number;
+  id: string;
   concert_name: string;
   seat_code: string;
   price: number;
@@ -52,7 +52,7 @@ export default function MyBookingPage() {
     }
   };
 
-  const handlePayment = async (bookingId: number) => {
+  const handlePayment = async (bookingId: string) => {
     if (window.confirm("ยืนยันการชำระเงินด้วย GTYCoin?")) {
       try {
         await api.post(`/api/concerts/bookings/${bookingId}/pay`);
@@ -65,7 +65,7 @@ export default function MyBookingPage() {
     }
   };
 
-  const handleCancel = async (id: number) => {
+  const handleCancel = async (id: string) => {
     if (window.confirm("คุณแน่ใจหรือไม่ว่าต้องการยกเลิกตั๋วใบนี้? ระบบจะปล่อยที่นั่งคืนทันที")) {
       try {
         await api.put(`/api/concerts/bookings/${id}/cancel`);
