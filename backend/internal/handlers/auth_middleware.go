@@ -22,7 +22,7 @@ type AuthUser struct {
 }
 
 type jwtClaims struct {
-	UserID int64  `json:"userId"`
+	UserID string `json:"userId"`
 	Role   string `json:"role"`
 	jwt.RegisteredClaims
 }
@@ -80,7 +80,7 @@ func extractTokenFromReq(r *http.Request) string {
 	return ""
 }
 
-func (h *Handler) signToken(userID int64, role string) (string, error) {
+func (h *Handler) signToken(userID string, role string) (string, error) {
 	now := time.Now()
 	claims := jwtClaims{
 		UserID: userID,
@@ -103,8 +103,8 @@ func (h *Handler) parseToken(token string) (*jwtClaims, error) {
 	if err != nil {
 		return nil, err
 	}
-	if claims.UserID <= 0 {
-		return nil, errors.New("invalid claims")
+	if claims.UserID == "" {
+		return nil, errors.New("invalid user id in token")
 	}
 	return claims, nil
 }

@@ -108,8 +108,8 @@ func (h *Handler) JoinQueue(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		
-		if claims.UserID != 0 {
-			userIDStr = fmt.Sprint(claims.UserID)
+		if claims.UserID != "" {
+			userIDStr = claims.UserID
 		} else {
 			// เผื่อตั้งชื่อตัวแปร userId ตอนจำลองใน Node.js ไม่ตรงกับฝั่ง Go
 			userIDStr = "test_user_id_fallback"
