@@ -17,7 +17,7 @@ const (
 )
 
 type AuthUser struct {
-	ID   int64  `json:"id"`
+	ID string `json:"id"`
 	Role string `json:"role"`
 }
 

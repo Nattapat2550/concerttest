@@ -29,7 +29,7 @@ type otpEntry struct {
 // --------------------------------------------------------------------------
 
 type userDTO struct {
-	ID                int64   `json:"id"`
+	ID string `json:"id"`
 	UserID            *string `json:"user_id"`
 	Email             string  `json:"email"`
 	Username          *string `json:"username"`
@@ -104,7 +104,7 @@ func (h *Handler) AuthRegister(w http.ResponseWriter, r *http.Request) {
 	// เช็คก่อนว่าอีเมลนี้ลงทะเบียนและกรอกโปรไฟล์ไปเรียบร้อยหรือยัง
 	var existingUser userDTO
 	err := h.Pure.Post(ctx, "/api/internal/find-user", map[string]any{"email": email}, &existingUser)
-	if err == nil && existingUser.ID != 0 {
+	if err == nil && existingUser.ID != "" {
 		if existingUser.Username != nil || existingUser.PasswordHash != nil {
 			h.writeError(w, http.StatusConflict, "อีเมลนี้ถูกลงทะเบียนไปแล้ว")
 			return
@@ -199,7 +199,7 @@ func (h *Handler) AuthCompleteProfile(w http.ResponseWriter, r *http.Request) {
 	
 	err := h.Pure.Post(ctx, "/api/internal/find-user", map[string]any{"email": email}, &user)
 	// ถ้ายังไม่มี User ค่อยบันทึกลง Database (ตรงตามที่ต้องการว่า ห้ามอัปข้อมูลจนกว่าจะถึงจุดนี้)
-	if err != nil || user.ID == 0 {
+	if err != nil || user.ID == "" {
 		if req.OAuthId != "" {
 			payloadOAuth := map[string]any{
 				"provider":   "google",

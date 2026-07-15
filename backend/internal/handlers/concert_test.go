@@ -97,7 +97,7 @@ func TestAdminRoutes(t *testing.T) {
 	t.Run("Admin Delete Concert", func(t *testing.T) {
 		// Mock Context user role admin
 		req, _ := http.NewRequest("DELETE", "/api/admin/concerts/999", nil)
-		mockUser := &userDTO{ID: 1, Role: "admin"}
+		mockUser := &userDTO{ID: "1", Role: "admin"}
 		ctx := context.WithValue(req.Context(), "user", mockUser)
 		req = req.WithContext(ctx)
 

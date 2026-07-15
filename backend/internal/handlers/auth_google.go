@@ -39,7 +39,7 @@ func (h *Handler) AuthGoogleCallback(w http.ResponseWriter, r *http.Request) {
 	var user userDTO
 	err = h.Pure.Post(ctx, "/api/internal/find-user", map[string]any{"email": info.Email}, &user)
 	
-	userExists := err == nil && user.ID != 0
+	userExists := err == nil && user.ID != ""
 	isProfileIncomplete := true
 	if userExists {
 		// ถ้ามี User อยู่แล้ว ให้เช็คว่าข้อมูลครบไหม (เช็คจากเบอร์โทรศัพท์)
@@ -120,7 +120,7 @@ func (h *Handler) AuthGoogleMobileCallback(w http.ResponseWriter, r *http.Reques
 	var user userDTO
 	err = h.Pure.Post(ctx, "/api/internal/find-user", map[string]any{"email": info.Email}, &user)
 	
-	userExists := err == nil && user.ID != 0
+	userExists := err == nil && user.ID != ""
 	isProfileIncomplete := true
 	if userExists {
 		isProfileIncomplete = user.Tel == nil || strings.TrimSpace(*user.Tel) == ""
