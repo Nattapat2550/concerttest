@@ -229,10 +229,10 @@ export default function InteractiveSeatMap({
   return (
     <div className="relative select-none w-full h-full min-h-125">
       <div className="absolute top-4 right-4 z-20 flex flex-col gap-2 items-end pointer-events-none">
-        <div className="flex gap-2 bg-white/90 dark:bg-gray-800/90 p-2 rounded-lg shadow-lg backdrop-blur-sm pointer-events-auto border dark:border-gray-600">
-          <button onClick={() => handleZoom(-0.5)} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded font-bold hover:bg-gray-300 transition">-</button>
-          <button onClick={handleReset} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded text-sm font-bold hover:bg-gray-300 transition">RESET</button>
-          <button onClick={() => handleZoom(0.5)} className="bg-gray-200 dark:bg-gray-700 dark:text-white px-3 py-1 rounded font-bold hover:bg-gray-300 transition">+</button>
+        <div className="flex gap-2 bg-canvas/90 /90 p-2 rounded-lg shadow-lg backdrop-blur-sm pointer-events-auto border ">
+          <button onClick={() => handleZoom(-0.5)} className="bg-gray-200   px-3 py-1 rounded font-bold hover:bg-gray-300 transition">-</button>
+          <button onClick={handleReset} className="bg-gray-200   px-3 py-1 rounded text-sm font-bold hover:bg-gray-300 transition">RESET</button>
+          <button onClick={() => handleZoom(0.5)} className="bg-gray-200   px-3 py-1 rounded font-bold hover:bg-gray-300 transition">+</button>
         </div>
       </div>
 
@@ -241,13 +241,13 @@ export default function InteractiveSeatMap({
       </div>
 
       {/* 💡 คำใบ้สถานะที่นั่ง อัปเดตข้อความให้รวมสถานะล็อกชั่วคราวด้วย */}
-      <div className="absolute bottom-4 left-4 z-20 flex gap-3 bg-white/90 dark:bg-gray-800/90 p-3 rounded-xl shadow-lg border dark:border-gray-600 text-xs font-bold pointer-events-none">
+      <div className="absolute bottom-4 left-4 z-20 flex gap-3 bg-canvas/90 /90 p-3 rounded-lg shadow-lg border  text-xs font-bold pointer-events-none">
         <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-gray-300"></div> ว่าง</div>
         <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-[#eab308]"></div> ล็อก/รอจ่ายเงิน</div>
         <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-red-500"></div> จองแล้ว</div>
       </div>
 
-      <div ref={containerRef} className="bg-[#0f172a] rounded-xl border dark:border-gray-600 shadow-inner overflow-hidden relative w-full h-full min-h-150 touch-none cursor-grab active:cursor-grabbing" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}>
+      <div ref={containerRef} className="bg-[#0f172a] rounded-lg border  shadow-inner overflow-hidden relative w-full h-full min-h-150 touch-none cursor-grab active:cursor-grabbing" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp}>
         {lasso && (
           <div className="absolute border-2 border-blue-400 bg-blue-400/30 z-50 pointer-events-none shadow-[0_0_10px_rgba(96,165,250,0.5)]" style={{ left: lasso.x, top: lasso.y, width: lasso.w, height: lasso.h }} />
         )}

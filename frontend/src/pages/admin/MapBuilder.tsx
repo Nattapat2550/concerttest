@@ -89,8 +89,8 @@ export default function MapBuilder({ mapConcert, onBack }: MapBuilderProps) {
   };
 
   return (
-    <div className="max-w-screen-2xl mx-auto p-4 bg-gray-50 min-h-screen select-none">
-      <div className="flex justify-between items-center mb-6 bg-white p-4 shadow rounded border">
+    <div className="max-w-screen-2xl mx-auto p-4 bg-canvas min-h-screen select-none">
+      <div className="flex justify-between items-center mb-6 bg-canvas p-4 shadow rounded border">
         <h2 className="text-2xl font-bold flex items-center">
           <img src={placeImg} alt="Place" className="w-8 h-8 mr-2 object-contain" /> 
           จัดการผังเปิดขาย: {mapConcert.name}
@@ -105,7 +105,7 @@ export default function MapBuilder({ mapConcert, onBack }: MapBuilderProps) {
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">
-        <div className="w-full lg:w-1/4 bg-white p-4 shadow rounded border h-fit">
+        <div className="w-full lg:w-1/4 bg-canvas p-4 shadow rounded border h-fit">
           <h3 className="text-lg font-bold mb-4 border-b pb-2 flex items-center">
             <img src={paintImg} alt="Paint" className="w-6 h-6 mr-2 object-contain" /> 
             เครื่องมือจัดการโซน
@@ -113,7 +113,7 @@ export default function MapBuilder({ mapConcert, onBack }: MapBuilderProps) {
           
           <button 
             onClick={() => setIsEraserMode(true)} 
-            className={`w-full py-2 mb-4 font-bold rounded border transition-all flex items-center justify-center ${isEraserMode ? 'bg-red-500 text-white border-red-600 shadow-inner' : 'bg-white text-red-500 border-red-200 hover:bg-red-50'}`}
+            className={`w-full py-2 mb-4 font-bold rounded border transition-all flex items-center justify-center ${isEraserMode ? 'bg-red-500 text-white border-red-600 shadow-inner' : 'bg-canvas text-red-500 border-red-200 hover:bg-red-50'}`}
           >
             <img src={eraserImg} alt="Eraser" className={`w-5 h-5 mr-2 object-contain ${isEraserMode ? 'brightness-0 invert' : ''}`} /> 
             ยางลบ (ใช้ลบที่นั่งที่คลุมผิด)
@@ -124,13 +124,13 @@ export default function MapBuilder({ mapConcert, onBack }: MapBuilderProps) {
               <div 
                 key={ch.id} 
                 onClick={() => { setActiveChannelId(ch.id); setIsEraserMode(false); }} 
-                className={`p-3 border rounded cursor-pointer transition-all ${!isEraserMode && activeChannelId === ch.id ? 'border-blue-500 ring-2 ring-blue-200 shadow-md bg-blue-50' : 'border-gray-300'}`}
+                className={`p-3 border rounded cursor-pointer transition-all ${!isEraserMode && activeChannelId === ch.id ? 'border-primary ring-2 ring-blue-200 shadow-md bg-blue-50' : 'border-gray-300'}`}
               >
                 <div className="flex flex-col space-y-2">
-                  <input type="text" value={ch.name} placeholder="ชื่อโซน" onChange={(e) => { const newCh = [...channels]; newCh[idx].name = e.target.value; setChannels(newCh); }} className="p-1 border rounded w-full font-bold bg-white" />
+                  <input type="text" value={ch.name} placeholder="ชื่อโซน" onChange={(e) => { const newCh = [...channels]; newCh[idx].name = e.target.value; setChannels(newCh); }} className="p-1 border rounded w-full font-bold bg-canvas" />
                   <div className="flex gap-2">
-                    <input type="number" value={ch.price} placeholder="ราคา" onChange={(e) => { const newCh = [...channels]; newCh[idx].price = e.target.value; setChannels(newCh); }} className="p-1 border rounded w-full bg-white" />
-                    <input type="color" value={ch.color} onChange={(e) => { const newCh = [...channels]; newCh[idx].color = e.target.value; setChannels(newCh); }} className="h-8 w-12 cursor-pointer bg-white" />
+                    <input type="number" value={ch.price} placeholder="ราคา" onChange={(e) => { const newCh = [...channels]; newCh[idx].price = e.target.value; setChannels(newCh); }} className="p-1 border rounded w-full bg-canvas" />
+                    <input type="color" value={ch.color} onChange={(e) => { const newCh = [...channels]; newCh[idx].color = e.target.value; setChannels(newCh); }} className="h-8 w-12 cursor-pointer bg-canvas" />
                   </div>
                 </div>
               </div>

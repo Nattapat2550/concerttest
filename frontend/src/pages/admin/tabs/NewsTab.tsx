@@ -7,8 +7,8 @@ import calendarImg from '../../../assets/calendar.png';
 import settingsImg from '../../../assets/settings.png';
 import eraserImg from '../../../assets/eraser.png';
 
-const inputStyle = "w-full p-3.5 bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white text-sm rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200";
-const labelStyle = "block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2";
+const inputStyle = "w-full p-3.5 bg-canvas /50 border border-gray-200  text-ink  text-sm rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200";
+const labelStyle = "block text-xs font-bold text-gray-500  uppercase tracking-wider mb-2";
 
 export default function NewsTab() {
   const [news, setNews] = useState<News[]>([]);
@@ -56,11 +56,11 @@ export default function NewsTab() {
   return (
     <div className="space-y-10 w-full">
       {/* ---------------- ฟอร์มสร้างข่าวสาร ---------------- */}
-      <form onSubmit={handleCreateNews} className="bg-white dark:bg-gray-800 p-8 lg:p-10 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-none border border-gray-100 dark:border-gray-700 relative overflow-hidden w-full">
+      <form onSubmit={handleCreateNews} className="bg-canvas  p-8 lg:p-10 rounded-lg shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-none border border-gray-100  relative overflow-hidden w-full">
         <div className="absolute top-0 left-0 w-full h-2 bg-linear-to-r from-yellow-400 to-orange-500"></div>
         
-        <h3 className="text-2xl font-black mb-6 dark:text-white flex items-center gap-3">
-          <div className="p-2 bg-orange-50 dark:bg-orange-900/30 rounded-xl">
+        <h3 className="text-2xl font-black mb-6  flex items-center gap-3">
+          <div className="p-2 bg-orange-50 /30 rounded-lg">
             <img src={ideaImg} alt="News" className="w-6 h-6 object-contain" />
           </div>
           สร้างประกาศข่าวสาร
@@ -77,12 +77,12 @@ export default function NewsTab() {
           </div>
           <div className="md:col-span-2">
             <label className={labelStyle}>รูปภาพประกอบ</label>
-            <input type="file" name="image" accept="image/*" className={`${inputStyle} file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 bg-white`} />
+            <input type="file" name="image" accept="image/*" className={`${inputStyle} file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 bg-canvas`} />
           </div>
         </div>
         
         <div className="flex justify-end">
-          <button type="submit" className="flex items-center gap-2 bg-linear-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold py-3.5 px-8 rounded-xl shadow-lg shadow-orange-500/30 transition-all transform hover:-translate-y-0.5">
+          <button type="submit" className="flex items-center gap-2 bg-linear-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold py-3.5 px-8 rounded-lg shadow-lg shadow-orange-500/30 transition-all transform hover:-translate-y-0.5">
             <img src={ideaImg} className="w-5 h-5 brightness-0 invert" alt="Post" />
             โพสต์ประกาศ
           </button>
@@ -90,27 +90,27 @@ export default function NewsTab() {
       </form>
 
       {/* ---------------- รายการข่าวสาร ---------------- */}
-      <h3 className="text-2xl font-black dark:text-white flex items-center gap-3">
+      <h3 className="text-2xl font-black  flex items-center gap-3">
         <img src={calendarImg} alt="List" className="w-6 h-6 dark:invert opacity-80" />
         ข่าวสารปัจจุบัน
       </h3>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {news.map(n => (
-          <div key={n.id} className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col relative group">
+          <div key={n.id} className="bg-canvas  rounded-lg border border-gray-200  shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col relative group">
             <div className="p-6 flex-1 flex flex-col">
-              <span className="text-xs font-bold text-orange-600 dark:text-orange-400 mb-2 flex items-center gap-1.5">
+              <span className="text-xs font-bold text-orange-600  mb-2 flex items-center gap-1.5">
                 <img src={calendarImg} className="w-3 h-3 opacity-70 dark:invert" alt="Date" />
                 {new Date(n.created_at).toLocaleDateString('th-TH', { dateStyle: 'long' })}
               </span>
-              <h4 className="font-black text-xl text-gray-900 dark:text-white mb-2 line-clamp-2">{n.title}</h4>
-              <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-3 mt-auto">{n.content}</p>
+              <h4 className="font-black text-xl text-ink  mb-2 line-clamp-2">{n.title}</h4>
+              <p className="text-sm text-gray-500  line-clamp-3 mt-auto">{n.content}</p>
             </div>
-            <div className="p-4 bg-gray-50/80 dark:bg-gray-800/80 border-t border-gray-100 dark:border-gray-700 grid grid-cols-2 gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button onClick={() => setEditingNews(n)} className="flex items-center justify-center gap-2 py-2 bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/40 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 rounded-xl transition-colors font-bold text-sm">
+            <div className="p-4 bg-canvas/80 /80 border-t border-gray-100  grid grid-cols-2 gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button onClick={() => setEditingNews(n)} className="flex items-center justify-center gap-2 py-2 bg-blue-100 hover:bg-blue-200 /40 dark:hover:bg-blue-900/60 text-blue-700  rounded-lg transition-colors font-bold text-sm">
                 <img src={settingsImg} className="w-4 h-4 dark:invert" alt="Edit" /> แก้ไข
               </button>
-              <button onClick={() => handleDeleteNews(n.id)} className="flex items-center justify-center gap-2 py-2 bg-red-100 hover:bg-red-200 dark:bg-red-900/40 dark:hover:bg-red-900/60 text-red-700 dark:text-red-300 rounded-xl transition-colors font-bold text-sm">
+              <button onClick={() => handleDeleteNews(n.id)} className="flex items-center justify-center gap-2 py-2 bg-red-100 hover:bg-red-200 /40 dark:hover:bg-red-900/60 text-red-700  rounded-lg transition-colors font-bold text-sm">
                 <img src={eraserImg} className="w-4 h-4 object-contain" alt="Del" /> ลบ
               </button>
             </div>
@@ -121,10 +121,10 @@ export default function NewsTab() {
       {/* ---------------- Modal แก้ไขข่าวสาร ---------------- */}
       {editingNews && (
         <div className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <form onSubmit={handleUpdateNews} className="bg-white dark:bg-gray-800 rounded-3xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
-            <div className="sticky top-0 bg-white dark:bg-gray-800 z-10 px-8 py-5 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-              <h3 className="text-xl font-black dark:text-white flex items-center gap-3">
-                <div className="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-xl">
+          <form onSubmit={handleUpdateNews} className="bg-canvas  rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
+            <div className="sticky top-0 bg-canvas  z-10 px-8 py-5 border-b border-gray-100  flex justify-between items-center">
+              <h3 className="text-xl font-black  flex items-center gap-3">
+                <div className="p-2 bg-blue-50 /30 rounded-lg">
                   <img src={settingsImg} alt="Edit" className="w-5 h-5 object-contain dark:invert opacity-80" />
                 </div>
                 แก้ไขประกาศข่าวสาร
@@ -151,16 +151,16 @@ export default function NewsTab() {
                 </div>
                 <div>
                   <label className={labelStyle}>อัปเดตรูปภาพ (เว้นไว้หากใช้รูปเดิม)</label>
-                  <input type="file" name="image" accept="image/*" className={`${inputStyle} bg-white`} />
+                  <input type="file" name="image" accept="image/*" className={`${inputStyle} bg-canvas`} />
                 </div>
               </div>
             </div>
 
-            <div className="p-6 border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex justify-end gap-3 rounded-b-3xl">
-              <button type="button" onClick={() => setEditingNews(null)} className="px-6 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-xl font-bold hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+            <div className="p-6 border-t border-gray-100  bg-canvas /50 flex justify-end gap-3 rounded-b-3xl">
+              <button type="button" onClick={() => setEditingNews(null)} className="px-6 py-3 bg-canvas  border border-gray-300  text-gray-700  rounded-lg font-bold hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
                 ยกเลิก
               </button>
-              <button type="submit" className="px-8 py-3 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl font-bold shadow-lg shadow-blue-500/30 transition-all transform hover:-translate-y-0.5">
+              <button type="submit" className="px-8 py-3 bg-linear-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg font-bold shadow-lg shadow-blue-500/30 transition-all transform hover:-translate-y-0.5">
                 บันทึกการแก้ไข
               </button>
             </div>

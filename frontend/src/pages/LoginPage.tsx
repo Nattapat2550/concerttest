@@ -37,8 +37,8 @@ export default function LoginPage() {
 
   return (
     <div className="flex justify-center items-center min-h-[80vh]">
-      <div className="w-full max-w-md bg-white dark:bg-gray-800 p-8 rounded-lg shadow-xl border dark:border-gray-700">
-        <h2 className="text-2xl font-bold text-center mb-6 text-gray-800 dark:text-white">เข้าสู่ระบบ</h2>
+      <div className="w-full max-w-md bg-canvas  p-8 rounded-lg shadow-xl border ">
+        <h2 className="text-2xl font-bold text-center mb-6 text-gray-800 ">เข้าสู่ระบบ</h2>
         
         {/* เพิ่มเงื่อนไขเพื่อแสดงปุ่ม ยื่นคำร้องปลดแบน เมื่อ isBanned = true */}
         {error && (
@@ -54,15 +54,15 @@ export default function LoginPage() {
         
         <form onSubmit={handleLogin}>
           <div className="mb-4">
-            <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">อีเมล</label>
+            <label className="block text-gray-700  text-sm font-bold mb-2">อีเมล</label>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-              className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white" />
+              className="w-full px-3 py-2 border  rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500  " />
           </div>
           <div className="mb-4 relative">
-            <label className="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2">รหัสผ่าน</label>
+            <label className="block text-gray-700  text-sm font-bold mb-2">รหัสผ่าน</label>
             <input type={showPassword ? "text" : "password"} value={password} onChange={(e) => setPassword(e.target.value)} required
-              className="w-full px-3 py-2 border dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white" />
-            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-9 text-gray-500 dark:text-gray-400 hover:text-gray-700 text-sm">
+              className="w-full px-3 py-2 border  rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500  " />
+            <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-9 text-gray-500  hover:text-gray-700 text-sm">
               {showPassword ? 'ซ่อน' : 'แสดง'}
             </button>
           </div>
@@ -74,26 +74,26 @@ export default function LoginPage() {
                 id="remember" 
                 checked={remember} 
                 onChange={(e) => setRemember(e.target.checked)} 
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-blue-500"
               />
-              <label htmlFor="remember" className="ml-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+              <label htmlFor="remember" className="ml-2 text-sm text-gray-700  cursor-pointer">
                 จดจำการเข้าสู่ระบบ
               </label>
             </div>
-            <Link to="/reset" className="text-sm text-blue-600 hover:underline dark:text-blue-400">
+            <Link to="/reset" className="text-sm text-primary hover:underline ">
               ลืมรหัสผ่าน?
             </Link>
           </div>
 
-          <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 px-4 rounded-lg hover:bg-blue-700 transition">เข้าสู่ระบบ</button>
+          <button type="submit" className="w-full bg-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-primary-active transition">เข้าสู่ระบบ</button>
         </form>
 
         <div className="relative flex items-center justify-center w-full mt-6 mb-4">
-          <div className="border-t border-gray-300 dark:border-gray-600 w-full"></div>
-          <span className="absolute bg-white dark:bg-gray-800 px-3 text-sm text-gray-500 dark:text-gray-400">หรือ</span>
+          <div className="border-t border-gray-300  w-full"></div>
+          <span className="absolute bg-canvas  px-3 text-sm text-gray-500 ">หรือ</span>
         </div>
 
-        <button onClick={handleGoogleLogin} className="w-full flex items-center justify-center bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white font-bold py-2 px-4 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition">
+        <button onClick={handleGoogleLogin} className="w-full flex items-center justify-center bg-canvas  border border-gray-300  text-gray-700  font-bold py-2 px-4 rounded-lg hover:bg-canvas dark:hover:bg-gray-600 transition">
           <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="G" className="w-5 h-5 mr-2" />
           เข้าสู่ระบบด้วย Google
         </button>

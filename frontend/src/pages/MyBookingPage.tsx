@@ -130,7 +130,7 @@ export default function MyBookingPage() {
 
     if (config && config.bgUrl) {
       return (
-        <div className="relative mx-auto bg-cover bg-center shadow-lg rounded-xl overflow-hidden bg-white" style={{ width: config.width || 350, height: config.height || 500, backgroundImage: `url(${config.bgUrl})` }}>
+        <div className="relative mx-auto bg-cover bg-center shadow-lg rounded-lg overflow-hidden bg-canvas" style={{ width: config.width || 350, height: config.height || 500, backgroundImage: `url(${config.bgUrl})` }}>
           <div style={{ 
             position: 'absolute', 
             top: config.qr?.y || 50, 
@@ -154,11 +154,11 @@ export default function MyBookingPage() {
     }
 
     return (
-      <div className="bg-white p-6 rounded-3xl mx-auto border border-gray-200 shadow-inner w-full max-w-sm">
+      <div className="bg-canvas p-6 rounded-lg mx-auto border border-gray-200 shadow-inner w-full max-w-sm">
         <div className="flex justify-center mb-6"><QRCodeCanvas className="qr-code-canvas" value={ticket.qr_token} size={220} level="H" /></div>
         <div className="text-center space-y-2">
-          <p className="font-bold text-lg text-gray-900 line-clamp-1">{ticket.concert_name}</p>
-          <div className="inline-block bg-blue-50 text-blue-600 px-6 py-2 rounded-xl border border-blue-200 mt-2">
+          <p className="font-bold text-lg text-ink line-clamp-1">{ticket.concert_name}</p>
+          <div className="inline-block bg-blue-50 text-primary px-6 py-2 rounded-lg border border-blue-200 mt-2">
             <span className="text-sm font-bold uppercase opacity-80 mr-2">Seat:</span><span className="font-black text-2xl">{ticket.seat_code}</span>
           </div>
         </div>
@@ -169,30 +169,30 @@ export default function MyBookingPage() {
   return (
     <div className="w-full px-6 lg:px-12 py-12 min-h-[75vh]">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-10 border-b pb-6 border-outline">
-        <h2 className="text-3xl font-black text-text-main flex items-center gap-3">
-          <div className="p-3 bg-blue-50 dark:bg-blue-900/30 rounded-xl"><img src={ticketImg} className="w-6 h-6 dark:invert" alt="Ticket" /></div>
+        <h2 className="text-3xl font-black text-ink flex items-center gap-3">
+          <div className="p-3 bg-blue-50 /30 rounded-lg"><img src={ticketImg} className="w-6 h-6 dark:invert" alt="Ticket" /></div>
           ตั๋วของฉัน
         </h2>
-        <div className="flex items-center gap-4 bg-brand/10 px-5 py-3 rounded-2xl border border-brand/20">
-          <div><p className="text-xs font-bold uppercase text-text-sub">ยอดเงิน GTYCoin</p><p className="text-xl font-black text-brand">{wallet.toLocaleString()} เหรียญ</p></div>
-          <button onClick={handleTopup} className="px-4 py-2 bg-brand text-white text-sm font-bold rounded-xl hover:bg-blue-700">เติมเงิน</button>
+        <div className="flex items-center gap-4 bg-primary/10 px-5 py-3 rounded-lg border border-primary/20">
+          <div><p className="text-xs font-bold uppercase text-muted">ยอดเงิน GTYCoin</p><p className="text-xl font-black text-primary">{wallet.toLocaleString()} เหรียญ</p></div>
+          <button onClick={handleTopup} className="px-4 py-2 bg-primary text-white text-sm font-bold rounded-lg hover:bg-primary-active">เติมเงิน</button>
         </div>
       </div>
 
       {bookings.length === 0 ? (
-        <div className="bg-bg-card py-24 text-center rounded-3xl border border-outline shadow-sm">
+        <div className="bg-canvas py-24 text-center rounded-lg border border-outline shadow-sm">
           <img src={ticketImg} alt="Empty" className="w-16 h-16 mx-auto opacity-20 dark:invert mb-4" />
-          <p className="text-text-sub font-bold">คุณยังไม่มีประวัติการจองตั๋ว</p>
+          <p className="text-muted font-bold">คุณยังไม่มีประวัติการจองตั๋ว</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
           {bookings.map((b) => (
-            <div key={b.id} className="relative bg-bg-card rounded-3xl shadow-sm border border-outline flex flex-col sm:flex-row overflow-hidden">
-              <div className={`absolute left-0 top-0 w-2 h-full ${b.status === 'confirmed' ? 'bg-green-500' : (b.status === 'wait' ? 'bg-yellow-400' : 'bg-gray-500')}`}></div>
+            <div key={b.id} className="relative bg-canvas rounded-lg shadow-sm border border-outline flex flex-col sm:flex-row overflow-hidden">
+              <div className={`absolute left-0 top-0 w-2 h-full ${b.status === 'confirmed' ? 'bg-green-500' : (b.status === 'wait' ? 'bg-yellow-400' : 'bg-canvas0')}`}></div>
               
               <div className="p-6 flex-1 pl-8">
-                <h3 className={`text-xl font-black mb-2 ${b.status === 'cancelled' ? 'line-through text-text-sub' : 'text-text-main'}`}>{b.concert_name}</h3>
-                <p className="text-sm text-text-main mt-4">ที่นั่ง: <span className="font-bold text-brand">{b.seat_code}</span> | ยอดชำระ: ฿{b.price}</p>
+                <h3 className={`text-xl font-black mb-2 ${b.status === 'cancelled' ? 'line-through text-muted' : 'text-ink'}`}>{b.concert_name}</h3>
+                <p className="text-sm text-ink mt-4">ที่นั่ง: <span className="font-bold text-primary">{b.seat_code}</span> | ยอดชำระ: ฿{b.price}</p>
                 <p className={`text-xs font-bold mt-2 inline-block px-3 py-1 rounded-lg border ${
                     b.status === 'confirmed' ? 'bg-green-50 text-green-700 border-green-200' 
                     : b.status === 'wait' ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
@@ -202,15 +202,15 @@ export default function MyBookingPage() {
                 </p>
               </div>
 
-              <div className="p-6 bg-bg-main/50 border-l border-outline border-dashed flex flex-col justify-center items-center gap-2 min-w-40">
+              <div className="p-6 bg-canvas/50 border-l border-outline border-dashed flex flex-col justify-center items-center gap-2 min-w-40">
                 {b.status === 'wait' ? (
                   <>
-                    <button onClick={() => handlePayment(b.id)} className="w-full px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-xl text-sm transition">ชำระ ฿{b.price}</button>
+                    <button onClick={() => handlePayment(b.id)} className="w-full px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 font-bold rounded-lg text-sm transition">ชำระ ฿{b.price}</button>
                     <button onClick={() => handleCancel(b.id)} className="text-xs text-red-500 font-bold mt-1 hover:underline">ยกเลิก</button>
-                    <p className="text-[10px] text-gray-500 text-center mt-1 bg-gray-100 px-2 py-1 rounded-md">หมดอายุใน 10 นาที</p>
+                    <p className="text-[10px] text-gray-500 text-center mt-1 bg-gray-100 px-2 py-1 rounded-sm">หมดอายุใน 10 นาที</p>
                   </>
                 ) : b.status === 'confirmed' ? (
-                  <button onClick={() => setSelectedTicket(b)} className="w-full px-4 py-2 bg-brand/10 hover:bg-brand/20 text-brand font-bold rounded-xl text-sm border border-brand/20 transition">ดู E-Ticket</button>
+                  <button onClick={() => setSelectedTicket(b)} className="w-full px-4 py-2 bg-primary/10 hover:bg-primary/20 text-primary font-bold rounded-lg text-sm border border-primary/20 transition">ดู E-Ticket</button>
                 ) : (
                   <p className="text-sm font-bold text-gray-500 bg-gray-100 px-4 py-2 rounded-lg w-full text-center">ยกเลิก / หมดอายุ</p>
                 )}
@@ -226,7 +226,7 @@ export default function MyBookingPage() {
           
           <div className="mb-6">{renderEticket(selectedTicket)}</div>
           
-          <button onClick={handleDownloadTicket} className="px-6 py-3 bg-white text-black font-black rounded-full shadow-2xl hover:bg-gray-200 flex items-center gap-2 transition-transform active:scale-95">
+          <button onClick={handleDownloadTicket} className="px-6 py-3 bg-canvas text-black font-black rounded-full shadow-2xl hover:bg-gray-200 flex items-center gap-2 transition-transform active:scale-95">
             📥 โหลดตั๋วลงเครื่อง (Download)
           </button>
         </div>

@@ -29,9 +29,9 @@ export default function AppealPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="max-w-md w-full bg-white rounded-2xl shadow-lg p-8 border border-gray-100">
-        <h2 className="text-2xl font-bold text-center text-gray-900 mb-6">ยื่นคำร้องปลดแบน / ระงับบัญชี</h2>
+    <div className="min-h-screen bg-canvas flex items-center justify-center p-4">
+      <div className="max-w-md w-full bg-canvas rounded-lg shadow-lg p-8 border border-gray-100">
+        <h2 className="text-2xl font-bold text-center text-ink mb-6">ยื่นคำร้องปลดแบน / ระงับบัญชี</h2>
         {message && <div className="p-4 mb-4 text-sm font-semibold text-green-700 bg-green-100 rounded-lg">{message}</div>}
         {error && <div className="p-4 mb-4 text-sm font-semibold text-red-700 bg-red-100 rounded-lg">{error}</div>}
         
@@ -66,7 +66,7 @@ export default function AppealPage() {
             {loading ? 'กำลังส่งข้อมูล...' : 'ส่งคำร้องปลดแบน'}
           </button>
         </form>
-        <button onClick={() => navigate('/login')} className="mt-6 w-full text-center text-sm text-gray-500 hover:text-gray-900 transition">
+        <button onClick={() => navigate('/login')} className="mt-6 w-full text-center text-sm text-gray-500 hover:text-ink transition">
           กลับไปหน้าเข้าสู่ระบบ
         </button>
       </div>

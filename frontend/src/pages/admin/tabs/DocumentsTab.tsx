@@ -88,34 +88,34 @@ export default function DocumentsTab() {
   return (
     <div className="space-y-8">
       {/* ฟอร์มสร้าง/แก้ไข Document */}
-      <div className={`p-6 rounded-2xl shadow-sm border transition-all ${editingId ? 'bg-blue-50/50 dark:bg-blue-900/10 border-blue-500' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'}`}>
-        <h3 className="text-xl font-black mb-6 text-gray-900 dark:text-white">
+      <div className={`p-6 rounded-lg shadow-sm border transition-all ${editingId ? 'bg-blue-50/50 /10 border-primary' : 'bg-canvas  border-gray-200 '}`}>
+        <h3 className="text-xl font-black mb-6 text-ink ">
           {editingId ? `กำลังแก้ไขข้อมูล (ID: ${editingId})` : 'สร้างข้อมูล & แกลเลอรีใหม่'}
         </h3>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">หัวข้อ (Title)</label>
-            <input type="text" className="w-full bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-3 rounded-xl border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" value={form.title} onChange={e => setForm({...form, title: e.target.value})} required />
+            <label className="block text-sm font-bold text-gray-700  mb-1">หัวข้อ (Title)</label>
+            <input type="text" className="w-full bg-canvas  text-ink  p-3 rounded-lg border border-gray-200  focus:border-primary focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" value={form.title} onChange={e => setForm({...form, title: e.target.value})} required />
           </div>
           <div>
-            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">ภาพปก (Cover Image URL)</label>
-            <input type="text" className="w-full bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-3 rounded-xl border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" value={form.cover_image} onChange={e => setForm({...form, cover_image: e.target.value})} required />
+            <label className="block text-sm font-bold text-gray-700  mb-1">ภาพปก (Cover Image URL)</label>
+            <input type="text" className="w-full bg-canvas  text-ink  p-3 rounded-lg border border-gray-200  focus:border-primary focus:ring-2 focus:ring-blue-500/20 outline-none transition-all" value={form.cover_image} onChange={e => setForm({...form, cover_image: e.target.value})} required />
           </div>
           <div>
-            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">เนื้อหา (รองรับ HTML)</label>
-            <textarea className="w-full bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-3 rounded-xl border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all h-32 resize-y" value={form.description} onChange={e => setForm({...form, description: e.target.value})} required />
+            <label className="block text-sm font-bold text-gray-700  mb-1">เนื้อหา (รองรับ HTML)</label>
+            <textarea className="w-full bg-canvas  text-ink  p-3 rounded-lg border border-gray-200  focus:border-primary focus:ring-2 focus:ring-blue-500/20 outline-none transition-all h-32 resize-y" value={form.description} onChange={e => setForm({...form, description: e.target.value})} required />
           </div>
           <div>
-            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">ลิงก์รูปแกลเลอรี (คั่นด้วยเครื่องหมายคอมม่า , )</label>
-            <textarea placeholder="https://image1.jpg, https://image2.jpg" className="w-full bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white p-3 rounded-xl border border-gray-200 dark:border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all h-20 resize-y" value={form.gallery_urls} onChange={e => setForm({...form, gallery_urls: e.target.value})} />
+            <label className="block text-sm font-bold text-gray-700  mb-1">ลิงก์รูปแกลเลอรี (คั่นด้วยเครื่องหมายคอมม่า , )</label>
+            <textarea placeholder="https://image1.jpg, https://image2.jpg" className="w-full bg-canvas  text-ink  p-3 rounded-lg border border-gray-200  focus:border-primary focus:ring-2 focus:ring-blue-500/20 outline-none transition-all h-20 resize-y" value={form.gallery_urls} onChange={e => setForm({...form, gallery_urls: e.target.value})} />
           </div>
           
           <div className="flex gap-3 pt-4">
-            <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl py-3.5 transition-all shadow-lg shadow-blue-500/30">
+            <button type="submit" className="flex-1 bg-primary hover:bg-primary-active text-white font-bold rounded-lg py-3.5 transition-all shadow-lg shadow-blue-500/30">
               {editingId ? 'บันทึกการแก้ไข' : 'บันทึกข้อมูลใหม่'}
             </button>
             {editingId && (
-              <button type="button" onClick={resetForm} className="px-8 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-white font-bold rounded-xl transition-all">
+              <button type="button" onClick={resetForm} className="px-8 bg-gray-200 hover:bg-gray-300  dark:hover:bg-gray-600 text-gray-800  font-bold rounded-lg transition-all">
                 ยกเลิก
               </button>
             )}
@@ -124,30 +124,30 @@ export default function DocumentsTab() {
       </div>
 
       {/* ตารางแสดง Document ทั้งหมด */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div className="bg-canvas  rounded-lg shadow-sm border border-gray-200  overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
-            <thead className="bg-gray-50 dark:bg-gray-900/50">
+            <thead className="bg-canvas /50">
               <tr>
-                <th className="p-4 font-black text-gray-900 dark:text-white">ภาพปก</th>
-                <th className="p-4 font-black text-gray-900 dark:text-white">หัวข้อ</th>
-                <th className="p-4 font-black text-gray-900 dark:text-white">วันที่สร้าง</th>
-                <th className="p-4 font-black text-gray-900 dark:text-white text-right">จัดการ</th>
+                <th className="p-4 font-black text-ink ">ภาพปก</th>
+                <th className="p-4 font-black text-ink ">หัวข้อ</th>
+                <th className="p-4 font-black text-ink ">วันที่สร้าง</th>
+                <th className="p-4 font-black text-ink  text-right">จัดการ</th>
               </tr>
             </thead>
             <tbody>
               {docs.map(d => (
-                <tr key={d.id} className={`border-t border-gray-200 dark:border-gray-700 transition-colors ${editingId === d.id ? 'bg-blue-50/50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'}`}>
+                <tr key={d.id} className={`border-t border-gray-200  transition-colors ${editingId === d.id ? 'bg-blue-50/50 /20' : 'hover:bg-canvas dark:hover:bg-gray-800/50'}`}>
                   <td className="p-4">
-                    <img src={d.cover_image} alt="cover" className="w-16 h-12 object-cover rounded-md border border-gray-200 dark:border-gray-700" />
+                    <img src={d.cover_image} alt="cover" className="w-16 h-12 object-cover rounded-sm border border-gray-200 " />
                   </td>
-                  <td className="p-4 font-bold text-gray-900 dark:text-white">{d.title}</td>
-                  <td className="p-4 text-gray-500 dark:text-gray-400 text-sm">{new Date(d.created_at).toLocaleDateString('th-TH')}</td>
+                  <td className="p-4 font-bold text-ink ">{d.title}</td>
+                  <td className="p-4 text-gray-500  text-sm">{new Date(d.created_at).toLocaleDateString('th-TH')}</td>
                   <td className="p-4 text-right space-x-2">
-                    <button onClick={() => handleEdit(d)} className="text-blue-600 hover:text-blue-700 font-bold bg-blue-50 hover:bg-blue-100 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 px-4 py-2 rounded-lg transition-colors">
+                    <button onClick={() => handleEdit(d)} className="text-primary hover:text-blue-700 font-bold bg-blue-50 hover:bg-blue-100 /10 dark:hover:bg-primary/20 px-4 py-2 rounded-lg transition-colors">
                       แก้ไข
                     </button>
-                    <button onClick={() => handleDelete(d.id)} className="text-red-500 hover:text-red-600 font-bold bg-red-50 hover:bg-red-100 dark:bg-red-500/10 dark:hover:bg-red-500/20 px-4 py-2 rounded-lg transition-colors">
+                    <button onClick={() => handleDelete(d.id)} className="text-red-500 hover:text-red-600 font-bold bg-red-50 hover:bg-red-100 /10 dark:hover:bg-red-500/20 px-4 py-2 rounded-lg transition-colors">
                       ลบ
                     </button>
                   </td>
@@ -155,7 +155,7 @@ export default function DocumentsTab() {
               ))}
               {docs.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="p-8 text-center text-gray-500 dark:text-gray-400 font-medium">ไม่มีข้อมูล</td>
+                  <td colSpan={4} className="p-8 text-center text-gray-500  font-medium">ไม่มีข้อมูล</td>
                 </tr>
               )}
             </tbody>

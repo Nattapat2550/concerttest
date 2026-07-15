@@ -94,20 +94,20 @@ export default function ScanTicketTab() {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 max-w-2xl mx-auto mt-6">
+    <div className="bg-canvas  p-8 rounded-lg shadow-sm border border-gray-200  max-w-2xl mx-auto mt-6">
       <div className="text-center mb-8">
-        <h2 className="text-3xl font-black text-gray-800 dark:text-white mb-2">Ticket Scanner</h2>
-        <p className="text-gray-500 dark:text-gray-400">ระบบตรวจสอบและตัดบัตรเข้างาน</p>
+        <h2 className="text-3xl font-black text-gray-800  mb-2">Ticket Scanner</h2>
+        <p className="text-gray-500 ">ระบบตรวจสอบและตัดบัตรเข้างาน</p>
       </div>
 
       {/* ปุ่มสลับโหมดการแสกน */}
-      <div className="flex bg-gray-100 dark:bg-gray-900 p-1 rounded-xl mb-8">
+      <div className="flex bg-gray-100  p-1 rounded-lg mb-8">
         <button
           onClick={() => { setScanMode('laser'); setMessage(null); }}
           className={`flex-1 py-3 rounded-lg font-bold text-sm transition-all ${
             scanMode === 'laser' 
-              ? 'bg-white dark:bg-gray-800 shadow text-blue-600 dark:text-blue-400' 
-              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+              ? 'bg-canvas  shadow text-primary ' 
+              : 'text-gray-500 hover:text-gray-700  dark:hover:text-gray-200'
           }`}
         >
           🔫 ใช้เครื่องแสกน USB
@@ -116,8 +116,8 @@ export default function ScanTicketTab() {
           onClick={() => { setScanMode('camera'); setMessage(null); }}
           className={`flex-1 py-3 rounded-lg font-bold text-sm transition-all ${
             scanMode === 'camera' 
-              ? 'bg-white dark:bg-gray-800 shadow text-blue-600 dark:text-blue-400' 
-              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+              ? 'bg-canvas  shadow text-primary ' 
+              : 'text-gray-500 hover:text-gray-700  dark:hover:text-gray-200'
           }`}
         >
           📷 ใช้กล้อง (มือถือ/Webcam)
@@ -128,7 +128,7 @@ export default function ScanTicketTab() {
       {scanMode === 'laser' && (
         <form onSubmit={handleManualSubmit} className="flex flex-col gap-6 animate-fade-in">
           <div>
-            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 text-center">
+            <label className="block text-sm font-bold text-gray-700  mb-2 text-center">
               คลิกที่ช่องด้านล่าง แล้วยิงเครื่องแสกน QR Code
             </label>
             <input
@@ -137,14 +137,14 @@ export default function ScanTicketTab() {
               value={token}
               onChange={(e) => setToken(e.target.value)}
               placeholder="รอรับรหัสจากการแสกน..."
-              className="w-full p-4 text-center text-lg border-2 border-blue-200 dark:border-blue-900/50 rounded-xl bg-blue-50/50 dark:bg-gray-900 text-gray-900 dark:text-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/20 outline-none transition-all"
+              className="w-full p-4 text-center text-lg border-2 border-blue-200 /50 rounded-lg bg-blue-50/50  text-ink  focus:border-primary focus:ring-4 focus:ring-blue-500/20 outline-none transition-all"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading || !token.trim()}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-4 rounded-xl transition-colors disabled:opacity-50 text-lg shadow-lg shadow-blue-500/30"
+            className="w-full bg-primary hover:bg-primary-active text-white font-bold py-4 px-4 rounded-lg transition-colors disabled:opacity-50 text-lg shadow-lg shadow-blue-500/30"
           >
             {loading ? 'กำลังตรวจสอบ...' : 'ตรวจสอบรหัส'}
           </button>
@@ -154,17 +154,17 @@ export default function ScanTicketTab() {
       {/* โหมดใช้กล้องมือถือ / Webcam */}
       {/* ⚠️ การแก้ไข: ใช้ CSS ซ่อน (display: none) แทนการลบ Component เพื่อป้องกัน clear() ทำงานพลาด */}
       <div className={`flex flex-col items-center animate-fade-in ${scanMode === 'camera' ? 'block' : 'hidden'}`}>
-        <div className="w-full max-w-sm rounded-2xl overflow-hidden border-2 border-blue-200 dark:border-blue-900 shadow-inner bg-slate-900">
-          <div id="qr-reader" className="w-full bg-white"></div>
+        <div className="w-full max-w-sm rounded-lg overflow-hidden border-2 border-blue-200  shadow-inner bg-slate-900">
+          <div id="qr-reader" className="w-full bg-canvas"></div>
         </div>
-        <p className="mt-4 text-sm text-gray-500 dark:text-gray-400 font-medium text-center">
+        <p className="mt-4 text-sm text-gray-500  font-medium text-center">
           อนุญาตการเข้าถึงกล้อง แล้วนำ QR Code มาส่องในกรอบ
         </p>
       </div>
 
       {/* กล่องแสดงผลลัพธ์การแสกน */}
       {message && scanMode === 'laser' && (
-        <div className={`mt-8 p-6 rounded-2xl font-bold text-center text-xl animate-fade-in-up border-2 ${
+        <div className={`mt-8 p-6 rounded-lg font-bold text-center text-xl animate-fade-in-up border-2 ${
           message.type === 'success' 
             ? 'bg-green-50 text-green-700 border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.2)]' 
             : 'bg-red-50 text-red-700 border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.2)]'

@@ -42,11 +42,11 @@ export default function AppealsTab() {
   if (loading) return <div className="text-center py-10">กำลังโหลด...</div>;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+    <div className="bg-canvas  rounded-lg shadow-sm border border-gray-200  overflow-hidden">
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse min-w-200">
           <thead>
-            <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+            <tr className="bg-canvas  border-b border-gray-200 ">
               <th className="p-4 font-semibold w-1/4">อีเมล</th>
               <th className="p-4 font-semibold w-2/5">เหตุผลการอุทธรณ์</th>
               <th className="p-4 font-semibold">วันที่ส่ง</th>
@@ -56,7 +56,7 @@ export default function AppealsTab() {
           </thead>
           <tbody>
             {appeals.map((appeal) => (
-              <tr key={appeal.id} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition">
+              <tr key={appeal.id} className="border-b border-gray-100  hover:bg-canvas dark:hover:bg-gray-800/50 transition">
                 <td className="p-4">{appeal.email}</td>
                 <td className="p-4 wrap-break-word">{appeal.reason}</td>
                 <td className="p-4">{new Date(appeal.created_at).toLocaleString('th-TH')}</td>

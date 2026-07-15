@@ -124,18 +124,18 @@ export default function ConcertBookPage() {
     return <WaitingRoom myTicket={myTicket} currentTicket={currentTicket} />;
   }
 
-  if (!concert) return <div className="text-center p-20 text-xl font-bold dark:text-white">กำลังโหลดข้อมูลแผนผังที่นั่ง...</div>;
+  if (!concert) return <div className="text-center p-20 text-xl font-bold ">กำลังโหลดข้อมูลแผนผังที่นั่ง...</div>;
 
   return (
-    <div className="w-full max-w-7xl mx-auto p-4 md:p-6 mt-2 md:mt-6 bg-white dark:bg-gray-800 rounded-none md:rounded-2xl shadow-none md:shadow-xl border-none md:border dark:border-gray-700 select-none pb-36 md:pb-6 animate-fade-in overflow-hidden">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6 border-b dark:border-gray-700 pb-4">
+    <div className="w-full max-w-7xl mx-auto p-4 md:p-6 mt-2 md:mt-6 bg-canvas  rounded-none md:rounded-lg shadow-none md:shadow-xl border-none md:border  select-none pb-36 md:pb-6 animate-fade-in overflow-hidden">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6 border-b  pb-4">
         <div className="w-full wrap-break-word">
-          <h2 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white leading-tight">{concert.name}</h2>
+          <h2 className="text-2xl md:text-3xl font-black text-ink  leading-tight">{concert.name}</h2>
           <p className="text-sm md:text-base text-gray-500 font-bold mt-1">📍 สถานที่: {concert.venue_name || concert.venue}</p>
         </div>
       </div>
 
-      <div className="w-full relative rounded-xl overflow-hidden border dark:border-gray-700">
+      <div className="w-full relative rounded-lg overflow-hidden border ">
         <InteractiveSeatMap 
           concertId={id} /* 🌟 เพิ่มบรรทัดนี้ เพื่อส่ง ID ไปให้ WebSocket ทำงาน */
           svgContent={svgContent}
@@ -147,33 +147,33 @@ export default function ConcertBookPage() {
         />
       </div>
 
-      <div className="flex flex-wrap gap-3 md:gap-4 justify-center mt-6 text-xs md:text-sm font-bold dark:text-gray-300 px-2">
+      <div className="flex flex-wrap gap-3 md:gap-4 justify-center mt-6 text-xs md:text-sm font-bold  px-2">
          <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-gray-400 rounded-full"></div> ที่นั่งโซนต่างๆ</span>
-         <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-white border-2 border-red-500 rounded-full"></div> กำลังเลือก</span>
+         <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-canvas border-2 border-red-500 rounded-full"></div> กำลังเลือก</span>
          <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-[#eab308] rounded-full"></div> รอชำระเงิน</span>
          <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-red-500 rounded-full"></div> ถูกจองแล้ว</span>
       </div>
 
-      <div className="fixed md:static bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md dark:bg-gray-900/95 md:bg-blue-50 md:dark:bg-gray-900 p-4 md:p-6 md:rounded-xl flex flex-row justify-between items-center border-t md:border border-gray-200 dark:border-gray-700 md:border-blue-200 mt-0 md:mt-6 shadow-[0_-10px_30px_rgba(0,0,0,0.1)] md:shadow-md transition-all">
+      <div className="fixed md:static bottom-0 left-0 right-0 z-50 bg-canvas/95 backdrop-blur-md /95 md:bg-blue-50 md: p-4 md:p-6 md:rounded-lg flex flex-row justify-between items-center border-t md:border border-gray-200  md:border-blue-200 mt-0 md:mt-6 shadow-[0_-10px_30px_rgba(0,0,0,0.1)] md:shadow-md transition-all">
         <div className="flex flex-col flex-1 truncate pr-2">
-          <p className="hidden md:block text-gray-600 dark:text-gray-400 font-bold text-sm">ที่นั่งที่กำลังเลือก</p>
-          <h3 className="text-base md:text-2xl font-black text-gray-900 dark:text-white truncate">
+          <p className="hidden md:block text-gray-600  font-bold text-sm">ที่นั่งที่กำลังเลือก</p>
+          <h3 className="text-base md:text-2xl font-black text-ink  truncate">
              {selectedSeat ? (
                <>โซน {selectedSeat.zone_name} <span className="text-red-500 mx-1">|</span> {selectedSeat.seat_code}</>
              ) : (
                <span className="text-gray-400 text-sm md:text-lg font-normal">ยังไม่ได้เลือกที่นั่ง</span>
              )}
           </h3>
-          <p className="mt-0 md:mt-1 text-xs md:text-base dark:text-gray-300">รวม: <span className="font-black text-green-600 dark:text-green-400 text-base md:text-xl">฿{selectedSeat ? selectedSeat.price : '0'}</span></p>
+          <p className="mt-0 md:mt-1 text-xs md:text-base ">รวม: <span className="font-black text-green-600  text-base md:text-xl">฿{selectedSeat ? selectedSeat.price : '0'}</span></p>
         </div>
         
         <button 
           onClick={handleBook} 
           disabled={!selectedSeat || isBooking} 
-          className={`shrink-0 px-5 md:px-12 py-3 md:py-4 rounded-xl font-black text-white text-sm md:text-lg transition-all duration-300 ${
+          className={`shrink-0 px-5 md:px-12 py-3 md:py-4 rounded-lg font-black text-white text-sm md:text-lg transition-all duration-300 ${
             selectedSeat && !isBooking
             ? 'bg-green-600 hover:bg-green-700 active:scale-95 md:hover:scale-105 shadow-lg shadow-green-500/30 cursor-pointer' 
-            : 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed opacity-70'
+            : 'bg-gray-400  cursor-not-allowed opacity-70'
           }`}
         >
           {isBooking ? 'รอสักครู่...' : 'ยืนยันจอง'}

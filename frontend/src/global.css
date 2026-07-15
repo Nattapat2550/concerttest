@@ -1,73 +1,53 @@
-/* src/global.css */
 @import "tailwindcss";
 
 @variant dark (&:where(.dark, .dark *));
 
 @theme {
-  /* 1. กำหนดชุดสี Raw Colors ตาม Palette ของคุณ */
-  --color-wisteria: #d1a1ed;
-  --color-pastel-petal: #ffc7dc;
-  --color-baby-pink: #ffadcb;
-  --color-icy-blue: #bde0ff;
-  --color-sky-blue: #a3d3ff;
+  --color-primary: #141413;
+  --color-canvas: #F3F0EE;
+  --color-lifted: #FCFBFA;
+  --color-signal: #CF4500;
+  --color-ink: #141413;
+  --color-muted: #696969;
   
-  --color-purple-x11: #a200ff;
-  --color-hot-fuchsia: #ff005e;
-  --color-neon-pink: #ff2d7a;
-  --color-cool-sky: #4ca8f9;
-  --color-azure-blue: #0084ff;
+  --font-sans: "Sofia Sans", "Inter", sans-serif;
 
-  /* 2. สร้าง Semantic Colors สำหรับนำไปใช้ใน Class ของ Tailwind */
-  --color-bg-main: var(--theme-bg-main);
-  --color-bg-card: var(--theme-bg-card);
-  --color-text-main: var(--theme-text-main);
-  --color-text-sub: var(--theme-text-sub);
-  --color-brand: var(--theme-brand);
-  --color-brand-hover: var(--theme-brand-hover);
-  --color-outline: var(--theme-outline);
+  --radius-sm: 8px;
+  --radius-md: 20px;
+  --radius-lg: 40px;
+  --radius-full: 9999px;
+  
+  --shadow-deep: rgba(0,0,0,0.08) 0px 24px 48px;
 }
 
 @layer base {
-  :root {
-    /* --------------------------------------
-       Light Theme (ใช้ชุดสี Light ของคุณ) 
-       -------------------------------------- */
-    --theme-bg-main: #f8fafc;        /* พื้นหลังหน้าเว็บ */
-    --theme-bg-card: #ffffff;        /* พื้นหลังการ์ดเนื้อหา */
-    --theme-text-main: #0f172a;      /* ตัวอักษรสีเข้มให้อ่านง่าย */
-    --theme-text-sub: #475569;       /* ตัวอักษรรอง */
-    
-    --theme-brand: var(--color-wisteria);        
-    --theme-brand-hover: var(--color-baby-pink); 
-    --theme-outline: var(--color-icy-blue);      
-  }
-
-  .dark {
-    /* --------------------------------------
-       Dark Theme (ใช้ชุดสี Dark ของคุณ) 
-       -------------------------------------- */
-    --theme-bg-main: #000000;               /* พื้นหลังหน้าเว็บสีดำสนิท */
-    --theme-bg-card: #111827;               /* การ์ดสีเทาเข้มให้ดูมีมิติ */
-    --theme-text-main: #f8fafc;             /* ตัวอักษรสีสว่าง */
-    --theme-text-sub: var(--color-sky-blue);/* อักษรรองใช้สีฟ้าจากชุด Light ให้อ่านง่าย */
-
-    --theme-brand: var(--color-purple-x11);
-    --theme-brand-hover: var(--color-hot-fuchsia);
-    --theme-outline: var(--color-azure-blue);
-  }
-
   body {
-    /* บังคับให้ทั้งเว็บใช้สีพื้นหลังและสีตัวอักษรที่เราตั้งไว้ด้านบนเสมอ */
-    @apply bg-bg-main text-text-main antialiased transition-colors duration-300;
-    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
-    letter-spacing: -0.015em;
+    @apply bg-canvas text-ink antialiased;
+    font-family: var(--font-sans);
+    font-weight: 450;
   }
+  h1, h2, h3 {
+    letter-spacing: -0.02em;
+  }
+}
 
-  /* Apple Studio Glassmorphism Utilities */
-  .apple-glass {
-    @apply bg-white/70 backdrop-blur-xl border border-white/40 shadow-sm;
-  }
-  .dark .apple-glass {
-    @apply bg-black/50 backdrop-blur-xl border border-white/10 shadow-md;
-  }
+/* SweetAlert2 Mastercard Styles */
+.swal2-popup {
+  background-color: var(--color-lifted) !important;
+  border-radius: var(--radius-lg) !important;
+  font-family: var(--font-sans) !important;
+  color: var(--color-ink) !important;
+  box-shadow: var(--shadow-deep) !important;
+}
+.swal2-confirm {
+  background-color: var(--color-ink) !important;
+  color: var(--color-canvas) !important;
+  border-radius: var(--radius-md) !important;
+  font-weight: 500 !important;
+  padding: 12px 32px !important;
+}
+.swal2-cancel {
+  background-color: transparent !important;
+  color: var(--color-ink) !important;
+  font-weight: 500 !important;
 }
