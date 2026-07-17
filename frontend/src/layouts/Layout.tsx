@@ -1,6 +1,8 @@
 // frontend/src/layouts/Layout.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { logout } from '../store/slices/authSlice';
 import api from '../services/api'; // เพิ่ม import api
 import NewsPopup from '../components/NewsPopup';
 
@@ -13,6 +15,7 @@ import darkImg from '../assets/dark.png';
 
 export default function Layout() {
  const location = useLocation();
+ const dispatch = useDispatch<any>();
  const token = localStorage.getItem('token');
  
  const [user, setUser] = useState<any>(null);
@@ -85,9 +88,11 @@ export default function Layout() {
  }, [location.pathname]);
 
  const handleLogout = () => {
+ dispatch(logout()).finally(() => {
  localStorage.removeItem('token');
  localStorage.removeItem('user');
  window.location.href = '/login';
+ });
  };
 
  const isActive = (path: string) => location.pathname.includes(path) ? "text-primary font-black" : "text-muted hover:text-primary font-medium transition-colors";
