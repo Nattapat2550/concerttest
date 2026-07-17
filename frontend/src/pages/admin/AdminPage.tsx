@@ -24,79 +24,79 @@ import ideaImg from '../../assets/idea.png';
 import settingsImg from '../../assets/settings.png'; 
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState('bookings'); 
-  const [mapConcert, setMapConcert] = useState<Concert | null>(null);
+ const [activeTab, setActiveTab] = useState('bookings'); 
+ const [mapConcert, setMapConcert] = useState<Concert | null>(null);
 
-  if (mapConcert) {
-    return <MapBuilder mapConcert={mapConcert} onBack={() => setMapConcert(null)} />;
-  }
+ if (mapConcert) {
+ return <MapBuilder mapConcert={mapConcert} onBack={() => setMapConcert(null)} />;
+ }
 
-  return (
-    // ใช้ w-full แบบไร้ขอบด้านข้าง ประหยัดพื้นที่ขั้นสุด
-    <div className="w-full min-h-screen bg-canvas  p-4 sm:p-6 lg:p-8 transition-colors duration-300">
-      <div className="bg-canvas  rounded-lg shadow-sm border border-gray-200  overflow-hidden">
-        
-        {/* Header Section */}
-        <div className="p-6 border-b border-gray-200  bg-canvas  sticky top-0 z-10">
-          <h2 className="text-3xl font-black text-ink  flex items-center gap-3">
-            <img src={settingsImg} alt="Admin" className="w-8 h-8 dark:invert opacity-80" />
-            Admin Dashboard
-          </h2>
-          
-          {/* Tabs Navigation */}
-          <div className="flex flex-wrap gap-2 mt-6">
-            <TabButton icon={placeImg} id="venues" label="จัดการสถานที่ (SVG Map)" active={activeTab} onClick={setActiveTab} />
-            <TabButton icon={ticketImg} id="concerts" label="จัดการคอนเสิร์ต / ผังที่นั่ง" active={activeTab} onClick={setActiveTab} />
-            <TabButton icon={calendarImg} id="bookings" label="ดูการจองตั๋ว" active={activeTab} onClick={setActiveTab} />
-            <TabButton icon={userImg} id="users" label="จัดการผู้ใช้" active={activeTab} onClick={setActiveTab} />
-            <TabButton icon={ideaImg} id="news" label="จัดการข่าวสาร" active={activeTab} onClick={setActiveTab} />
-            <TabButton icon={ticketImg} id="scan" label="แสกนบัตรเข้างาน (Scan)" active={activeTab} onClick={setActiveTab} />
-            <TabButton icon={userImg} id="appeals" label="คำร้องปลดแบน" active={activeTab} onClick={setActiveTab} />
-            
-            {/* เพิ่มปุ่มเมนูใหม่ */}
-            <TabButton icon={ideaImg} id="carousels" label="จัดการหน้าแรก (Carousel)" active={activeTab} onClick={setActiveTab} />
-            <TabButton icon={calendarImg} id="documents" label="จัดการข้อมูล/แกลเลอรี" active={activeTab} onClick={setActiveTab} />
-          </div>
-        </div>
+ return (
+ // ใช้ w-full แบบไร้ขอบด้านข้าง ประหยัดพื้นที่ขั้นสุด
+ <div className="w-full min-h-screen bg-canvas p-4 sm:p-6 lg:p-8 transition-colors duration-300">
+ <div className="bg-canvas rounded-lg shadow-sm border border-outline overflow-hidden">
+ 
+ {/* Header Section */}
+ <div className="p-6 border-b border-outline bg-canvas sticky top-0 z-10">
+ <h2 className="text-3xl font-black text-ink flex items-center gap-3">
+ <img src={settingsImg} alt="Admin" className="w-8 h-8 dark:invert opacity-80" />
+ Admin Dashboard
+ </h2>
+ 
+ {/* Tabs Navigation */}
+ <div className="flex flex-wrap gap-2 mt-6">
+ <TabButton icon={placeImg} id="venues" label="จัดการสถานที่ (SVG Map)" active={activeTab} onClick={setActiveTab} />
+ <TabButton icon={ticketImg} id="concerts" label="จัดการคอนเสิร์ต / ผังที่นั่ง" active={activeTab} onClick={setActiveTab} />
+ <TabButton icon={calendarImg} id="bookings" label="ดูการจองตั๋ว" active={activeTab} onClick={setActiveTab} />
+ <TabButton icon={userImg} id="users" label="จัดการผู้ใช้" active={activeTab} onClick={setActiveTab} />
+ <TabButton icon={ideaImg} id="news" label="จัดการข่าวสาร" active={activeTab} onClick={setActiveTab} />
+ <TabButton icon={ticketImg} id="scan" label="แสกนบัตรเข้างาน (Scan)" active={activeTab} onClick={setActiveTab} />
+ <TabButton icon={userImg} id="appeals" label="คำร้องปลดแบน" active={activeTab} onClick={setActiveTab} />
+ 
+ {/* เพิ่มปุ่มเมนูใหม่ */}
+ <TabButton icon={ideaImg} id="carousels" label="จัดการหน้าแรก (Carousel)" active={activeTab} onClick={setActiveTab} />
+ <TabButton icon={calendarImg} id="documents" label="จัดการข้อมูล/แกลเลอรี" active={activeTab} onClick={setActiveTab} />
+ </div>
+ </div>
 
-        {/* Content Area */}
-        <div className="p-6 bg-canvas/50 /30 min-h-[70vh] animate-fade-in">
-          {activeTab === 'venues' && <VenuesTab />}
-          {activeTab === 'concerts' && <ConcertsTab onOpenMapBuilder={setMapConcert} />}
-          {activeTab === 'bookings' && <BookingsTab />}
-          {activeTab === 'users' && <UsersTab />}
-          {activeTab === 'news' && <NewsTab />}
-          {activeTab === 'scan' && <ScanTicketTab />}
-          {activeTab === 'appeals' && <AppealsTab />}
-          
-          {/* แสดง Component ใหม่ตาม Tab */}
-          {activeTab === 'carousels' && <CarouselTab />}
-          {activeTab === 'documents' && <DocumentsTab />}
-        </div>
-        
-      </div>
-    </div>
-  );
+ {/* Content Area */}
+ <div className="p-6 bg-canvas/50 /30 min-h-[70vh] animate-fade-in">
+ {activeTab === 'venues' && <VenuesTab />}
+ {activeTab === 'concerts' && <ConcertsTab onOpenMapBuilder={setMapConcert} />}
+ {activeTab === 'bookings' && <BookingsTab />}
+ {activeTab === 'users' && <UsersTab />}
+ {activeTab === 'news' && <NewsTab />}
+ {activeTab === 'scan' && <ScanTicketTab />}
+ {activeTab === 'appeals' && <AppealsTab />}
+ 
+ {/* แสดง Component ใหม่ตาม Tab */}
+ {activeTab === 'carousels' && <CarouselTab />}
+ {activeTab === 'documents' && <DocumentsTab />}
+ </div>
+ 
+ </div>
+ </div>
+ );
 }
 
 // ใช้งาน Icon ร่วมกับ Tab
 function TabButton({ id, label, active, onClick, icon }: { id: string, label: string, active: string, onClick: (id: string) => void, icon: string }) {
-  const isActive = active === id;
-  return (
-    <button 
-      onClick={() => onClick(id)} 
-      className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-sm transition-all duration-200 shadow-sm border ${
-        isActive 
-          ? 'bg-primary text-white border-blue-600 shadow-blue-500/30 hover:bg-primary-active' 
-          : 'bg-canvas text-gray-600 border-gray-200 hover:bg-canvas hover:border-gray-300    dark:hover:bg-gray-700'
-      }`}
-    >
-      <img 
-        src={icon} 
-        alt={label} 
-        className={`w-5 h-5 object-contain ${isActive ? 'brightness-0 invert' : 'dark:invert opacity-70'}`} 
-      />
-      {label}
-    </button>
-  );
+ const isActive = active === id;
+ return (
+ <button 
+ onClick={() => onClick(id)} 
+ className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-sm transition-all duration-200 shadow-sm border ${
+ isActive 
+ ? 'bg-primary text-white border-blue-600 shadow-blue-500/30 hover:bg-primary-active' 
+ : 'bg-canvas text-muted border-outline hover:bg-canvas hover:border-outline dark:hover:bg-gray-700'
+ }`}
+ >
+ <img 
+ src={icon} 
+ alt={label} 
+ className={`w-5 h-5 object-contain ${isActive ? 'brightness-0 invert' : 'dark:invert opacity-70'}`} 
+ />
+ {label}
+ </button>
+ );
 }

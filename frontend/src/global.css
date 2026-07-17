@@ -9,6 +9,7 @@
   --theme-signal: #CF4500;
   --theme-ink: #141413;
   --theme-muted: #696969;
+  --theme-outline: #e5e5e5;
 }
 
 .dark {
@@ -18,6 +19,7 @@
   --theme-signal: #FF6600;
   --theme-ink: #F3F0EE;
   --theme-muted: #98989D;
+  --theme-outline: #333333;
 }
 
 @theme {
@@ -27,6 +29,7 @@
   --color-signal: var(--theme-signal);
   --color-ink: var(--theme-ink);
   --color-muted: var(--theme-muted);
+  --color-outline: var(--theme-outline);
   
   --font-sans: "Sofia Sans", "Inter", sans-serif;
 
