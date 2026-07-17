@@ -2,13 +2,31 @@
 
 @variant dark (&:where(.dark, .dark *));
 
+:root {
+  --theme-primary: #141413;
+  --theme-canvas: #F3F0EE;
+  --theme-lifted: #FCFBFA;
+  --theme-signal: #CF4500;
+  --theme-ink: #141413;
+  --theme-muted: #696969;
+}
+
+.dark {
+  --theme-primary: #FCFBFA;
+  --theme-canvas: #000000;
+  --theme-lifted: #1C1C1E;
+  --theme-signal: #FF6600;
+  --theme-ink: #F3F0EE;
+  --theme-muted: #98989D;
+}
+
 @theme {
-  --color-primary: #141413;
-  --color-canvas: #F3F0EE;
-  --color-lifted: #FCFBFA;
-  --color-signal: #CF4500;
-  --color-ink: #141413;
-  --color-muted: #696969;
+  --color-primary: var(--theme-primary);
+  --color-canvas: var(--theme-canvas);
+  --color-lifted: var(--theme-lifted);
+  --color-signal: var(--theme-signal);
+  --color-ink: var(--theme-ink);
+  --color-muted: var(--theme-muted);
   
   --font-sans: "Sofia Sans", "Inter", sans-serif;
 
@@ -22,7 +40,7 @@
 
 @layer base {
   body {
-    @apply bg-canvas text-ink antialiased;
+    @apply bg-canvas text-ink antialiased transition-colors duration-300;
     font-family: var(--font-sans);
     font-weight: 450;
   }
