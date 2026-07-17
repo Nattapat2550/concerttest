@@ -1,3 +1,4 @@
+import DOMPurify from 'dompurify';
 // frontend/src/pages/DocumentDetailsPage.tsx
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
@@ -82,7 +83,7 @@ export default function DocumentDetailsPage() {
         {/* เนื้อหา (รองรับ HTML จาก Admin) */}
         <div 
           className="prose prose-lg dark:prose-invert max-w-none mb-16 text-gray-800  leading-relaxed bg-canvas  p-8 rounded-lg border border-gray-200  shadow-sm"
-          dangerouslySetInnerHTML={{ __html: doc.description }}
+          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(doc.description) }}
         />
 
         {/* แกลเลอรี */}
@@ -96,7 +97,7 @@ export default function DocumentDetailsPage() {
                     src={url} 
                     alt={`Gallery ${idx + 1}`} 
                     className="w-full h-64 object-cover group-hover:scale-105 transition-transform duration-500" 
-                    onClick={() => window.open(url, '_blank')} 
+                    onClick={() => (String(url).startsWith('http') || String(url).startsWith('/')) ? window.open(url, '_blank') : null} 
                   />
                 </div>
               ))}
