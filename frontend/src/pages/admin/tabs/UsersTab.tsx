@@ -52,7 +52,7 @@ export default function UsersTab() {
                   {u.email}
                 </td>
                 <td className="px-6 py-5">
-                  <span className={`px-3 py-1 rounded-lg text-xs font-bold border ${u.role === 'admin' ? 'bg-purple-50 text-purple-700 border-purple-200 /30  /50' : 'bg-gray-100 text-gray-700 border-gray-200   '}`}>
+                  <span className={`px-3 py-1 rounded-lg text-xs font-bold border ${u.role === 'admin' ? 'bg-purple-50 text-purple-700 border-purple-200 /30  /50' : 'bg-gray-100 text-purple-900 border-gray-200   '}`}>
                     {u.role.toUpperCase()}
                   </span>
                 </td>

@@ -58,7 +58,7 @@ export default function HomePage() {
         <div className="absolute inset-0 bg-linear-to-br from-gray-50 to-gray-200 dark:from-gray-900 dark:to-black opacity-50"></div>
         <div className="w-full px-6 lg:px-12 2xl:px-20 py-24 lg:py-32 relative z-10 flex flex-col md:flex-row items-center justify-between gap-12">
           <div className="text-center md:text-left flex-1">
-            <span className="inline-block py-1 px-4 rounded-full bg-black/5 /10 text-sm font-semibold tracking-widest uppercase mb-6 border border-black/10 /20 text-gray-600 ">
+            <span className="inline-block py-1 px-4 rounded-full bg-zinc-950/5 /10 text-sm font-semibold tracking-widest uppercase mb-6 border border-black/10 /20 text-gray-600 ">
               The Ultimate Experience
             </span>
             <h1 className="text-5xl md:text-7xl lg:text-8xl font-semibold mb-6 leading-tight tracking-tighter">
@@ -68,7 +68,7 @@ export default function HomePage() {
             <p className="text-lg md:text-2xl text-gray-500  font-medium max-w-2xl mx-auto md:mx-0 mb-10 tracking-tight">
               ระบบจองตั๋วคอนเสิร์ตที่ล้ำสมัยที่สุด เลือกระบุที่นั่งแบบ Interactive และสัมผัสประสบการณ์ที่เหนือกว่า
             </p>
-            <Link to="/concerts" className="inline-flex items-center gap-2 bg-black  text-white  font-semibold py-4 px-10 rounded-full hover:scale-105 transition-transform duration-300">
+            <Link to="/concerts" className="inline-flex items-center gap-2 bg-zinc-950  text-white  font-semibold py-4 px-10 rounded-full hover:scale-105 transition-transform duration-300">
               ดูคอนเสิร์ตทั้งหมด <ChevronRight size={20} />
             </Link>
           </div>
@@ -105,10 +105,10 @@ export default function HomePage() {
             
             {carousels.length > 1 && (
               <>
-                <button onClick={() => setCurrentSlide(prev => (prev - 1 + carousels.length) % carousels.length)} className="absolute left-4 top-1/2 -translate-y-1/2 z-20 bg-canvas/50 hover:bg-canvas /50 dark:hover:bg-black backdrop-blur-md text-black  w-12 h-12 rounded-full transition-all flex items-center justify-center font-bold shadow-lg">
+                <button onClick={() => setCurrentSlide(prev => (prev - 1 + carousels.length) % carousels.length)} className="absolute left-4 top-1/2 -translate-y-1/2 z-20 bg-canvas/50 hover:bg-canvas /50 dark:hover:bg-zinc-950 backdrop-blur-md text-black  w-12 h-12 rounded-full transition-all flex items-center justify-center font-bold shadow-lg">
                   <ChevronLeft size={24} />
                 </button>
-                <button onClick={() => setCurrentSlide(prev => (prev + 1) % carousels.length)} className="absolute right-4 top-1/2 -translate-y-1/2 z-20 bg-canvas/50 hover:bg-canvas /50 dark:hover:bg-black backdrop-blur-md text-black  w-12 h-12 rounded-full transition-all flex items-center justify-center font-bold shadow-lg">
+                <button onClick={() => setCurrentSlide(prev => (prev + 1) % carousels.length)} className="absolute right-4 top-1/2 -translate-y-1/2 z-20 bg-canvas/50 hover:bg-canvas /50 dark:hover:bg-zinc-950 backdrop-blur-md text-black  w-12 h-12 rounded-full transition-all flex items-center justify-center font-bold shadow-lg">
                   <ChevronRight size={24} />
                 </button>
                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex gap-3">
@@ -152,12 +152,12 @@ export default function HomePage() {
                     <img src={c.layout_image_url} alt="Cover" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"/> : 
                     <div className="w-full h-full flex items-center justify-center"><span className="text-gray-400 font-medium">No Image</span></div>
                   }
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-500"></div>
+                  <div className="absolute inset-0 bg-zinc-950/0 group-hover:bg-zinc-950/10 transition-colors duration-500"></div>
                   <div className="absolute top-4 right-4 z-10">
                     {c.is_active ? (
                       <span className="bg-canvas/90 /90 backdrop-blur-md text-ink  text-xs font-semibold px-4 py-2 rounded-full shadow-sm">เปิดจองแล้ว</span>
                     ) : (
-                      <span className="bg-black/80 backdrop-blur-md text-white text-xs font-semibold px-4 py-2 rounded-full shadow-sm uppercase tracking-wider">Coming Soon</span>
+                      <span className="bg-zinc-950/80 backdrop-blur-md text-white text-xs font-semibold px-4 py-2 rounded-full shadow-sm uppercase tracking-wider">Coming Soon</span>
                     )}
                   </div>
                 </div>
@@ -180,7 +180,7 @@ export default function HomePage() {
                   </div>
                   <div className="mt-auto pt-4">
                     {c.is_active ? (
-                      <Link to={`/concerts/${c.access_code}`} className="flex justify-center items-center w-full bg-black  text-white  font-semibold py-3.5 rounded-full transition-all duration-300 hover:scale-105 shadow-sm">
+                      <Link to={`/concerts/${c.access_code}`} className="flex justify-center items-center w-full bg-zinc-950  text-white  font-semibold py-3.5 rounded-full transition-all duration-300 hover:scale-105 shadow-sm">
                         ดูรายละเอียด & จองตั๋ว
                       </Link>
                     ) : (

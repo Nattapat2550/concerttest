@@ -83,7 +83,7 @@ const App = () => {
       <div className="flex flex-col justify-center items-center min-h-screen bg-canvas  text-ink  p-6 text-center transition-colors duration-300">
         <div className="relative flex justify-center items-center mb-8">
           <div className="absolute animate-ping inline-flex h-20 w-20 rounded-full bg-blue-400 opacity-20"></div>
-          <div className="animate-spin rounded-none h-16 w-16 border-t-2 border-blue-600"></div>
+          <div className="animate-spin rounded-none h-16 w-16  border-blue-600"></div>
         </div>
         <h1 className="text-2xl md:text-3xl font-black mb-3">กำลังเชื่อมต่อกับเซิร์ฟเวอร์...</h1>
         <p className="text-gray-500  max-w-md text-sm md:text-base font-medium">

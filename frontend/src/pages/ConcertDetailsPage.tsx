@@ -87,7 +87,7 @@ export default function ConcertDetailsPage() {
             </div>
           </>
         ) : (
-          <div className="w-full h-full bg-linear-to-br from-indigo-900 via-brand to-purple-900 opacity-90"></div>
+          <div className="w-full h-full bg-linear-to-br from-slate-900 via-brand to-purple-900 opacity-90"></div>
         )}
       </div>
 
@@ -150,7 +150,7 @@ export default function ConcertDetailsPage() {
             {concert.is_active ? (
               <Link 
                 to={`/concerts/${concert.access_code}/book`} 
-                className="flex items-center justify-center bg-linear-to-r from-brand to-purple-600 hover:from-purple-600 hover:to-brand text-white font-black text-lg py-4 px-12 rounded-lg shadow-xl shadow-brand/30 hover:shadow-brand/50 transform transition-all hover:-translate-y-1 active:scale-95 w-full sm:w-auto"
+                className="flex items-center justify-center bg-linear-to-r from-brand to-purple-600 hover:from-blue-600 hover:to-brand text-white font-black text-lg py-4 px-12 rounded-lg shadow-xl shadow-brand/30 hover:shadow-brand/50 transform transition-all hover:-translate-y-1 active:scale-95 w-full sm:w-auto"
               >
                 <img src={ticketImg} alt="Ticket" className="w-6 h-6 mr-3 brightness-0 invert object-contain" />
                 จองที่นั่งทันที
