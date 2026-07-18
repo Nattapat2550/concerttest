@@ -21,6 +21,30 @@ export default function ConcertBookPage() {
  const [myTicket, setMyTicket] = useState(0);
  const [currentTicket, setCurrentTicket] = useState(0);
 
+ const uniqueZones = useMemo(() => {
+   if (!svgContent) return [];
+   try {
+     const parser = new DOMParser();
+     const doc = parser.parseFromString(svgContent, 'image/svg+xml');
+     const groups = doc.querySelectorAll('g[id]');
+     const zones = new Set<string>();
+     groups.forEach(g => {
+       const id = g.getAttribute('id');
+       // Include groups with an ID, but not individual seats
+       if (id && !id.toLowerCase().includes('seat') && g.querySelectorAll('circle, ellipse, rect, path, polygon').length > 0) {
+         zones.add(id);
+       }
+     });
+     // Fallback to configuredSeats if no groups found
+     if (zones.size === 0) {
+       configuredSeats.forEach(s => s.zone_name && zones.add(s.zone_name));
+     }
+     return Array.from(zones);
+   } catch (e) {
+     return Array.from(new Set(configuredSeats.map(s => s.zone_name))).filter(Boolean);
+   }
+ }, [svgContent, configuredSeats]);
+
  useEffect(() => {
  let queueInterval: ReturnType<typeof setInterval>;
  let seatUpdateInterval: ReturnType<typeof setInterval>;
@@ -126,30 +150,6 @@ export default function ConcertBookPage() {
  }
 
  if (!concert) return <div className="text-center p-20 text-xl font-bold ">กำลังโหลดข้อมูลแผนผังที่นั่ง...</div>;
-
- const uniqueZones = useMemo(() => {
-   if (!svgContent) return [];
-   try {
-     const parser = new DOMParser();
-     const doc = parser.parseFromString(svgContent, 'image/svg+xml');
-     const groups = doc.querySelectorAll('g[id]');
-     const zones = new Set<string>();
-     groups.forEach(g => {
-       const id = g.getAttribute('id');
-       // Include groups with an ID, but not individual seats
-       if (id && !id.toLowerCase().includes('seat') && g.querySelectorAll('circle, ellipse, rect, path, polygon').length > 0) {
-         zones.add(id);
-       }
-     });
-     // Fallback to configuredSeats if no groups found
-     if (zones.size === 0) {
-       configuredSeats.forEach(s => s.zone_name && zones.add(s.zone_name));
-     }
-     return Array.from(zones);
-   } catch (e) {
-     return Array.from(new Set(configuredSeats.map(s => s.zone_name))).filter(Boolean);
-   }
- }, [svgContent, configuredSeats]);
  
  const ZoneSelector = () => (
   <select 
