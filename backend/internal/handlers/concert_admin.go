@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -209,7 +210,10 @@ func (h *Handler) AdminDeleteConcert(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AdminSaveConcertSeats(w http.ResponseWriter, r *http.Request) {
 	concertID := chi.URLParam(r, "id")
 	var req AdminSaveSeatsRequest
-	if err := ReadJSON(r, &req); err != nil { return }
+	if err := ReadJSON(r, &req); err != nil {
+		h.writeError(w, http.StatusBadRequest, "Invalid JSON payload")
+		return
+	}
 
 	tx, err := h.ConcertDB.Begin()
 	if err != nil {
@@ -218,11 +222,40 @@ func (h *Handler) AdminSaveConcertSeats(w http.ResponseWriter, r *http.Request) 
 	}
 	defer tx.Rollback()
 
-	tx.Exec(`DELETE FROM concert_seats WHERE concert_id = $1`, concertID)
-	for _, s := range req.Seats {
-		tx.Exec(`INSERT INTO concert_seats (concert_id, seat_code, zone_name, price, color) VALUES ($1, $2, $3, $4, $5)`, concertID, s.SeatCode, s.ZoneName, s.Price, s.Color)
+	if _, err := tx.Exec(`DELETE FROM concert_seats WHERE concert_id = $1`, concertID); err != nil {
+		h.writeError(w, http.StatusInternalServerError, "Failed to delete old seats")
+		return
 	}
-	tx.Commit()
+
+	if len(req.Seats) > 0 {
+		const batchSize = 2000
+		for i := 0; i < len(req.Seats); i += batchSize {
+			end := i + batchSize
+			if end > len(req.Seats) {
+				end = len(req.Seats)
+			}
+			batch := req.Seats[i:end]
+
+			query := "INSERT INTO concert_seats (concert_id, seat_code, zone_name, price, color) VALUES "
+			vals := make([]interface{}, 0, len(batch)*5)
+			for j, s := range batch {
+				if j > 0 {
+					query += ", "
+				}
+				query += fmt.Sprintf("($%d, $%d, $%d, $%d, $%d)", j*5+1, j*5+2, j*5+3, j*5+4, j*5+5)
+				vals = append(vals, concertID, s.SeatCode, s.ZoneName, s.Price, s.Color)
+			}
+			if _, err := tx.Exec(query, vals...); err != nil {
+				h.writeError(w, http.StatusInternalServerError, "Failed to insert seats batch")
+				return
+			}
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		h.writeError(w, http.StatusInternalServerError, "Failed to commit changes")
+		return
+	}
 
 	WriteJSON(w, http.StatusOK, map[string]string{"message": "Seats configured"})
 }
