@@ -14,6 +14,7 @@ export default function ConcertBookPage() {
  const [bookedSeats, setBookedSeats] = useState<string[]>([]);
  const [waitSeats, setWaitSeats] = useState<string[]>([]); 
  const [selectedSeat, setSelectedSeat] = useState<any>(null);
+ const [focusZone, setFocusZone] = useState<string>('');
  
  const [isBooking, setIsBooking] = useState(false);
  const [queueState, setQueueState] = useState('joining');
@@ -126,59 +127,97 @@ export default function ConcertBookPage() {
 
  if (!concert) return <div className="text-center p-20 text-xl font-bold ">กำลังโหลดข้อมูลแผนผังที่นั่ง...</div>;
 
- return (
- <div className="w-full max-w-7xl mx-auto p-4 md:p-6 mt-2 md:mt-6 bg-canvas rounded-none md:rounded-lg shadow-none md:shadow-xl border-none md:border select-none pb-36 md:pb-6 animate-fade-in overflow-hidden">
- <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6 border-b pb-4">
- <div className="w-full wrap-break-word">
- <h2 className="text-2xl md:text-3xl font-black text-ink leading-tight">{concert.name}</h2>
- <p className="text-sm md:text-base text-muted font-bold mt-1">📍 สถานที่: {concert.venue_name || concert.venue}</p>
- </div>
- </div>
-
- <div className="w-full relative rounded-lg overflow-hidden border ">
- <InteractiveSeatMap 
- concertId={id} /* 🌟 เพิ่มบรรทัดนี้ เพื่อส่ง ID ไปให้ WebSocket ทำงาน */
- svgContent={svgContent}
- configuredSeats={configuredSeats}
- bookedSeats={bookedSeats}
- waitSeats={waitSeats} 
- selectedSeat={selectedSeat}
- onSeatSelect={setSelectedSeat}
- />
- </div>
-
- <div className="flex flex-wrap gap-3 md:gap-4 justify-center mt-6 text-xs md:text-sm font-bold px-2">
- <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-gray-400 rounded-full"></div> ที่นั่งโซนต่างๆ</span>
- <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-canvas border-2 border-red-500 rounded-full"></div> กำลังเลือก</span>
- <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-[#eab308] rounded-full"></div> รอชำระเงิน</span>
- <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-red-500 rounded-full"></div> ถูกจองแล้ว</span>
- </div>
-
- <div className="fixed md:static bottom-0 left-0 right-0 z-50 bg-canvas/95 backdrop-blur-md /95 md:bg-blue-50 md: p-4 md:p-6 md:rounded-lg flex flex-row justify-between items-center border-t md:border border-outline md:border-blue-200 mt-0 md:mt-6 shadow-[0_-10px_30px_rgba(0,0,0,0.1)] md:shadow-md transition-all">
- <div className="flex flex-col flex-1 truncate pr-2">
- <p className="hidden md:block text-muted font-bold text-sm">ที่นั่งที่กำลังเลือก</p>
- <h3 className="text-base md:text-2xl font-black text-ink truncate">
- {selectedSeat ? (
- <>โซน {selectedSeat.zone_name} <span className="text-red-500 mx-1">|</span> {selectedSeat.seat_code}</>
- ) : (
- <span className="text-muted text-sm md:text-lg font-normal">ยังไม่ได้เลือกที่นั่ง</span>
- )}
- </h3>
- <p className="mt-0 md:mt-1 text-xs md:text-base ">รวม: <span className="font-black text-green-600 text-base md:text-xl">฿{selectedSeat ? selectedSeat.price : '0'}</span></p>
- </div>
+ const uniqueZones = Array.from(new Set(configuredSeats.map(s => s.zone_name))).filter(Boolean);
  
- <button 
- onClick={handleBook} 
- disabled={!selectedSeat || isBooking} 
- className={`shrink-0 px-5 md:px-12 py-3 md:py-4 rounded-lg font-black text-white text-sm md:text-lg transition-all duration-300 ${
- selectedSeat && !isBooking
- ? 'bg-green-600 hover:bg-green-700 active:scale-95 md:hover:scale-105 shadow-lg shadow-green-500/30 cursor-pointer' 
- : 'bg-gray-400 cursor-not-allowed opacity-70'
- }`}
- >
- {isBooking ? 'รอสักครู่...' : 'ยืนยันจอง'}
- </button>
- </div>
- </div>
+ const ZoneSelector = () => (
+  <select 
+    value={focusZone} 
+    onChange={e => setFocusZone(e.target.value)}
+    className="px-3 py-2 border rounded-lg bg-canvas text-ink text-sm md:text-base font-bold focus:outline-none focus:ring-2 focus:ring-blue-500 w-full md:w-auto min-w-[200px]"
+  >
+    <option value="">-- เลือกโซนเพื่อซูม --</option>
+    {uniqueZones.map(z => (
+      <option key={z as string} value={z as string}>โซน {z as string}</option>
+    ))}
+  </select>
+ );
+
+  return (
+  <div className="w-full h-[100dvh] flex flex-col bg-canvas select-none overflow-hidden animate-fade-in">
+  {/* Header */}
+  <div className="w-full max-w-7xl mx-auto px-4 md:px-6 pt-4 md:pt-6 shrink-0">
+  <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-2 md:mb-4 border-b pb-2 md:pb-4">
+  <div className="w-full wrap-break-word flex justify-between items-center">
+    <div>
+      <h2 className="text-2xl md:text-3xl font-black text-ink leading-tight">{concert.name}</h2>
+      <p className="text-sm md:text-base text-muted font-bold mt-1">📍 สถานที่: {concert.venue_name || concert.venue}</p>
+    </div>
+    
+    {/* Zone Dropdown */}
+    <div className="ml-4 shrink-0 hidden md:block">
+      <ZoneSelector />
+    </div>
+  </div>
+  </div>
+  </div>
+
+  {/* Zone Select for Mobile */}
+  <div className="w-full px-4 mb-2 md:hidden shrink-0">
+    <ZoneSelector />
+  </div>
+
+  {/* Map Container */}
+  <div className="flex-1 min-h-0 w-full max-w-7xl mx-auto px-4 md:px-6 relative">
+  <div className="w-full h-full relative rounded-lg overflow-hidden border">
+  <InteractiveSeatMap 
+  concertId={id}
+  svgContent={svgContent}
+  configuredSeats={configuredSeats}
+  bookedSeats={bookedSeats}
+  waitSeats={waitSeats} 
+  selectedSeat={selectedSeat}
+  onSeatSelect={setSelectedSeat}
+  focusZone={focusZone}
+  />
+  </div>
+  </div>
+
+  {/* Legend */}
+  <div className="shrink-0 flex flex-wrap gap-3 md:gap-4 justify-center mt-3 mb-2 text-xs md:text-sm font-bold px-2">
+  <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-gray-400 rounded-full"></div> ที่นั่งโซนต่างๆ</span>
+  <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-canvas border-2 border-red-500 rounded-full"></div> กำลังเลือก</span>
+  <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-[#eab308] rounded-full"></div> รอชำระเงิน</span>
+  <span className="flex items-center gap-1"><div className="w-3 h-3 md:w-4 md:h-4 bg-red-500 rounded-full"></div> ถูกจองแล้ว</span>
+  </div>
+
+  {/* Bottom Bar */}
+  <div className="shrink-0 w-full bg-canvas/95 backdrop-blur-md md:bg-blue-50 md:p-4 p-4 flex flex-row justify-between items-center border-t border-outline md:border-t-0 shadow-[0_-10px_30px_rgba(0,0,0,0.1)] transition-all z-50">
+  <div className="max-w-7xl mx-auto w-full flex flex-row justify-between items-center">
+    <div className="flex flex-col flex-1 truncate pr-2">
+    <p className="hidden md:block text-muted font-bold text-sm">ที่นั่งที่กำลังเลือก</p>
+    <h3 className="text-base md:text-2xl font-black text-ink truncate">
+    {selectedSeat ? (
+    <>โซน {selectedSeat.zone_name} <span className="text-red-500 mx-1">|</span> {selectedSeat.seat_code}</>
+    ) : (
+    <span className="text-muted text-sm md:text-lg font-normal">ยังไม่ได้เลือกที่นั่ง</span>
+    )}
+    </h3>
+    <p className="mt-0 md:mt-1 text-xs md:text-base ">รวม: <span className="font-black text-green-600 text-base md:text-xl">฿{selectedSeat ? selectedSeat.price : '0'}</span></p>
+    </div>
+    
+    <button 
+    onClick={handleBook} 
+    disabled={!selectedSeat || isBooking} 
+    className={`shrink-0 px-5 md:px-12 py-3 md:py-4 rounded-lg font-black text-white text-sm md:text-lg transition-all duration-300 ${
+    selectedSeat && !isBooking
+    ? 'bg-green-600 hover:bg-green-700 active:scale-95 md:hover:scale-105 shadow-lg shadow-green-500/30 cursor-pointer' 
+    : 'bg-gray-400 cursor-not-allowed opacity-70'
+    }`}
+    >
+    {isBooking ? 'รอสักครู่...' : 'ยืนยันจอง'}
+    </button>
+  </div>
+  </div>
+  </div>
  );
 }

@@ -11,20 +11,43 @@ export function usePanZoom(
 
  const applyTransform = (animate = false) => {
  const svgEl = transformWrapperRef.current?.querySelector('svg');
- if (!svgEl) return;
+ const container = containerRef.current;
+ if (!svgEl || !container) return;
  
- if (animate) {
- svgEl.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
- setTimeout(() => { if(svgEl) svgEl.style.transition = 'none'; }, 300);
+ // Lock boundaries
+ const containerWidth = container.clientWidth;
+ const containerHeight = container.clientHeight;
+ 
+ const mapWidth = containerWidth * transform.current.scale;
+ const mapHeight = containerHeight * transform.current.scale;
+ 
+ if (mapWidth <= containerWidth) {
+   transform.current.x = (containerWidth - mapWidth) / 2;
  } else {
- svgEl.style.transition = 'none';
+   const minX = containerWidth - mapWidth;
+   transform.current.x = Math.max(minX, Math.min(transform.current.x, 0));
+ }
+
+ if (mapHeight <= containerHeight) {
+   transform.current.y = (containerHeight - mapHeight) / 2;
+ } else {
+   const minY = containerHeight - mapHeight;
+   transform.current.y = Math.max(minY, Math.min(transform.current.y, 0));
  }
  
- svgEl.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
+ if (animate) {
+   svgEl.style.transition = 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+   setTimeout(() => { if(svgEl) svgEl.style.transition = 'none'; }, 300);
+ } else {
+   svgEl.style.transition = 'none';
+ }
+ 
+ svgEl.style.willChange = 'transform';
+ svgEl.style.transform = `translate3d(${transform.current.x}px, ${transform.current.y}px, 0) scale(${transform.current.scale})`;
  
  const currentZoom = transform.current.scale < ZOOM_THRESHOLD ? 'low' : 'high';
  if (svgEl.getAttribute('data-zoom') !== currentZoom) {
- svgEl.setAttribute('data-zoom', currentZoom);
+   svgEl.setAttribute('data-zoom', currentZoom);
  }
  };
 
@@ -56,6 +79,12 @@ export function usePanZoom(
  transform.current.y = mouseY - (mouseY - transform.current.y) * scaleRatio;
  transform.current.scale = newScale;
  
+ if (transformWrapperRef.current) transformWrapperRef.current.style.pointerEvents = 'none';
+ if ((window as any).zoomTimeout) clearTimeout((window as any).zoomTimeout);
+ (window as any).zoomTimeout = setTimeout(() => {
+    if (transformWrapperRef.current) transformWrapperRef.current.style.pointerEvents = 'auto';
+ }, 150);
+
  if (rafRef.current) cancelAnimationFrame(rafRef.current);
  rafRef.current = requestAnimationFrame(() => applyTransform());
  setShowZoomHint(false);

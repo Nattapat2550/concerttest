@@ -21,6 +21,7 @@ interface InteractiveSeatMapProps {
  mode?: 'booking' | 'admin';
  onSeatSelect?: (seat: any) => void;
  selectedSeat?: any;
+ focusZone?: string;
 }
 
 const ZOOM_THRESHOLD = 1.2;
@@ -33,6 +34,7 @@ export default function InteractiveSeatMap({
  waitSeats = [], 
  mode = 'booking',
  onSeatSelect,
+ focusZone,
 }: InteractiveSeatMapProps) {
  const containerRef = useRef<HTMLDivElement>(null);
  const transformWrapperRef = useRef<HTMLDivElement>(null);
@@ -114,7 +116,72 @@ export default function InteractiveSeatMap({
  }
  });
 
- }, [configuredSeats, bookedSeats, combinedWaitSeats, mode]); // 🌟 อัปเดต Dependency
+ }, [configuredSeats, bookedSeats, combinedWaitSeats, mode]); 
+
+ // Zoom into focus zone
+  useEffect(() => {
+  if (!focusZone || !svgContent || seatElementsCache.current.size === 0) return;
+  const zoneSeats = configuredSeats.filter(c => c.zone_name === focusZone);
+  if (zoneSeats.length === 0) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  zoneSeats.forEach(zs => {
+    const seatData = seatElementsCache.current.get(zs.seat_code);
+    if (seatData && seatData.box) {
+      const { x, y, width, height } = seatData.box;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x + width > maxX) maxX = x + width;
+      if (y + height > maxY) maxY = y + height;
+    }
+  });
+  if (minX !== Infinity && containerRef.current && transformWrapperRef.current) {
+    const svgEl = transformWrapperRef.current.querySelector('svg');
+    if (!svgEl) return;
+    const containerW = containerRef.current.clientWidth;
+    const containerH = containerRef.current.clientHeight;
+    // get actual SVG original scale bounding box
+    const svgRect = svgEl.getBoundingClientRect();
+    const currentScale = transform.current.scale;
+    const originalSvgW = svgRect.width / currentScale;
+    
+    const boxW = maxX - minX;
+    const boxH = maxY - minY;
+    const padding = 50;
+    
+    // Calculate new scale based on original container coords vs SVG native coords
+    // Usually SVG 100% means viewbox maps to containerW.
+    const viewBox = svgEl.getAttribute('viewBox');
+    let svgNativeW = originalSvgW;
+    let svgNativeH = svgRect.height / currentScale;
+    if (viewBox) {
+       const vbParts = viewBox.split(' ');
+       svgNativeW = parseFloat(vbParts[2]);
+       svgNativeH = parseFloat(vbParts[3]);
+    }
+    
+    const scaleFactorX = containerW / svgNativeW;
+    const scaleFactorY = containerH / svgNativeH;
+    const mapScale = Math.min(scaleFactorX, scaleFactorY);
+    
+    const screenMinX = minX * mapScale;
+    const screenMinY = minY * mapScale;
+    const screenBoxW = boxW * mapScale;
+    const screenBoxH = boxH * mapScale;
+    
+    const scaleX = containerW / (screenBoxW + padding * 2);
+    const scaleY = containerH / (screenBoxH + padding * 2);
+    let newScale = Math.min(scaleX, scaleY, 6);
+    
+    const cx = screenMinX + screenBoxW / 2;
+    const cy = screenMinY + screenBoxH / 2;
+    
+    transform.current.scale = newScale;
+    transform.current.x = (containerW / 2) - (cx * newScale);
+    transform.current.y = (containerH / 2) - (cy * newScale);
+    
+    applyTransform(true);
+  }
+  }, [focusZone, configuredSeats, svgContent]);
 
  const handleMapClick = (target: EventTarget | null, clientX: number, clientY: number) => {
  if (!target) return;
@@ -193,14 +260,16 @@ export default function InteractiveSeatMap({
  const dy = e.clientY - dragState.current.startY;
  if (!dragState.current.isDragging && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) dragState.current.isDragging = true;
  if (dragState.current.isDragging) {
- transform.current.x = dragState.current.mapX + dx;
- transform.current.y = dragState.current.mapY + dy;
- if (rafRef.current) cancelAnimationFrame(rafRef.current);
- rafRef.current = requestAnimationFrame(() => applyTransform());
+  if (transformWrapperRef.current) transformWrapperRef.current.style.pointerEvents = 'none';
+  transform.current.x = dragState.current.mapX + dx;
+  transform.current.y = dragState.current.mapY + dy;
+  if (rafRef.current) cancelAnimationFrame(rafRef.current);
+  rafRef.current = requestAnimationFrame(() => applyTransform());
  }
  };
 
  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+  if (transformWrapperRef.current) transformWrapperRef.current.style.pointerEvents = 'auto';
  e.currentTarget.releasePointerCapture(e.pointerId);
  if (lassoRef.current.active) {
  if (lasso && lasso.w > 5 && lasso.h > 5) {
