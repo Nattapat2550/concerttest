@@ -14,7 +14,7 @@ import (
 
 // ===== Admin Models =====
 type AdminBookingView struct {
-	ID          int       `json:"id"`
+	ID          string    `json:"id"`
 	UserID      string    `json:"user_id"`
 	ConcertName string    `json:"concert_name"`
 	SeatCode    string    `json:"seat_code"`

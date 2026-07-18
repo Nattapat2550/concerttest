@@ -42,8 +42,7 @@ export function usePanZoom(
    svgEl.style.transition = 'none';
  }
  
- svgEl.style.willChange = 'transform';
- svgEl.style.transform = `translate3d(${transform.current.x}px, ${transform.current.y}px, 0) scale(${transform.current.scale})`;
+ svgEl.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
  
  const currentZoom = transform.current.scale < ZOOM_THRESHOLD ? 'low' : 'high';
  if (svgEl.getAttribute('data-zoom') !== currentZoom) {
