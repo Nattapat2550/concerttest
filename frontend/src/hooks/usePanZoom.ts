@@ -9,7 +9,7 @@ export function usePanZoom(
  const [showZoomHint, setShowZoomHint] = useState(false);
  const rafRef = useRef<number | null>(null);
 
- const applyTransform = (animate = false) => {
+ const applyTransform = (animate = false, isInteracting = false) => {
  const svgEl = transformWrapperRef.current?.querySelector('svg');
  const container = containerRef.current;
  if (!svgEl || !container) return;
@@ -42,7 +42,13 @@ export function usePanZoom(
    svgEl.style.transition = 'none';
  }
  
- svgEl.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
+ if (isInteracting) {
+   svgEl.style.willChange = 'transform';
+   svgEl.style.transform = `translate3d(${transform.current.x}px, ${transform.current.y}px, 0) scale(${transform.current.scale})`;
+ } else {
+   svgEl.style.willChange = 'auto';
+   svgEl.style.transform = `translate(${transform.current.x}px, ${transform.current.y}px) scale(${transform.current.scale})`;
+ }
  
  const currentZoom = transform.current.scale < ZOOM_THRESHOLD ? 'low' : 'high';
  if (svgEl.getAttribute('data-zoom') !== currentZoom) {
@@ -82,10 +88,11 @@ export function usePanZoom(
  if ((window as any).zoomTimeout) clearTimeout((window as any).zoomTimeout);
  (window as any).zoomTimeout = setTimeout(() => {
     if (transformWrapperRef.current) transformWrapperRef.current.style.pointerEvents = 'auto';
+    applyTransform(false, false);
  }, 150);
 
  if (rafRef.current) cancelAnimationFrame(rafRef.current);
- rafRef.current = requestAnimationFrame(() => applyTransform());
+ rafRef.current = requestAnimationFrame(() => applyTransform(false, true));
  setShowZoomHint(false);
  } else {
  setShowZoomHint(true);

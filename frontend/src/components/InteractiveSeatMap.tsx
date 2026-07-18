@@ -121,24 +121,40 @@ export default function InteractiveSeatMap({
  // Zoom into focus zone
   useEffect(() => {
   if (!focusZone || !svgContent || seatElementsCache.current.size === 0) return;
-  const zoneSeats = configuredSeats.filter(c => c.zone_name === focusZone);
-  if (zoneSeats.length === 0) return;
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  zoneSeats.forEach(zs => {
-    const seatData = seatElementsCache.current.get(zs.seat_code);
-    if (seatData && seatData.box) {
-      const { x, y, width, height } = seatData.box;
-      if (x < minX) minX = x;
-      if (y < minY) minY = y;
-      if (x + width > maxX) maxX = x + width;
-      if (y + height > maxY) maxY = y + height;
+    // Try to find the group by ID first
+    const group = svgEl.querySelector(`g[id="${focusZone}"]`);
+    
+    if (group) {
+       try {
+         const box = (group as any).getBBox();
+         if (box && box.width > 0) {
+           minX = box.x;
+           minY = box.y;
+           maxX = box.x + box.width;
+           maxY = box.y + box.height;
+         }
+       } catch (e) {}
+    } 
+    
+    if (minX === Infinity) {
+      // fallback to configured seats zone_name (old logic)
+      const zoneSeats = configuredSeats.filter(c => c.zone_name === focusZone);
+      if (zoneSeats.length === 0) return;
+      zoneSeats.forEach(zs => {
+        const seatData = seatElementsCache.current.get(zs.seat_code);
+        if (seatData && seatData.box) {
+          const { x, y, width, height } = seatData.box;
+          if (x < minX) minX = x;
+          if (y < minY) minY = y;
+          if (x + width > maxX) maxX = x + width;
+          if (y + height > maxY) maxY = y + height;
+        }
+      });
     }
-  });
-  if (minX !== Infinity && containerRef.current && transformWrapperRef.current) {
-    const svgEl = transformWrapperRef.current.querySelector('svg');
-    if (!svgEl) return;
-    const containerW = containerRef.current.clientWidth;
-    const containerH = containerRef.current.clientHeight;
+
+    if (minX !== Infinity && containerRef.current && transformWrapperRef.current) {
+      const containerW = containerRef.current.clientWidth;
+      const containerH = containerRef.current.clientHeight;
     // get actual SVG original scale bounding box
     const svgRect = svgEl.getBoundingClientRect();
     const currentScale = transform.current.scale;
@@ -264,13 +280,16 @@ export default function InteractiveSeatMap({
   transform.current.x = dragState.current.mapX + dx;
   transform.current.y = dragState.current.mapY + dy;
   if (rafRef.current) cancelAnimationFrame(rafRef.current);
-  rafRef.current = requestAnimationFrame(() => applyTransform());
+  rafRef.current = requestAnimationFrame(() => applyTransform(false, true));
  }
  };
 
  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-  if (transformWrapperRef.current) transformWrapperRef.current.style.pointerEvents = 'auto';
- e.currentTarget.releasePointerCapture(e.pointerId);
+  if (transformWrapperRef.current) {
+     transformWrapperRef.current.style.pointerEvents = 'auto';
+     applyTransform(true, false);
+  }
+  e.currentTarget.releasePointerCapture(e.pointerId);
  if (lassoRef.current.active) {
  if (lasso && lasso.w > 5 && lasso.h > 5) {
  const lRect = {

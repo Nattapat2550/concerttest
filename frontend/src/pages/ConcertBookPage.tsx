@@ -127,7 +127,29 @@ export default function ConcertBookPage() {
 
  if (!concert) return <div className="text-center p-20 text-xl font-bold ">กำลังโหลดข้อมูลแผนผังที่นั่ง...</div>;
 
- const uniqueZones = Array.from(new Set(configuredSeats.map(s => s.zone_name))).filter(Boolean);
+ const uniqueZones = useMemo(() => {
+   if (!svgContent) return [];
+   try {
+     const parser = new DOMParser();
+     const doc = parser.parseFromString(svgContent, 'image/svg+xml');
+     const groups = doc.querySelectorAll('g[id]');
+     const zones = new Set<string>();
+     groups.forEach(g => {
+       const id = g.getAttribute('id');
+       // Include groups with an ID, but not individual seats
+       if (id && !id.toLowerCase().includes('seat') && g.querySelectorAll('circle, ellipse, rect, path, polygon').length > 0) {
+         zones.add(id);
+       }
+     });
+     // Fallback to configuredSeats if no groups found
+     if (zones.size === 0) {
+       configuredSeats.forEach(s => s.zone_name && zones.add(s.zone_name));
+     }
+     return Array.from(zones);
+   } catch (e) {
+     return Array.from(new Set(configuredSeats.map(s => s.zone_name))).filter(Boolean);
+   }
+ }, [svgContent, configuredSeats]);
  
  const ZoneSelector = () => (
   <select 
@@ -143,7 +165,7 @@ export default function ConcertBookPage() {
  );
 
   return (
-  <div className="w-full h-[100dvh] flex flex-col bg-canvas select-none overflow-hidden animate-fade-in">
+  <div className="fixed inset-0 w-full h-[100dvh] flex flex-col bg-canvas select-none overflow-hidden animate-fade-in z-50">
   {/* Header */}
   <div className="w-full max-w-7xl mx-auto px-4 md:px-6 pt-4 md:pt-6 shrink-0">
   <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-2 md:mb-4 border-b pb-2 md:pb-4">
