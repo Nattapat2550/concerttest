@@ -34,6 +34,7 @@ export default function InteractiveSeatMap({
  waitSeats = [], 
  mode = 'booking',
  onSeatSelect,
+ selectedSeat,
  focusZone,
 }: InteractiveSeatMapProps) {
  const containerRef = useRef<HTMLDivElement>(null);
@@ -42,7 +43,7 @@ export default function InteractiveSeatMap({
  const { transform, applyTransform, handleZoom, handleReset, showZoomHint, rafRef } = usePanZoom(containerRef, transformWrapperRef, ZOOM_THRESHOLD);
  
  // 🌟 เรียกใช้ WebSocket Hook
- const { lockedSeats: wsLockedSeats, lockSeat } = useSeatWebSocket(mode === 'booking' ? concertId : undefined);
+ const { lockedSeats: wsLockedSeats, lockSeat, unlockSeat } = useSeatWebSocket(mode === 'booking' ? concertId : undefined);
 
  // 🌟 นำที่นั่งที่รอจ่าย (ระบบหลัก) และ ล็อคชั่วคราว (WS) มารวมเป็น Set เดียวกันเพื่อแสดงผลสีเหลือง (#eab308)
  const combinedWaitSeats = useMemo(() => {
@@ -106,21 +107,38 @@ export default function InteractiveSeatMap({
  seatData.node.style.pointerEvents = '';
  }
 
- // 💡 [สถานะ Wait/Lock] ให้เป็นสีเหลือง
+ // 💡 [สถานะ Wait/Lock] ใช้คลาส CSS แทนการเซ็ต style แบบ inline
  if (mode === 'booking' && waitSet.has(seatId)) {
- seatData.node.style.setProperty('fill', '#eab308', 'important');
- seatData.node.style.setProperty('opacity', '0.9', 'important');
- seatData.node.style.setProperty('stroke', '#ffffff', 'important');
- seatData.node.style.setProperty('stroke-width', '1', 'important');
- seatData.node.style.cursor = 'not-allowed';
+   seatData.node.classList.add('wait-locked');
+ } else {
+   seatData.node.classList.remove('wait-locked');
  }
  });
 
  }, [configuredSeats, bookedSeats, combinedWaitSeats, mode]); 
 
+ // 💡 เอฟเฟกต์เบาสำหรับระบายสีที่นั่งที่เลือกอยู่ เพื่อไม่ให้ต้องเรียกฟังก์ชันจัดโซนใหม่ทั้งแผนผัง
+ useEffect(() => {
+   const svgEl = transformWrapperRef.current?.querySelector('svg');
+   if (!svgEl) return;
+
+   svgEl.querySelectorAll('.smart-seat.selected').forEach(el => {
+     el.classList.remove('selected');
+   });
+
+   if (selectedSeat) {
+     const selectedEl = svgEl.querySelector(`.smart-seat[id="${selectedSeat.seat_code}"]`);
+     if (selectedEl) {
+       selectedEl.classList.add('selected');
+     }
+   }
+ }, [selectedSeat, svgContent]);
+
  // Zoom into focus zone
   useEffect(() => {
-  if (!focusZone || !svgContent || seatElementsCache.current.size === 0) return;
+  const svgEl = transformWrapperRef.current?.querySelector('svg');
+  if (!focusZone || !svgContent || seatElementsCache.current.size === 0 || !svgEl) return;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     // Try to find the group by ID first
     const group = svgEl.querySelector(`g[id="${focusZone}"]`);
     
@@ -208,20 +226,31 @@ export default function InteractiveSeatMap({
  const seatId = seat.getAttribute('id');
  if (!seatId) return;
 
- // ❌ ห้ามกดจองถ้าที่นั่งนั้นถูก Book หรือ Wait ไปแล้ว
- if (mode === 'booking' && (bookedSeats.includes(seatId) || combinedWaitSeats.includes(seatId))) return;
- 
- const config = configuredSeats.find(c => c.seat_code === seatId);
- if (mode === 'booking' && !config) return;
+  // ❌ ห้ามกดจองถ้าที่นั่งนั้นถูก Book หรือ Wait ไปแล้วโดยคนอื่น
+  if (mode === 'booking') {
+    if (selectedSeat && selectedSeat.seat_code === seatId) {
+      // ยกเลิกการเลือก
+      unlockSeat(seatId);
+      if (onSeatSelect) onSeatSelect(null);
+      return;
+    }
+    if (bookedSeats.includes(seatId) || combinedWaitSeats.includes(seatId)) return;
+  }
+  
+  const config = configuredSeats.find(c => c.seat_code === seatId);
+  if (mode === 'booking' && !config) return;
 
- // 🌟 ทันทีที่เลือก ให้ส่งสัญญาณบอกเซิร์ฟเวอร์ทำการ Lock ชั่วคราว
- if (mode === 'booking') {
- lockSeat(seatId);
- }
+  // 🌟 ทันทีที่เลือก ให้ส่งสัญญาณบอกเซิร์ฟเวอร์ทำการ Lock ชั่วคราว และ Unlock อันเก่า
+  if (mode === 'booking') {
+    if (selectedSeat) {
+      unlockSeat(selectedSeat.seat_code);
+    }
+    lockSeat(seatId);
+  }
 
- if (onSeatSelect) onSeatSelect(config || { seat_code: seatId, status: 'available' });
- return;
- }
+  if (onSeatSelect) onSeatSelect(config || { seat_code: seatId, status: 'available' });
+  return;
+  }
 
  const overlay = element.closest('.zone-overlay');
  if ((overlay || transform.current.scale < ZOOM_THRESHOLD) && containerRef.current) {

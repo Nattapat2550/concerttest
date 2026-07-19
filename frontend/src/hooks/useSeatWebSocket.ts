@@ -69,5 +69,11 @@ export function useSeatWebSocket(concertId?: string) {
  }
  }, []);
 
- return { lockedSeats: Array.from(lockedSeats), lockSeat };
+ const unlockSeat = useCallback((seatCode: string) => {
+ if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+ wsRef.current.send(JSON.stringify({ action: 'unlock', seat_code: seatCode }));
+ }
+ }, []);
+
+ return { lockedSeats: Array.from(lockedSeats), lockSeat, unlockSeat };
 }
