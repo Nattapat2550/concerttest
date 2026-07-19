@@ -34,6 +34,7 @@ export default function InteractiveSeatMap({
  waitSeats = [], 
  mode = 'booking',
  onSeatSelect,
+ selectedSeat,
  focusZone,
 }: InteractiveSeatMapProps) {
  const containerRef = useRef<HTMLDivElement>(null);
