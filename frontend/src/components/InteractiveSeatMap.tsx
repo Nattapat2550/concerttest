@@ -2,7 +2,6 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { injectMapStyles, buildVectorZones } from './seatMapUtils'; 
 import { usePanZoom } from '../hooks/usePanZoom'; 
-import { useSeatWebSocket } from '../hooks/useSeatWebSocket'; // 🌟 นำเข้า Hook
 
 interface SeatConfig {
  seat_code: string;
@@ -42,14 +41,6 @@ export default function InteractiveSeatMap({
  const [lasso, setLasso] = useState<{x: number, y: number, w: number, h: number} | null>(null); 
  const { transform, applyTransform, handleZoom, handleReset, showZoomHint, rafRef } = usePanZoom(containerRef, transformWrapperRef, ZOOM_THRESHOLD);
  
- // 🌟 เรียกใช้ WebSocket Hook
- const { lockedSeats: wsLockedSeats, lockSeat, unlockSeat } = useSeatWebSocket(mode === 'booking' ? concertId : undefined);
-
- // 🌟 นำที่นั่งที่รอจ่าย (ระบบหลัก) และ ล็อคชั่วคราว (WS) มารวมเป็น Set เดียวกันเพื่อแสดงผลสีเหลือง (#eab308)
- const combinedWaitSeats = useMemo(() => {
- return Array.from(new Set([...waitSeats, ...wsLockedSeats]));
- }, [waitSeats, wsLockedSeats]);
-
  const dragState = useRef({ isDragging: false, startX: 0, startY: 0, mapX: 0, mapY: 0, target: null as EventTarget | null });
  const lassoRef = useRef({ active: false, startX: 0, startY: 0, clientStartX: 0, clientStartY: 0 });
  const seatElementsCache = useRef(new Map<string, any>());
@@ -92,7 +83,7 @@ export default function InteractiveSeatMap({
  if (!svgEl || seatElementsCache.current.size === 0) return;
 
  const bookedSet = new Set(bookedSeats);
- const waitSet = new Set(combinedWaitSeats); // 🌟 ใช้ combinedWaitSeats แทน 
+ const waitSet = new Set(waitSeats); // 🌟 ใช้ waitSeats โดยตรงจาก DB เท่านั้น ไม่มี WS Lock แล้ว
  const configuredMap = new Map();
  configuredSeats.forEach(c => configuredMap.set(c.seat_code, c));
 
@@ -115,7 +106,7 @@ export default function InteractiveSeatMap({
  }
  });
 
- }, [configuredSeats, bookedSeats, combinedWaitSeats, mode]); 
+ }, [configuredSeats, bookedSeats, waitSeats, mode]); 
 
  // 💡 เอฟเฟกต์เบาสำหรับระบายสีที่นั่งที่เลือกอยู่ เพื่อไม่ให้ต้องเรียกฟังก์ชันจัดโซนใหม่ทั้งแผนผัง
  useEffect(() => {
@@ -136,85 +127,83 @@ export default function InteractiveSeatMap({
 
  // Zoom into focus zone
   useEffect(() => {
-  const svgEl = transformWrapperRef.current?.querySelector('svg');
-  if (!focusZone || !svgContent || seatElementsCache.current.size === 0 || !svgEl) return;
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    // Try to find the group by ID first
+    const svgEl = transformWrapperRef.current?.querySelector('svg');
+    const container = containerRef.current;
+    if (!focusZone || !svgContent || seatElementsCache.current.size === 0 || !svgEl || !container) return;
+
+    // 1. บันทึก transform ปัจจุบันไว้ก่อน
+    const oldTransform = svgEl.style.transform;
+    const oldTransition = svgEl.style.transition;
+
+    // 2. รีเซ็ต transform ชั่วคราวเพื่อให้วัดขนาดพิกัดบนหน้าจอจริง (base scale = 1) ได้อย่างแม่นยำ
+    svgEl.style.transition = 'none';
+    svgEl.style.transform = 'none';
+
+    let boxX = 0, boxY = 0, boxW = 0, boxH = 0;
+    let found = false;
+
+    // ค้นหากลุ่มของ SVG (Group ID) ตามโซนที่เลือก
     const group = svgEl.querySelector(`g[id="${focusZone}"]`);
-    
     if (group) {
-       try {
-         const box = (group as any).getBBox();
-         if (box && box.width > 0) {
-           minX = box.x;
-           minY = box.y;
-           maxX = box.x + box.width;
-           maxY = box.y + box.height;
-         }
-       } catch (e) {}
-    } 
-    
-    if (minX === Infinity) {
-      // fallback to configured seats zone_name (old logic)
-      const zoneSeats = configuredSeats.filter(c => c.zone_name === focusZone);
-      if (zoneSeats.length === 0) return;
-      zoneSeats.forEach(zs => {
-        const seatData = seatElementsCache.current.get(zs.seat_code);
-        if (seatData && seatData.box) {
-          const { x, y, width, height } = seatData.box;
-          if (x < minX) minX = x;
-          if (y < minY) minY = y;
-          if (x + width > maxX) maxX = x + width;
-          if (y + height > maxY) maxY = y + height;
-        }
-      });
+      const rect = group.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        const containerRect = container.getBoundingClientRect();
+        boxX = rect.left - containerRect.left;
+        boxY = rect.top - containerRect.top;
+        boxW = rect.width;
+        boxH = rect.height;
+        found = true;
+      }
     }
 
-    if (minX !== Infinity && containerRef.current && transformWrapperRef.current) {
-      const containerW = containerRef.current.clientWidth;
-      const containerH = containerRef.current.clientHeight;
-    // get actual SVG original scale bounding box
-    const svgRect = svgEl.getBoundingClientRect();
-    const currentScale = transform.current.scale;
-    const originalSvgW = svgRect.width / currentScale;
-    
-    const boxW = maxX - minX;
-    const boxH = maxY - minY;
-    const padding = 50;
-    
-    // Calculate new scale based on original container coords vs SVG native coords
-    // Usually SVG 100% means viewbox maps to containerW.
-    const viewBox = svgEl.getAttribute('viewBox');
-    let svgNativeW = originalSvgW;
-    let svgNativeH = svgRect.height / currentScale;
-    if (viewBox) {
-       const vbParts = viewBox.split(' ');
-       svgNativeW = parseFloat(vbParts[2]);
-       svgNativeH = parseFloat(vbParts[3]);
+    // กรณีหา Group ID ไม่พบ ให้ fallback ไปหาที่นั่งทั้งหมดในโซนนั้น แล้วคำนวณพื้นที่ครอบคลุม
+    if (!found) {
+      const zoneSeats = configuredSeats.filter(c => c.zone_name === focusZone);
+      let minLeft = Infinity, minTop = Infinity, maxRight = -Infinity, maxBottom = -Infinity;
+      zoneSeats.forEach(zs => {
+        const seatEl = svgEl.querySelector(`.smart-seat[id="${zs.seat_code}"]`);
+        if (seatEl) {
+          const rect = seatEl.getBoundingClientRect();
+          if (rect.left < minLeft) minLeft = rect.left;
+          if (rect.top < minTop) minTop = rect.top;
+          if (rect.right > maxRight) maxRight = rect.right;
+          if (rect.bottom > maxBottom) maxBottom = rect.bottom;
+        }
+      });
+      if (minLeft !== Infinity) {
+        const containerRect = container.getBoundingClientRect();
+        boxX = minLeft - containerRect.left;
+        boxY = minTop - containerRect.top;
+        boxW = maxRight - minLeft;
+        boxH = maxBottom - minTop;
+        found = true;
+      }
     }
-    
-    const scaleFactorX = containerW / svgNativeW;
-    const scaleFactorY = containerH / svgNativeH;
-    const mapScale = Math.min(scaleFactorX, scaleFactorY);
-    
-    const screenMinX = minX * mapScale;
-    const screenMinY = minY * mapScale;
-    const screenBoxW = boxW * mapScale;
-    const screenBoxH = boxH * mapScale;
-    
-    const scaleX = containerW / (screenBoxW + padding * 2);
-    const scaleY = containerH / (screenBoxH + padding * 2);
-    let newScale = Math.min(scaleX, scaleY, 6);
-    
-    const cx = screenMinX + screenBoxW / 2;
-    const cy = screenMinY + screenBoxH / 2;
-    
-    transform.current.scale = newScale;
-    transform.current.x = (containerW / 2) - (cx * newScale);
-    transform.current.y = (containerH / 2) - (cy * newScale);
-    
-    applyTransform(true);
-  }
+
+    // 3. คืนค่าการซูมแผนผังกลับไปตามเดิมทันที (ผู้ใช้จะไม่เห็นการกะพริบ)
+    svgEl.style.transform = oldTransform;
+    svgEl.style.transition = oldTransition;
+
+    if (found) {
+      const containerW = container.clientWidth;
+      const containerH = container.clientHeight;
+      const padding = 60; // เว้นขอบข้างโซน 60px
+
+      // คำนวณ Scale ใหม่เพื่อให้โซนพอดีกับหน้าจอ
+      const scaleX = containerW / (boxW + padding * 2);
+      const scaleY = containerH / (boxH + padding * 2);
+      let newScale = Math.max(1, Math.min(scaleX, scaleY, 5)); // จำกัดการซูมอยู่ระหว่าง 1 ถึง 5 เท่า
+
+      // หาจุดกึ่งกลางของโซน
+      const cx = boxX + boxW / 2;
+      const cy = boxY + boxH / 2;
+
+      transform.current.scale = newScale;
+      transform.current.x = (containerW / 2) - (cx * newScale);
+      transform.current.y = (containerH / 2) - (cy * newScale);
+
+      applyTransform(true);
+    }
   }, [focusZone, configuredSeats, svgContent]);
 
  const handleMapClick = (target: EventTarget | null, clientX: number, clientY: number) => {
@@ -226,31 +215,22 @@ export default function InteractiveSeatMap({
  const seatId = seat.getAttribute('id');
  if (!seatId) return;
 
-  // ❌ ห้ามกดจองถ้าที่นั่งนั้นถูก Book หรือ Wait ไปแล้วโดยคนอื่น
-  if (mode === 'booking') {
-    if (selectedSeat && selectedSeat.seat_code === seatId) {
-      // ยกเลิกการเลือก
-      unlockSeat(seatId);
-      if (onSeatSelect) onSeatSelect(null);
-      return;
-    }
-    if (bookedSeats.includes(seatId) || combinedWaitSeats.includes(seatId)) return;
-  }
-  
-  const config = configuredSeats.find(c => c.seat_code === seatId);
-  if (mode === 'booking' && !config) return;
+   // ❌ ห้ามกดจองถ้าที่นั่งนั้นถูก Book หรือ Wait ไปแล้วโดยคนอื่น
+   if (mode === 'booking') {
+     if (selectedSeat && selectedSeat.seat_code === seatId) {
+       // ยกเลิกการเลือก
+       if (onSeatSelect) onSeatSelect(null);
+       return;
+     }
+     if (bookedSeats.includes(seatId) || waitSeats.includes(seatId)) return;
+   }
+   
+   const config = configuredSeats.find(c => c.seat_code === seatId);
+   if (mode === 'booking' && !config) return;
 
-  // 🌟 ทันทีที่เลือก ให้ส่งสัญญาณบอกเซิร์ฟเวอร์ทำการ Lock ชั่วคราว และ Unlock อันเก่า
-  if (mode === 'booking') {
-    if (selectedSeat) {
-      unlockSeat(selectedSeat.seat_code);
-    }
-    lockSeat(seatId);
-  }
-
-  if (onSeatSelect) onSeatSelect(config || { seat_code: seatId, status: 'available' });
-  return;
-  }
+   if (onSeatSelect) onSeatSelect(config || { seat_code: seatId, status: 'available' });
+   return;
+   }
 
  const overlay = element.closest('.zone-overlay');
  if ((overlay || transform.current.scale < ZOOM_THRESHOLD) && containerRef.current) {

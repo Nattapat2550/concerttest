@@ -10,10 +10,10 @@ export const injectMapStyles = (svgEl: SVGElement, mode: string) => {
  .smart-seat { transform-box: fill-box; transform-origin: center; cursor: pointer; }
  .smart-seat { fill: var(--seat-color) !important; stroke: none !important; }
  .smart-seat:hover { filter: brightness(1.5) saturate(2); stroke: white !important; stroke-width: 2px !important; }
- .smart-seat.booked { fill: #475569 !important; opacity: 0.4 !important; pointer-events: none !important; cursor: not-allowed !important; }
  .smart-seat.unconfigured { display: ${mode === 'booking' ? 'none' : 'block'} !important; fill: #cbd5e1 !important; opacity: 0.5 !important; }
  .smart-seat.wait-locked { fill: #eab308 !important; opacity: 0.9 !important; stroke: #ffffff !important; stroke-width: 1px !important; cursor: not-allowed !important; }
  .smart-seat.selected { fill: #ffffff !important; stroke: #ef4444 !important; stroke-width: 2.5px !important; opacity: 1 !important; cursor: pointer !important; }
+ .smart-seat.booked { fill: #475569 !important; opacity: 0.4 !important; pointer-events: none !important; cursor: not-allowed !important; }
  
  .zone-overlay { transition: filter 0.2s ease; cursor: pointer; }
  .zone-sub-rect { pointer-events: auto; }

@@ -102,6 +102,15 @@ func (h *Handler) SeatWebSocketHandler(w http.ResponseWriter, r *http.Request) {
 					}
 				})
 			}
+		} else if msg.Action == "unlock" && msg.SeatCode != "" {
+			if _, ok := locks.LoadAndDelete(msg.SeatCode); ok {
+				atomic.AddInt64(&totalLockedSeats, -1)
+				unlockMsg, _ := json.Marshal(WSMessage{
+					Action:   "unlocked",
+					SeatCode: msg.SeatCode,
+				})
+				broadcastToConcert(clients, unlockMsg)
+			}
 		}
 	}
 }
